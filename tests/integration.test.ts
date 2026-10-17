@@ -133,15 +133,15 @@ test("the storyteller sends pictures, settings and the voice catalog, and reads 
       { id: "Ollie Owl", name: "Ollie the Owl", description: "a wise owl", voice_brief: "old and creaky", voice_id: OWL_VOICE },
     ],
     pages: [
-      { page: 1, picture: "An owl on a tree", lines: [{ speaker: "narrator", text: "High in the old oak sat Ollie." }, { speaker: "ollie-owl", text: "[sleepily] Hoo..." }] },
-      { page: 2, picture: "A fox", lines: [{ speaker: "mystery-guest", text: "Who goes there?" }] },
-      { page: 3, picture: "extra page the model shouldn't have added", lines: [] },
+      { page: 1, photo: 1, picture: "An owl on a tree", lines: [{ speaker: "narrator", text: "High in the old oak sat Ollie." }, { speaker: "ollie-owl", text: "[sleepily] Hoo..." }] },
+      { page: 2, photo: 2, picture: "A fox", lines: [{ speaker: "mystery-guest", text: "Who goes there?" }] },
+      { page: 3, photo: 3, picture: "extra page the model shouldn't have added", lines: [] },
     ],
   });
 
   const progress: string[] = [];
   const tinyJpeg = Buffer.from("/9j/4AAQSkZJRgABAQ==", "base64").toString("base64");
-  const script = await writeScript(
+  const { script, photoOrder } = await writeScript(
     {
       mode: "create",
       bookTitle: "The Moonlit Woods",
@@ -175,10 +175,11 @@ test("the storyteller sends pictures, settings and the voice catalog, and reads 
   const content = body.messages[0].content as { type: string; text?: string }[];
   assert.equal(content.filter((c) => c.type === "image").length, 2);
   const ask = content.at(-1)!.text!;
-  for (const expected of ["exactly 2 pages", "Mia", "Sharing", "Old Tale", "Ollie the Owl", "<voice_catalog>", "Silly & giggly"]) {
+  for (const expected of ["exactly 2 pages", "Mia", "Sharing", "Old Tale", "Ollie the Owl", "<voice_catalog>", "Silly & giggly", "Page order", "keep those names"]) {
     assert.ok(ask.includes(expected), `prompt mentions ${expected}`);
   }
 
+  assert.equal(photoOrder, null, "no reordering when the pages were already in order");
   assert.equal(script.title, "The Owl Who Borrowed the Moon");
   assert.equal(script.pages.length, 2, "pages line up with the pictures");
   assert.equal(script.cast[1].id, "ollie-owl", "speaker ids are slugged");
@@ -216,4 +217,57 @@ test("the performer sends a multi-voice dialogue and returns PCM with word timin
   );
   assert.equal(clip.words[0].speaker, "narrator");
   assert.equal(clip.words.at(-1)!.speaker, "ollie-owl");
+});
+
+test("pages photographed back to front are put back in reading order", async () => {
+  const { writeScript, photoOrderFrom } = await import("@/lib/server/storyteller");
+  const { defaultSettings } = await import("@/lib/shared/options");
+  const { applyPhotoOrder } = await import("@/lib/server/jobs");
+  const db = await import("@/lib/server/db");
+
+  const page = (n: number, photo: number) => ({ page: n, photo, picture: `page ${n}`, lines: [{ speaker: "narrator", text: `Page ${n}.` }] });
+  scriptJson = JSON.stringify({
+    title: "Back to Front",
+    synopsis: "A test.",
+    ambience: "wind",
+    cast: [{ id: "narrator", name: "Narrator", description: "", voice_brief: "", voice_id: PERSONA_VOICE }],
+    pages: [page(1, 3), page(2, 2), page(3, 1)],
+  });
+  const img = { data: Buffer.from("x").toString("base64"), mediaType: "image/jpeg" as const };
+  const req = {
+    mode: "create" as const,
+    bookTitle: "Halloween",
+    bookKind: "shadow_book" as const,
+    settings: defaultSettings({ keepNames: false }),
+    images: [img, img, img],
+    pageCount: 3,
+    previousStories: [],
+    rememberedCharacters: [],
+    voices: [{ voiceId: PERSONA_VOICE, name: "George", description: "", gender: null, age: null, accent: null, previewUrl: null, persona: null, source: "default" as const }],
+  };
+  const { photoOrder } = await writeScript(req, () => undefined);
+  assert.deepEqual(photoOrder, [3, 2, 1]);
+  const ask = (captured.filter((c) => c.url.startsWith("/v1/messages")).at(-1)!.body as any).messages[0].content.at(-1).text as string;
+  assert.ok(ask.includes("give the characters fresh new names"));
+
+  // Only complete, one-to-one orders are trusted.
+  const raw = (order: number[]) => ({ title: "", synopsis: "", ambience: "", cast: [], pages: order.map((o, i) => page(i + 1, o)) });
+  assert.equal(photoOrderFrom(raw([1, 1, 2]), req), null);
+  assert.equal(photoOrderFrom(raw([1, 2, 4]), req), null);
+  assert.equal(photoOrderFrom(raw([1, 2]), req), null);
+  assert.equal(photoOrderFrom(raw([2, 1, 3]), { ...req, settings: defaultSettings({ source: "wild" }) }), null);
+
+  // Applying it reorders the book and moves the cover to the real first page.
+  const hid = db.createHousehold("Test", `t${Date.now()}@example.com`, "x");
+  const bookId = db.createBook(hid, { title: "Halloween", kind: "shadow_book" });
+  db.replacePages(bookId, ["books/p8.jpg", "books/p7.jpg", "books/p6.jpg"]);
+  db.updateBook(hid, bookId, { coverPath: "books/p8.jpg" });
+  const sent = db.listPageRows(bookId);
+  applyPhotoOrder(hid, bookId, sent, [3, 2, 1]);
+  assert.deepEqual(db.listPageRows(bookId).map((r) => r.image_path), ["books/p6.jpg", "books/p7.jpg", "books/p8.jpg"]);
+  assert.equal(db.getBook(hid, bookId)!.coverUrl, "/api/files/books/p6.jpg");
+
+  // If the pages changed meanwhile, leave them alone.
+  applyPhotoOrder(hid, bookId, sent, [3, 2, 1]);
+  assert.deepEqual(db.listPageRows(bookId).map((r) => r.image_path), ["books/p6.jpg", "books/p7.jpg", "books/p8.jpg"]);
 });

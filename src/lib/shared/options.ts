@@ -126,6 +126,7 @@ export function defaultSettings(overrides: Partial<StorySettings> = {}): StorySe
     lesson: "",
     extra: "",
     surprise: false,
+    keepNames: true,
     description: "",
     narratorVoiceId: null,
     fullCast: true,

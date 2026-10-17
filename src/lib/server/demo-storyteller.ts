@@ -1,6 +1,5 @@
 import { wordsPerPage } from "@/lib/shared/options";
-import type { StoryScript } from "@/lib/shared/types";
-import { normalizeScript, type RawScript, type StoryRequest, type WriteProgress } from "./storyteller";
+import { normalizeScript, type RawScript, type StoryRequest, type WriteProgress, type WrittenStory } from "./storyteller";
 import { sectionText } from "./text";
 
 // A pretend storyteller for DEMO_MODE, so every screen can be explored
@@ -14,7 +13,7 @@ const FILLER = [
   "The stars leaned closer, the way stars do when a good story is being told.",
 ];
 
-export async function writeDemoScript(req: StoryRequest, onProgress: WriteProgress): Promise<StoryScript> {
+export async function writeDemoScript(req: StoryRequest, onProgress: WriteProgress): Promise<WrittenStory> {
   const narrator = req.settings.narratorVoiceId ?? req.voices[0]?.voiceId ?? "demo-narrator";
   const others = req.voices.filter((v) => v.voiceId !== narrator);
   const heroName = req.settings.heroes[0] ?? "Juniper";
@@ -22,16 +21,17 @@ export async function writeDemoScript(req: StoryRequest, onProgress: WriteProgre
   if (req.mode === "read" && req.text) {
     const sections = sectionText(req.text, 900);
     onProgress("Reading the pages", sections.length, sections.length);
-    return normalizeScript(
+    const script = normalizeScript(
       {
         title: req.bookTitle,
         synopsis: `A faithful reading of ${req.bookTitle}.`,
         ambience: "a crackling fireplace in a quiet room",
         cast: [{ id: "narrator", name: "Narrator", description: "The reader", voice_brief: "warm", voice_id: narrator }],
-        pages: sections.map((t, i) => ({ page: i + 1, picture: "", lines: [{ speaker: "narrator", text: t }] })),
+        pages: sections.map((t, i) => ({ page: i + 1, photo: 0, picture: "", lines: [{ speaker: "narrator", text: t }] })),
       },
       req,
     );
+    return { script, photoOrder: null };
   }
 
   const raw: RawScript = {
@@ -85,8 +85,8 @@ export async function writeDemoScript(req: StoryRequest, onProgress: WriteProgre
       if (i % 2 === 0) lines.push({ speaker: "hero", text: "[excitedly] Did you see that? Let's turn the page!" });
       else lines.push({ speaker: "ollie-owl", text: "[sleepily] Hoo... Patience, little one. The best part is coming." });
     }
-    raw.pages.push({ page: i + 1, picture: `Picture ${i + 1}`, lines });
+    raw.pages.push({ page: i + 1, photo: i + 1, picture: `Picture ${i + 1}`, lines });
     onProgress(req.mode === "create" ? "Writing the pages" : "Reading the pages", i + 1, req.pageCount);
   }
-  return normalizeScript(raw, req);
+  return { script: normalizeScript(raw, req), photoOrder: null };
 }

@@ -22,6 +22,7 @@ export function sanitizeSettings(input: unknown): StorySettings {
     lesson: str(i.lesson, 200),
     extra: str(i.extra, 600),
     surprise: Boolean(i.surprise),
+    keepNames: i.keepNames === undefined ? d.keepNames : Boolean(i.keepNames),
     description: str(i.description, 1500),
     narratorVoiceId: typeof i.narratorVoiceId === "string" && i.narratorVoiceId ? i.narratorVoiceId.slice(0, 64) : null,
     fullCast: i.fullCast === undefined ? d.fullCast : Boolean(i.fullCast),

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Brewing } from "@/components/Brewing";
@@ -27,16 +27,20 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
   const voices = [...extraVoices, ...(loadedVoices ?? [])];
 
   const working = story.status === "writing" || story.status === "recording";
+  const lastStatus = useRef(initial.status);
 
   const refresh = useCallback(async () => {
     const res = await api.get<{ story: Story }>(`/api/stories/${story.id}`);
+    // The storyteller may have put the book's photos in order: reload them.
+    if (lastStatus.current === "writing" && res.story.status !== "writing") router.refresh();
+    lastStatus.current = res.story.status;
     setStory(res.story);
     if (res.story.status === "draft" || res.story.status === "ready") {
       setScript((cur) => (dirty && cur ? cur : res.story.script));
       if (res.story.status === "draft") setEditing(true);
     }
     return res.story;
-  }, [api, story.id, dirty]);
+  }, [api, story.id, dirty, router]);
 
   useEffect(() => {
     if (!working) return;

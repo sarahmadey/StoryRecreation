@@ -41,6 +41,16 @@ export function PhotoPicker({
 
   return (
     <div>
+      {photos.length > 1 && (
+        <div className="row" style={{ justifyContent: "flex-end", marginBottom: 10 }}>
+          <span className="hint" style={{ margin: 0, marginRight: "auto" }}>
+            Out of order? The storyteller also reads printed page numbers and sorts them out.
+          </span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange([...photos].reverse())}>
+            ⇅ Reverse order
+          </button>
+        </div>
+      )}
       <div className="photo-grid">
         {photos.map((p, i) => (
           <div className="photo" key={p.id}>

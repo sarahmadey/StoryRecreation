@@ -3,13 +3,17 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { config } from "./config";
 import {
+  fileUrl,
   getBook,
   getStoryById,
   listBookCharacters,
   listPageRows,
   previousStoriesForBook,
   rememberCharacters,
+  replacePages,
+  updateBook,
   updateStory,
+  type PageRow,
 } from "./db";
 import { readImageForModel, storyDir } from "./files";
 import { voiceCatalog } from "./voices";
@@ -124,8 +128,10 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
       rememberedCharacters: listBookCharacters(book.id),
       voices,
     };
-    script =
+    const written =
       config.anthropicKey || !config.demoMode ? await writeScript(req, progress) : await writeDemoScript(req, progress);
+    script = written.script;
+    if (written.photoOrder) applyPhotoOrder(story.householdId, book.id, pageRows, written.photoOrder);
     if (story.mode === "read") script.title = story.title || script.title;
   }
 
@@ -138,6 +144,21 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
   });
 
   if (!s.review) return () => startRecording(storyId);
+}
+
+/**
+ * The storyteller spotted that the photos were out of order (often a book
+ * photographed back to front): put the book's pages in reading order so the
+ * player, the studio and every future story show the right picture.
+ */
+export function applyPhotoOrder(householdId: string, bookId: string, sent: PageRow[], order: number[]) {
+  const current = listPageRows(bookId);
+  // Only if nobody changed the pages while the story was being written.
+  if (current.length !== sent.length || current.some((r, i) => r.image_path !== sent[i].image_path)) return;
+  const paths = order.map((n) => sent[n - 1].image_path);
+  replacePages(bookId, paths);
+  const book = getBook(householdId, bookId);
+  if (book && book.coverUrl === fileUrl(sent[0].image_path)) updateBook(householdId, bookId, { coverPath: paths[0] });
 }
 
 // ------------------------------------------------------------ recording

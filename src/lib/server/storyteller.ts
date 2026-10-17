@@ -32,7 +32,7 @@ Shadow books
 - Shadow book pages are silhouettes: cut-out shapes cast as shadows on a wall. Read the shapes generously and imaginatively, stay consistent from page to page, and feel free to play with light, dark and shadow in the story itself.
 
 Fresh stories only
-- Book photos often show the original printed text. Do not reuse or paraphrase it: the family wants a completely new story that fits the same pictures. Keep the characters you can see, but give them new adventures, names and personalities.
+- Book photos often show the original printed text. You may read it to understand who the characters are and what is happening in each picture, but never reuse or paraphrase its wording or its plot: the family wants a completely new story for the same pictures. Keep the characters you can see and give them brand-new adventures; follow the family's wishes about names. Ignore page numbers and notes printed for readers (such as "scan the QR code").
 - Keep it modern, warm and inclusive. No outdated stereotypes, no gender clichés, no meanness that goes unresolved, nothing frightening beyond the requested mood. Everyone is safe and loved at the end.
 
 ${PERFORMANCE_RULES}
@@ -40,7 +40,7 @@ ${PERFORMANCE_RULES}
 Shape
 - A title that would look lovely on a book spine, and a one- or two-sentence synopsis for the library card.
 - "ambience": a short description of a gentle, seamlessly looping background soundscape that suits the setting, such as "soft night crickets and a faint breeze in the pines". No music, no voices, nothing sudden.
-- Return exactly the pages requested, in order. "picture" is a short note of what you see in that page's picture (or what the page is about when there is no picture).`;
+- Return exactly the pages requested, in reading order. "picture" is a short note of what you see in that page's picture (or what the page is about when there is no picture).`;
 
 const READ_SYSTEM = `You are the Reader of the Lantern Library. You prepare a faithful read-aloud performance script of a real book, performed by expressive, human-sounding voices for a child who is following along.
 
@@ -72,7 +72,7 @@ const ScriptSchema = z.object({
       voice_id: z.string(),
     }),
   ),
-  pages: z.array(z.object({ page: z.number().int(), picture: z.string(), lines: z.array(LineSchema) })),
+  pages: z.array(z.object({ page: z.number().int(), photo: z.number().int(), picture: z.string(), lines: z.array(LineSchema) })),
 });
 type RawScript = z.infer<typeof ScriptSchema>;
 
@@ -106,9 +106,10 @@ function jsonSchema(voiceIds: string[]) {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["page", "picture", "lines"],
+          required: ["page", "photo", "picture", "lines"],
           properties: {
             page: { type: "integer" },
+            photo: { type: "integer" },
             picture: str,
             lines: {
               type: "array",
@@ -148,6 +149,8 @@ export interface StoryRequest {
   voices: VoiceOption[];
 }
 
+const PAGE_ORDER = `Page order: the photos are numbered in the order the family took them, which is not always the book's order (people often photograph a book back to front). If the pages show printed page numbers, or the pictures or text clearly run in another order, return the pages in the book's true reading order. For every page, set "photo" to the number of the photo that belongs on it; when the order is already right, "photo" simply equals "page".`;
+
 function requestText(req: StoryRequest): string {
   const s = req.settings;
   const kind = BOOK_KINDS[req.bookKind].label.toLowerCase();
@@ -160,12 +163,18 @@ function requestText(req: StoryRequest): string {
     parts.push(`Book: "${req.bookTitle}" (${kind}).`);
     if (s.source === "book") {
       parts.push(`There are ${req.pageCount} pictures above, one per page. Write exactly ${req.pageCount} pages, page 1 to ${req.pageCount}, each matching its picture.`);
+      parts.push(PAGE_ORDER);
+      parts.push(
+        s.keepNames !== false
+          ? `Names: if the book's printed text names the characters, keep those names. The children know these friends, and tonight they get a brand-new adventure.`
+          : `Names: give the characters fresh new names.`,
+      );
     } else if (s.source === "wild") {
       parts.push(
-        `The photos above were taken by the family out in the world. Let them inspire a story of exactly ${req.pageCount} pages; follow the photos in order, and several pages may share one photo. The child may be looking at the photos while listening.`,
+        `The photos above were taken by the family out in the world. Let them inspire a story of exactly ${req.pageCount} pages; follow the photos in order, and several pages may share one photo. The child may be looking at the photos while listening. Set "photo" to the number of the photo that inspired each page.`,
       );
     } else {
-      parts.push(`Write exactly ${req.pageCount} pages. There are no pictures, so paint each scene vividly with words.`);
+      parts.push(`Write exactly ${req.pageCount} pages. There are no pictures, so paint each scene vividly with words. Set "photo" to 0.`);
     }
     if (s.description.trim()) parts.push(`What the family told us about it: ${s.description.trim()}`);
     parts.push(`Mood: ${MOODS[s.mood].label}. ${MOODS[s.mood].direction}`);
@@ -196,10 +205,11 @@ function requestText(req: StoryRequest): string {
     parts.push(`Prepare a faithful read-aloud of "${req.bookTitle}".`);
     if (req.text) {
       parts.push(
-        `The text is below. Split it into sections of roughly 120 to 200 words at natural paragraph breaks; each section is one "page" with "picture" left empty. Keep every word.`,
+        `The text is below. Split it into sections of roughly 120 to 200 words at natural paragraph breaks; each section is one "page" with "picture" left empty and "photo" set to 0. Keep every word.`,
       );
     } else {
       parts.push(`There are ${req.pageCount} page photos above. Return exactly ${req.pageCount} pages, page 1 to ${req.pageCount}.`);
+      parts.push(PAGE_ORDER);
     }
   }
 
@@ -245,7 +255,13 @@ function anthropic(): Anthropic {
 
 export class StorytellerError extends Error {}
 
-export async function writeScript(req: StoryRequest, onProgress: WriteProgress): Promise<StoryScript> {
+export interface WrittenStory {
+  script: StoryScript;
+  /** When the photos were out of order: which photo (1-based) belongs on each page, in reading order. */
+  photoOrder: number[] | null;
+}
+
+export async function writeScript(req: StoryRequest, onProgress: WriteProgress): Promise<WrittenStory> {
   const voiceIds = [...new Set(req.voices.map((v) => v.voiceId))];
   onProgress(req.images.length ? "Studying the pictures" : "Dreaming up the story", 0, req.pageCount);
 
@@ -301,7 +317,22 @@ export async function writeScript(req: StoryRequest, onProgress: WriteProgress):
   } catch {
     throw new StorytellerError("The storyteller's pages got jumbled. Please try again.");
   }
-  return normalizeScript(raw, req);
+  return { script: normalizeScript(raw, req), photoOrder: photoOrderFrom(raw, req) };
+}
+
+/**
+ * If the storyteller found the photos out of order (say, photographed back to
+ * front), the reading order of photos. Only trusted when it is a complete,
+ * one-to-one reordering of every page photo.
+ */
+export function photoOrderFrom(raw: RawScript, req: StoryRequest): number[] | null {
+  const bookish = req.settings.source === "book" || req.settings.source === "book_read";
+  const n = req.images.length;
+  if (!bookish || req.text || n < 2 || raw.pages.length !== n) return null;
+  const order = raw.pages.map((p) => p.photo);
+  const complete = order.every((x) => Number.isInteger(x) && x >= 1 && x <= n) && new Set(order).size === n;
+  if (!complete) return null;
+  return order.some((x, i) => x !== i + 1) ? order : null;
 }
 
 /** Make the script safe to perform: valid speakers, valid voices, pages in order. */

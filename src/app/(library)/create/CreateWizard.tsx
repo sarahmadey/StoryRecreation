@@ -354,6 +354,17 @@ export function CreateWizard({
                 placeholder="Make the moon a character. Include our dog, Biscuit. A joke about socks, please!"
               />
             </label>
+            {source === "book" && (
+              <label className="toggle">
+                <input type="checkbox" checked={settings.keepNames} onChange={(e) => set("keepNames", e.target.checked)} />
+                <span>
+                  <b>Keep the characters' names from the book</b>
+                  <span className="muted small">
+                    The friends your children know, off on a brand-new adventure. Turn off for all-new names.
+                  </span>
+                </span>
+              </label>
+            )}
             <label className="toggle">
               <input type="checkbox" checked={settings.surprise} onChange={(e) => set("surprise", e.target.checked)} />
               <span>

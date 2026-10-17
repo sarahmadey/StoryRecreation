@@ -22,6 +22,10 @@ a brand-new tale for the very same pictures.
   🎲 *Surprise us* twist.
 - **Never the same twice.** Each book remembers its earlier stories, and the storyteller is told to make
   tonight's clearly different. Characters keep their voices from night to night.
+- **Familiar friends, new adventures.** The characters keep the names printed in the book (say, Anton and
+  Babette) unless you ask for new ones.
+- **Pages in any order.** Photographed the book back to front? The storyteller reads the printed page numbers
+  and puts the pages in order for this and every future story. There's also a ⇅ Reverse button.
 - **✨ A new story tonight:** one tap on any book writes and records a fresh story with last time's settings.
 
 ### 🎭 Voices that feel human

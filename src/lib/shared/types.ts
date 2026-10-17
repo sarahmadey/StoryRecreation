@@ -102,6 +102,8 @@ export interface StorySettings {
   lesson: string;
   extra: string;
   surprise: boolean;
+  /** Keep character names printed in the book, so familiar friends get new adventures. */
+  keepNames: boolean;
   description: string;
   /** null = let the casting director choose */
   narratorVoiceId: string | null;

@@ -1,0 +1,72 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { renderChime, chimeDuration } from "@/lib/shared/chime";
+import { demoVoiceClip, encodeMp3, mixStory, SAMPLE_RATE } from "@/lib/server/audio";
+import { wordsFromAlignment } from "@/lib/server/performer";
+
+test("chimes are gentle, bounded and the right length", () => {
+  for (const style of ["bell", "sparkle", "windchime"] as const) {
+    const c = renderChime(style, SAMPLE_RATE, 0.5);
+    assert.equal(c.length, Math.ceil(chimeDuration(style) * SAMPLE_RATE));
+    const peak = c.reduce((m, s) => Math.max(m, Math.abs(s)), 0);
+    assert.ok(Math.abs(peak - 0.5) < 1e-3, `${style} peak ${peak}`);
+    assert.ok(Math.abs(c[c.length - 1]) < 1e-4, `${style} ends in silence`);
+  }
+});
+
+test("the mix puts a chime between pages, never after the last", () => {
+  const clip = (n: number) => demoVoiceClip([{ speaker: "narrator", text: "one two three four ".repeat(n), voiceId: "v" }]);
+  const { samples, timeline } = mixStory({
+    pages: [1, 2, 3].map((page) => ({ page, clip: clip(page) })),
+    chime: { enabled: true, style: "bell", gapSeconds: 3 },
+  });
+  assert.equal(timeline.pages.length, 3);
+  const [p1, p2, p3] = timeline.pages;
+  assert.ok(p1.chimeAt! > p1.speechEnd, "chime after speech");
+  assert.ok(p2.start >= p1.chimeAt! + 3, "a real pause to turn the page");
+  assert.equal(p3.chimeAt, null);
+  assert.equal(p1.next, p2.start);
+  assert.ok(Math.abs(timeline.duration - samples.length / SAMPLE_RATE) < 1e-6);
+  // word timings are absolute and inside their page
+  for (const p of timeline.pages) for (const w of p.words) assert.ok(w.t >= p.start && w.e <= p.speechEnd + 0.01);
+  assert.ok(samples.every((s) => Math.abs(s) <= 1));
+});
+
+test("intro rings the chime once as a demonstration", () => {
+  const c = demoVoiceClip([{ speaker: "narrator", text: "hello there", voiceId: "v" }]);
+  const { timeline } = mixStory({
+    pages: [{ page: 1, clip: c }],
+    intro: { before: c, after: c },
+    chime: { enabled: true, style: "sparkle", gapSeconds: 2 },
+  });
+  assert.equal(timeline.pages[0].page, 0);
+  assert.ok(timeline.pages[0].chimeAt! > timeline.pages[0].start);
+  assert.equal(timeline.pages[1].page, 1);
+});
+
+test("mp3 encoding produces a playable stream", () => {
+  const c = demoVoiceClip([{ speaker: "narrator", text: "a little test of the encoder", voiceId: "v" }]);
+  const mp3 = encodeMp3(c.samples);
+  assert.ok(mp3.length > 1000);
+  // MPEG audio frame sync
+  assert.equal(mp3[0], 0xff);
+  assert.equal(mp3[1] & 0xe0, 0xe0);
+});
+
+test("alignment becomes words and skips delivery tags", () => {
+  const text = "[whispers] Hush now, little owl.";
+  const chars = [...text];
+  const words = wordsFromAlignment(
+    {
+      characters: chars,
+      characterStartTimesSeconds: chars.map((_, i) => i * 0.05),
+      characterEndTimesSeconds: chars.map((_, i) => i * 0.05 + 0.04),
+    },
+    () => "narrator",
+  );
+  assert.deepEqual(
+    words.map((w) => w.w),
+    ["Hush", "now,", "little", "owl."],
+  );
+  assert.ok(words[0].t > 0.4, "timing starts after the tag");
+});

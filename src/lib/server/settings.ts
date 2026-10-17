@@ -1,0 +1,41 @@
+import { AGES, CHIMES, LENGTHS, MOODS, defaultSettings } from "@/lib/shared/options";
+import type { AgeBand, ChimeStyle, LengthPreset, Mood, StorySettings, StorySource } from "@/lib/shared/types";
+
+const SOURCES: StorySource[] = ["book", "wild", "idea", "classic", "book_read", "text"];
+
+const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+const pick = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
+  allowed.includes(v as T) ? (v as T) : fallback;
+
+/** Accept settings from the browser, keeping only sensible values. */
+export function sanitizeSettings(input: unknown): StorySettings {
+  const i = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const d = defaultSettings();
+  const chime = (i.chime && typeof i.chime === "object" ? i.chime : {}) as Record<string, unknown>;
+  const classic = i.classic as { gutenbergId?: unknown; chapter?: unknown } | undefined;
+  return {
+    source: pick(i.source, SOURCES, d.source),
+    length: pick(i.length, Object.keys(LENGTHS) as LengthPreset[], d.length),
+    mood: pick(i.mood, Object.keys(MOODS) as Mood[], d.mood),
+    age: pick(i.age, Object.keys(AGES) as AgeBand[], d.age),
+    heroes: Array.isArray(i.heroes) ? i.heroes.map((h) => str(h, 40).trim()).filter(Boolean).slice(0, 4) : [],
+    lesson: str(i.lesson, 200),
+    extra: str(i.extra, 600),
+    surprise: Boolean(i.surprise),
+    description: str(i.description, 1500),
+    narratorVoiceId: typeof i.narratorVoiceId === "string" && i.narratorVoiceId ? i.narratorVoiceId.slice(0, 64) : null,
+    fullCast: i.fullCast === undefined ? d.fullCast : Boolean(i.fullCast),
+    chime: {
+      enabled: chime.enabled === undefined ? d.chime.enabled : Boolean(chime.enabled),
+      style: pick(chime.style, Object.keys(CHIMES) as ChimeStyle[], d.chime.style),
+      gapSeconds: Math.min(10, Math.max(1, Number(chime.gapSeconds) || d.chime.gapSeconds)),
+    },
+    intro: i.intro === undefined ? d.intro : Boolean(i.intro),
+    ambience: Boolean(i.ambience),
+    review: i.review === undefined ? d.review : Boolean(i.review),
+    ...(classic && Number.isInteger(classic.gutenbergId) && Number.isInteger(classic.chapter)
+      ? { classic: { gutenbergId: Number(classic.gutenbergId), chapter: Number(classic.chapter) } }
+      : {}),
+    ...(typeof i.text === "string" ? { text: i.text.slice(0, 60000) } : {}),
+  };
+}

@@ -67,7 +67,7 @@ export function ReadToMe({
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("lantern:reader");
+      const saved = localStorage.getItem("storyhollow:reader");
       if (saved) setReader(saved);
     } catch {
       // ignore
@@ -77,7 +77,7 @@ export function ReadToMe({
     const v = id ?? DEFAULT_NARRATOR_ID;
     setReader(v);
     try {
-      localStorage.setItem("lantern:reader", v);
+      localStorage.setItem("storyhollow:reader", v);
     } catch {
       // ignore
     }

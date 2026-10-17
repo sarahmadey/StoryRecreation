@@ -1,5 +1,5 @@
 /* ==========================================================================
-   The Lantern Library: candlelit walnut, gold leaf and parchment.
+   Storyhollow: candlelit walnut, gold leaf and parchment.
    ========================================================================== */
 
 :root {
@@ -247,7 +247,7 @@ textarea {
   white-space: nowrap;
 }
 
-.lantern-glow {
+.emblem-glow {
   filter: drop-shadow(0 0 8px rgba(255, 190, 92, 0.75));
   animation: flicker 4.2s infinite ease-in-out;
 }

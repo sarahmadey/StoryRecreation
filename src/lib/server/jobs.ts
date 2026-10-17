@@ -30,8 +30,8 @@ import type { ScriptLine, StoryScript } from "@/lib/shared/types";
 // a parent can wander off to brush teeth, without losing anything. Progress
 // lives in the database; the page polls it.
 
-const globalForJobs = globalThis as unknown as { __lanternJobs?: Set<string> };
-const running = (globalForJobs.__lanternJobs ??= new Set());
+const globalForJobs = globalThis as unknown as { __storyhollowJobs?: Set<string> };
+const running = (globalForJobs.__storyhollowJobs ??= new Set());
 
 export function isRunning(storyId: string): boolean {
   return running.has(storyId);
@@ -184,7 +184,7 @@ function introLines(
       before: [
         {
           speaker: "narrator",
-          text: `[warmly] Welcome to the Lantern Library. Tonight's story is called ${title}${readBy}. You can follow along with the pictures in your book. You'll know it's time to turn the page when you hear this sound...`,
+          text: `[warmly] Welcome to Storyhollow. Tonight's story is called ${title}${readBy}. You can follow along with the pictures in your book. You'll know it's time to turn the page when you hear this sound...`,
         },
       ],
       after: [{ speaker: "narrator", text: "That's the one! Now, open your book to the very first page... and let's begin." }],
@@ -194,7 +194,7 @@ function introLines(
     before: [
       {
         speaker: "narrator",
-        text: `[warmly] Welcome to the Lantern Library. Tonight's story is called ${title}${readBy}. So snuggle in... and let's begin.`,
+        text: `[warmly] Welcome to Storyhollow. Tonight's story is called ${title}${readBy}. So snuggle in... and let's begin.`,
       },
     ],
     after: [],

@@ -35,7 +35,7 @@ export default async function HallPage() {
     <main className="page">
       <SetupNotice status={appStatus()} />
       <div className="hero">
-        <div className="eyebrow">The Lantern Library</div>
+        <div className="eyebrow">Storyhollow</div>
         <h1>
           <Greeting name={ctx.profile.name} />
         </h1>

@@ -396,7 +396,7 @@ export function CreateWizard({
               <span>
                 <b>A welcome at the start</b>
                 <span className="muted small">
-                  “Welcome to the Lantern Library… you'll know it's time to turn the page when you hear this sound.”
+                  “Welcome to Storyhollow… you'll know it's time to turn the page when you hear this sound.”
                 </span>
               </span>
             </label>

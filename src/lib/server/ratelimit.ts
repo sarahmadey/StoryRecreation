@@ -1,8 +1,8 @@
 // A tiny in-memory limiter for sign-in attempts. Enough for a family server;
 // put a real one in front if the library is ever shared widely.
 
-const globalForLimits = globalThis as unknown as { __lanternLimits?: Map<string, number[]> };
-const hits = (globalForLimits.__lanternLimits ??= new Map<string, number[]>());
+const globalForLimits = globalThis as unknown as { __storyhollowLimits?: Map<string, number[]> };
+const hits = (globalForLimits.__storyhollowLimits ??= new Map<string, number[]>());
 
 export function tooManyAttempts(key: string, max = 10, windowMs = 15 * 60 * 1000): boolean {
   const now = Date.now();

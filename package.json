@@ -1,8 +1,8 @@
 {
-  "name": "story-recreation",
+  "name": "storyhollow",
   "version": "0.1.0",
   "private": true,
-  "description": "Storyhollow - a cozy, magical audio-story library for kids.",
+  "description": "Storyhollow: a cozy, magical audio-story library for kids.",
   "type": "module",
   "engines": {
     "node": ">=22.13"

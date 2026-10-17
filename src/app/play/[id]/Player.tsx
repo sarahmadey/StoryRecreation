@@ -18,7 +18,7 @@ function usePref<T>(key: string, initial: T): [T, (v: T) => void] {
   const [value, setValue] = useState<T>(initial);
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(`lantern:${key}`);
+      const raw = localStorage.getItem(`storyhollow:${key}`);
       if (raw !== null) setValue(JSON.parse(raw) as T);
     } catch {
       // private mode etc.
@@ -28,7 +28,7 @@ function usePref<T>(key: string, initial: T): [T, (v: T) => void] {
     (v: T) => {
       setValue(v);
       try {
-        localStorage.setItem(`lantern:${key}`, JSON.stringify(v));
+        localStorage.setItem(`storyhollow:${key}`, JSON.stringify(v));
       } catch {
         // ignore
       }
@@ -176,7 +176,7 @@ export function Player({ story, book, photos }: { story: Story; book: Book; phot
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
     const artwork = book.coverUrl ? [{ src: book.coverUrl, sizes: "512x512", type: "image/jpeg" }] : [{ src: "/pwa-icon", sizes: "512x512", type: "image/png" }];
-    navigator.mediaSession.metadata = new MediaMetadata({ title: story.title, artist: "Lantern Library", album: book.title, artwork });
+    navigator.mediaSession.metadata = new MediaMetadata({ title: story.title, artist: "Storyhollow", album: book.title, artwork });
     navigator.mediaSession.setActionHandler("play", play);
     navigator.mediaSession.setActionHandler("pause", pause);
     navigator.mediaSession.setActionHandler("previoustrack", () => goPage(pageAt(pages, audio.current?.currentTime ?? 0) - 1));

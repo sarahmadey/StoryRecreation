@@ -160,10 +160,10 @@ export async function designVoicePreviews(description: string, sampleText?: stri
 export async function saveDesignedVoice(generatedVoiceId: string, name: string, description: string): Promise<string> {
   const voice = await withRetry(() =>
     eleven().textToVoice.create({
-      voiceName: `Lantern · ${name}`.slice(0, 60),
+      voiceName: `Storyhollow · ${name}`.slice(0, 60),
       voiceDescription: description.slice(0, 1000),
       generatedVoiceId,
-      labels: { source: "lantern-library" },
+      labels: { source: "storyhollow" },
     }),
   );
   return voice.voiceId;

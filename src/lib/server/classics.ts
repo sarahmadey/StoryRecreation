@@ -51,7 +51,7 @@ const GUTENDEX = "https://gutendex.com/books";
 export class ClassicsError extends Error {}
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { "User-Agent": "LanternLibrary/1.0 (family audio stories)" } });
+  const res = await fetch(url, { headers: { "User-Agent": "Storyhollow/1.0 (family audio stories)" } });
   if (!res.ok) throw new ClassicsError(`The Gutenberg catalogue answered ${res.status}.`);
   return (await res.json()) as T;
 }
@@ -101,7 +101,7 @@ export async function loadClassic(gutenbergId: number): Promise<LoadedClassic> {
     const book = await fetchJson<GutendexBook>(`${GUTENDEX}/${gutenbergId}`);
     const url = textUrl(book);
     if (!url) throw new ClassicsError("That book has no plain-text edition.");
-    const res = await fetch(url, { headers: { "User-Agent": "LanternLibrary/1.0 (family audio stories)" } });
+    const res = await fetch(url, { headers: { "User-Agent": "Storyhollow/1.0 (family audio stories)" } });
     if (!res.ok) throw new ClassicsError(`Project Gutenberg answered ${res.status}.`);
     const text = cleanGutenberg(await res.text());
     cached = { title: book.title, author: book.authors[0]?.name ?? null, text };

@@ -108,7 +108,7 @@ before(async () => {
   process.env.ANTHROPIC_BASE_URL = base;
   process.env.ELEVENLABS_API_KEY = "test-eleven";
   process.env.ELEVENLABS_BASE_URL = base;
-  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "lantern-test-"));
+  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "storyhollow-test-"));
   delete process.env.DEMO_MODE;
 });
 

@@ -1,4 +1,6 @@
-# 🏮 The Lantern Library
+# 🌳 Storyhollow
+
+*A hollow old tree where stories live, with a little glowing door.*
 
 **A new story for every night.** Photograph the pages of a book your children love, or something wonderful
 you found on a walk, and a cast of storytellers turns it into an immersive audio story, with a soft chime
@@ -191,9 +193,9 @@ The camera and "Add to Home Screen" need **HTTPS** (or `localhost`).
 
 - **Docker** (a home server, NAS, Fly.io, Railway, Render…). Mount a volume for `/data`:
   ```bash
-  docker build -t lantern-library .
-  docker run -p 3000:3000 -v lantern-data:/data \
-    -e ANTHROPIC_API_KEY=… -e ELEVENLABS_API_KEY=… lantern-library
+  docker build -t storyhollow .
+  docker run -p 3000:3000 -v storyhollow-data:/data \
+    -e ANTHROPIC_API_KEY=… -e ELEVENLABS_API_KEY=… storyhollow
   ```
 - On a home network over plain `http://`, add `-e INSECURE_COOKIES=1` so sign-in cookies work without HTTPS.
 - It needs a persistent disk (SQLite + audio files) and a long-running Node process for background jobs, so

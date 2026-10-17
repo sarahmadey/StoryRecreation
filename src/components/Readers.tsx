@@ -27,7 +27,7 @@ export function ProfilePicker({ profiles, title = "Who's listening tonight?" }: 
 
   return (
     <div className="center">
-      <div className="eyebrow">Welcome to the Lantern Library</div>
+      <div className="eyebrow">Welcome to Storyhollow</div>
       <h1>{profiles.length ? title : "Who lives in this library?"}</h1>
       {profiles.length > 0 && (
         <div className="profile-picker">

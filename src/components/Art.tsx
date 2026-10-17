@@ -15,22 +15,39 @@ function GoldDefs() {
         <stop offset="0.45" stopColor="#ffcf6e" />
         <stop offset="1" stopColor="#ff9a3c" stopOpacity="0" />
       </radialGradient>
+      <radialGradient id="door" cx="0.5" cy="0.75" r="0.75">
+        <stop offset="0" stopColor="#fff6d8" />
+        <stop offset="0.5" stopColor="#ffcf6e" />
+        <stop offset="1" stopColor="#e8862f" />
+      </radialGradient>
+      <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" stopColor="#ffbe5c" stopOpacity="0.5" />
+        <stop offset="1" stopColor="#ffbe5c" stopOpacity="0" />
+      </radialGradient>
     </defs>
   );
 }
 
-export function Lantern({ size = 34 }: { size?: number }) {
+/** The Storyhollow emblem: a tree with a glowing door in its hollow. */
+export function Emblem({ size = 34 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" className="lantern-glow">
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" className="emblem-glow">
       <GoldDefs />
-      <path d="M24 3c-3 0-5 2-5 4.5h10C29 5 27 3 24 3z" fill={GOLD} />
-      <rect x="15" y="8" width="18" height="4" rx="1.5" fill={GOLD} />
-      <path d="M16 12h16l2 5H14z" fill={GOLD} opacity="0.9" />
-      <rect x="15" y="17" width="18" height="20" rx="3" fill="rgba(255,190,92,.18)" stroke={GOLD} strokeWidth="2" />
-      <ellipse cx="24" cy="28" rx="6" ry="8" fill="url(#flame)" />
-      <path d="M24 22c2 3 3 5 0 9-3-4-2-6 0-9z" fill="#fff3cf" />
-      <path d="M24 17v20M15 27h18" stroke={GOLD} strokeWidth="1" opacity="0.5" />
-      <path d="M14 37h20l-2 4H16z" fill={GOLD} />
+      <circle cx="24" cy="35" r="12" fill="url(#halo)" />
+      <path
+        d="M24 3.5c-4.5 0-7.9 3-8.7 6.6C11.1 10.6 8.8 13.6 8.8 17c0 4 3.2 7.2 7.2 7.2h16c4 0 7.2-3.2 7.2-7.2 0-3.4-2.3-6.4-6.5-6.9C31.9 6.5 28.5 3.5 24 3.5z"
+        fill="rgba(255,236,190,.14)"
+        stroke={GOLD}
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path d="M15.5 15c1.5-1.8 3.6-2.6 5.8-2.3M27.5 10.8c1.7.3 3.1 1.2 4 2.5" stroke={GOLD} strokeWidth="1.4" fill="none" strokeLinecap="round" opacity="0.8" />
+      <path d="M17 24.2c.4 5.7-.9 11.3-4.4 16.8h22.8c-3.5-5.5-4.8-11.1-4.4-16.8" fill="#2a1b11" stroke={GOLD} strokeWidth="2" strokeLinejoin="round" />
+      <path d="M19.4 41v-7.6a4.6 4.6 0 0 1 9.2 0V41z" fill="url(#door)" />
+      <circle cx="26.6" cy="37.4" r="0.8" fill="#7a4a1a" />
+      <path d="M7 41.2h34" stroke={GOLD} strokeWidth="2" strokeLinecap="round" />
+      <path d="M40 4.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z" fill="#fff1c4" />
+      <circle cx="7" cy="8" r="0.9" fill="#fff1c4" />
     </svg>
   );
 }

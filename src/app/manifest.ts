@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Lantern Library",
-    short_name: "Lantern",
+    name: "Storyhollow",
+    short_name: "Storyhollow",
     description: "Magical audio stories for your family's books.",
     start_url: "/",
     display: "standalone",

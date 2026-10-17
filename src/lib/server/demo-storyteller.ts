@@ -37,7 +37,7 @@ export async function writeDemoScript(req: StoryRequest, onProgress: WriteProgre
   const raw: RawScript = {
     title:
       req.mode === "create"
-        ? `${heroName} and the Lantern of ${req.bookTitle.split(/\s+/).sort((a, b) => b.length - a.length)[0] || "Dreams"}`
+        ? `${heroName} and the Secret of ${req.bookTitle.split(/\s+/).sort((a, b) => b.length - a.length)[0] || "Dreams"}`
         : req.bookTitle,
     synopsis:
       req.mode === "create"

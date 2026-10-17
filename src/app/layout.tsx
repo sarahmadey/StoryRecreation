@@ -9,10 +9,10 @@ import { GrownupProvider } from "@/components/Grownup";
 import { Motes } from "@/components/Art";
 
 export const metadata: Metadata = {
-  title: { default: "Lantern Library", template: "%s · Lantern Library" },
+  title: { default: "Storyhollow", template: "%s · Storyhollow" },
   description: "Magical audio stories for your family's books, and anything you dream up.",
-  applicationName: "Lantern Library",
-  appleWebApp: { capable: true, title: "Lantern", statusBarStyle: "black-translucent" },
+  applicationName: "Storyhollow",
+  appleWebApp: { capable: true, title: "Storyhollow", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {

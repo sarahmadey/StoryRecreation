@@ -11,17 +11,20 @@ export function GET() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "radial-gradient(circle at 50% 55%, #4a2c18, #1b110a 70%)",
+          background: "radial-gradient(circle at 50% 70%, #4a2c18, #1b110a 70%)",
         }}
       >
-        <svg width="380" height="380" viewBox="0 0 48 48">
-          <path d="M24 3c-3 0-5 2-5 4.5h10C29 5 27 3 24 3z" fill="#e2b55c" />
-          <rect x="15" y="8" width="18" height="4" rx="1.5" fill="#e2b55c" />
-          <path d="M16 12h16l2 5H14z" fill="#d9a84e" />
-          <rect x="15" y="17" width="18" height="20" rx="3" fill="#6b4a1a" stroke="#f3d48a" strokeWidth="2" />
-          <ellipse cx="24" cy="28" rx="6" ry="8" fill="#ffbe5c" />
-          <path d="M24 22c2 3 3 5 0 9-3-4-2-6 0-9z" fill="#fff3cf" />
-          <path d="M14 37h20l-2 4H16z" fill="#e2b55c" />
+        <svg width="400" height="400" viewBox="0 0 48 48">
+          <circle cx="24" cy="35" r="11" fill="#6b4a1a" opacity="0.6" />
+          <path
+            d="M24 3.5c-4.5 0-7.9 3-8.7 6.6C11.1 10.6 8.8 13.6 8.8 17c0 4 3.2 7.2 7.2 7.2h16c4 0 7.2-3.2 7.2-7.2 0-3.4-2.3-6.4-6.5-6.9C31.9 6.5 28.5 3.5 24 3.5z"
+            fill="#3b2414"
+            stroke="#e2b55c"
+            strokeWidth="2"
+          />
+          <path d="M17 24.2c.4 5.7-.9 11.3-4.4 16.8h22.8c-3.5-5.5-4.8-11.1-4.4-16.8" fill="#2a1b11" stroke="#e2b55c" strokeWidth="2" />
+          <path d="M19.4 41v-7.6a4.6 4.6 0 0 1 9.2 0V41z" fill="#ffcf6e" />
+          <path d="M7 41.2h34" stroke="#e2b55c" strokeWidth="2" strokeLinecap="round" />
         </svg>
       </div>
     ),

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Lantern } from "./Art";
+import { Emblem } from "./Art";
 import type { Profile } from "@/lib/shared/types";
 
 const NAV = [
@@ -18,9 +18,9 @@ export function TopBar({ profile }: { profile: Profile | null }) {
   return (
     <header className="topbar">
       <div className="topbar-inner">
-        <Link href="/" className="brand" aria-label="Lantern Library, home">
-          <Lantern />
-          <span className="brand-name">Lantern Library</span>
+        <Link href="/" className="brand" aria-label="Storyhollow, home">
+          <Emblem />
+          <span className="brand-name">Storyhollow</span>
         </Link>
         <nav className="nav" aria-label="Main">
           {NAV.map((n) => (

@@ -131,17 +131,17 @@ CREATE TABLE IF NOT EXISTS classics_cache (
 
 type Row = Record<string, unknown>;
 
-const globalForDb = globalThis as unknown as { __lanternDb?: DatabaseSync };
+const globalForDb = globalThis as unknown as { __storyhollowDb?: DatabaseSync };
 
 export function db(): DatabaseSync {
-  if (!globalForDb.__lanternDb) {
+  if (!globalForDb.__storyhollowDb) {
     fs.mkdirSync(config.dataDir, { recursive: true });
-    const conn = new DatabaseSync(path.join(config.dataDir, "lantern.db"));
+    const conn = new DatabaseSync(path.join(config.dataDir, "storyhollow.db"));
     conn.exec(SCHEMA);
-    globalForDb.__lanternDb = conn;
+    globalForDb.__storyhollowDb = conn;
     recoverInterruptedJobs(conn);
   }
-  return globalForDb.__lanternDb;
+  return globalForDb.__storyhollowDb;
 }
 
 /** A restart kills in-flight jobs; mark them so the grown-ups can retry. */

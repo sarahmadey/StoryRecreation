@@ -209,8 +209,9 @@ export function CreateWizard({
                     <div>
                       <span className="label">The pages, in order</span>
                       <p className="hint" style={{ marginTop: 0 }}>
-                        Snap one photo per page. For a shadow book, photograph each picture disc or slide (or its projection on
-                        the wall). It's fine if the old words are in the photos: the storyteller will write brand-new ones.
+                        One photo per page: snap them here, or choose them all at once from your photos. For a shadow book,
+                        photograph each picture disc or slide (or its projection on the wall). It's fine if the old words are in
+                        the photos: the storyteller will write brand-new ones.
                       </p>
                       <PhotoPicker photos={photos} onChange={setPhotos} />
                     </div>

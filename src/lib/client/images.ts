@@ -28,15 +28,21 @@ export interface PickedPhoto {
   url: string;
 }
 
-export async function pickPhotos(files: FileList | File[]): Promise<PickedPhoto[]> {
+export async function pickPhotos(
+  files: FileList | File[],
+  limit = Infinity,
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ photos: PickedPhoto[]; extra: number }> {
   const list = Array.from(files).filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
   // Photos taken in order usually arrive in order; sort by name as a tiebreak
   // for gallery picks (IMG_0012 before IMG_0013).
   list.sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name, undefined, { numeric: true }));
-  const out: PickedPhoto[] = [];
-  for (const f of list) {
+  const take = list.slice(0, Math.max(0, limit));
+  const photos: PickedPhoto[] = [];
+  for (const f of take) {
+    onProgress?.(photos.length, take.length);
     const file = await shrinkImage(f);
-    out.push({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file) });
+    photos.push({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file) });
   }
-  return out;
+  return { photos, extra: list.length - take.length };
 }

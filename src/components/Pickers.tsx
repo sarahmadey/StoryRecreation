@@ -22,14 +22,21 @@ export function PhotoPicker({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const camRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [note, setNote] = useState("");
 
+  // Many photos at once: from the photo library, or dragged onto the page.
   const add = async (files: FileList | null) => {
     if (!files?.length) return;
-    setBusy(true);
-    const picked = await pickPhotos(files);
-    onChange([...photos, ...picked].slice(0, max));
-    setBusy(false);
+    setNote("");
+    setBusy("Developing…");
+    const { photos: picked, extra } = await pickPhotos(files, max - photos.length, (done, total) =>
+      setBusy(total > 1 ? `Developing ${done + 1} of ${total}…` : "Developing…"),
+    );
+    onChange([...photos, ...picked]);
+    if (extra > 0) setNote(`${max} ${label.toLowerCase()}s is the most for one story, so ${extra} ${extra === 1 ? "photo wasn't" : "photos weren't"} added.`);
+    setBusy(null);
   };
   const move = (i: number, d: number) => {
     const next = [...photos];
@@ -40,7 +47,23 @@ export function PhotoPicker({
   const remove = (i: number) => onChange(photos.filter((_, j) => j !== i));
 
   return (
-    <div>
+    <div
+      className={`photo-picker${dragging ? " dragging" : ""}`}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("Files") || photos.length >= max) return;
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.files.length) return;
+        e.preventDefault();
+        setDragging(false);
+        void add(e.dataTransfer.files);
+      }}
+    >
       {photos.length > 1 && (
         <div className="row" style={{ justifyContent: "flex-end", marginBottom: 10 }}>
           <span className="hint" style={{ margin: 0, marginRight: "auto" }}>
@@ -77,17 +100,25 @@ export function PhotoPicker({
         ))}
         {photos.length < max && (
           <>
-            <button type="button" className="dropzone" onClick={() => camRef.current?.click()} disabled={busy}>
+            <button type="button" className="dropzone" onClick={() => camRef.current?.click()} disabled={!!busy}>
               <b>📷</b>
-              {busy ? "Developing…" : photos.length ? `Snap ${label.toLowerCase()} ${photos.length + 1}` : `Snap ${label.toLowerCase()} 1`}
+              {busy ?? `Snap ${label.toLowerCase()} ${photos.length + 1}`}
             </button>
-            <button type="button" className="dropzone" onClick={() => fileRef.current?.click()} disabled={busy}>
+            <button type="button" className="dropzone" onClick={() => fileRef.current?.click()} disabled={!!busy}>
               <b>🖼️</b>
-              Choose from photos
+              Choose photos
+              <small>
+                Pick several at once<span className="drop-hint">, or drop them here</span>
+              </small>
             </button>
           </>
         )}
       </div>
+      {note && (
+        <p className="hint" role="status">
+          {note}
+        </p>
+      )}
       <input
         ref={camRef}
         type="file"

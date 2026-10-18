@@ -1334,6 +1334,26 @@ textarea {
   font-size: 1.9rem;
   line-height: 1;
 }
+.dropzone small {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  opacity: 0.8;
+  padding: 0 8px;
+}
+.photo-picker.dragging .photo-grid {
+  outline: 2px dashed var(--gold-1);
+  outline-offset: 8px;
+  border-radius: 10px;
+}
+.photo-picker.dragging .dropzone {
+  background: rgba(255, 236, 190, 0.6);
+  border-color: var(--gold-1);
+}
+@media (hover: none) {
+  .drop-hint {
+    display: none;
+  }
+}
 
 /* ------------------------------------------------------------------ studio */
 

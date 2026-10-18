@@ -181,9 +181,11 @@ export function VoicePicker({
   narratorsOnly?: boolean;
 }) {
   if (!voices) return <p className="muted">Gathering the storytellers…</p>;
+  // family voices first: Grandma reading is the most special storyteller of all
+  const family = voices.filter((v) => v.source === "family");
   const personas = voices.filter((v) => v.persona);
-  const rest = voices.filter((v) => !v.persona && v.source !== "default");
-  const shown = narratorsOnly ? [...personas, ...rest] : voices;
+  const rest = voices.filter((v) => !v.persona && v.source !== "default" && v.source !== "family");
+  const shown = narratorsOnly ? [...family, ...personas, ...rest] : voices;
 
   const hear = (v: VoiceOption) => {
     if (!previewVoice(v.previewUrl)) speakSample(`Hello! I'm ${v.persona?.name ?? v.name}.`);
@@ -215,7 +217,7 @@ export function VoicePicker({
           onClick={() => onChange(v.voiceId)}
           onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onChange(v.voiceId)}
         >
-          <span className="voice-face">{v.persona?.emoji ?? (v.source === "designed" ? "🪄" : "🗣️")}</span>
+          <span className="voice-face">{v.persona?.emoji ?? (v.source === "family" ? "💛" : v.source === "designed" ? "🪄" : "🗣️")}</span>
           <span className="voice-name">{v.persona?.name ?? v.name}</span>
           <span className="voice-tag">{v.persona?.tagline ?? v.description}</span>
           <button
@@ -252,7 +254,7 @@ export function VoiceSelect({
         {!known && <option value={value}>Current voice</option>}
         {voices.map((v) => (
           <option key={v.voiceId} value={v.voiceId}>
-            {v.persona ? `${v.persona.emoji} ${v.persona.name} (${v.name})` : `${v.source === "designed" ? "🪄 " : ""}${v.name}`}
+            {v.persona ? `${v.persona.emoji} ${v.persona.name} (${v.name})` : `${v.source === "family" ? "💛 " : v.source === "designed" ? "🪄 " : ""}${v.name}`}
             {v.persona ? "" : v.description ? `: ${v.description.slice(0, 40)}` : ""}
           </option>
         ))}

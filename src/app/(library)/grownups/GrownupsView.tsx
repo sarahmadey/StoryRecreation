@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Avatar, ReaderEditor } from "@/components/Readers";
 import { VoiceDesigner } from "@/components/VoiceDesigner";
-import type { AppStatus, Profile } from "@/lib/shared/types";
+import { FamilyVoices } from "@/components/FamilyVoices";
+import type { AppStatus, FamilyVoice, Keepsake, Profile } from "@/lib/shared/types";
 
 export function GrownupsView({
   familyName,
@@ -14,6 +15,8 @@ export function GrownupsView({
   pinSet,
   profiles,
   designed,
+  keepsakes,
+  familyVoices,
   status,
 }: {
   familyName: string;
@@ -22,6 +25,8 @@ export function GrownupsView({
   pinSet: boolean;
   profiles: Profile[];
   designed: { voiceId: string; name: string; description: string }[];
+  keepsakes: Keepsake[];
+  familyVoices: FamilyVoice[];
   status: AppStatus;
 }) {
   const api = useApi();
@@ -183,6 +188,8 @@ export function GrownupsView({
           )}
         </form>
       </section>
+
+      <FamilyVoices keepsakes={keepsakes} familyVoices={familyVoices} canMakeVoices={status.voices || status.demoMode} />
 
       <section className="parchment stack">
         <div className="spread">

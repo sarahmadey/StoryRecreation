@@ -1,0 +1,64 @@
+import { Mp3Encoder } from "@breezystack/lamejs";
+
+// Family recordings arrive in every shape: an iPhone voicemail (.m4a), a
+// voice memo, the sound from a video, a recording made right here. The
+// browser opens them, and we keep one tidy mono MP3 that plays everywhere
+// and is just what the voice service wants to learn from.
+
+const RATE = 44100;
+const MAX_MS = 20 * 60 * 1000;
+
+export async function prepareRecording(blob: Blob, name = "recording"): Promise<{ file: File; durationMs: number }> {
+  let decoded: AudioBuffer;
+  try {
+    decoded = await new OfflineAudioContext(1, 1, RATE).decodeAudioData(await blob.arrayBuffer());
+  } catch {
+    throw new Error("That recording couldn't be opened here. Try saving it as an MP3, M4A or WAV file and adding it again.");
+  }
+
+  const mono = new Float32Array(decoded.length);
+  for (let c = 0; c < decoded.numberOfChannels; c++) {
+    const ch = decoded.getChannelData(c);
+    for (let i = 0; i < ch.length; i++) mono[i] += ch[i] / decoded.numberOfChannels;
+  }
+
+  // Trim long silences at the ends (a voicemail's beep and hang-up), keeping a breath of room.
+  let peak = 0;
+  for (let i = 0; i < mono.length; i++) peak = Math.max(peak, Math.abs(mono[i]));
+  if (peak < 0.001) throw new Error("That recording seems to be silent.");
+  const floor = peak * 0.04;
+  let start = 0;
+  let end = mono.length - 1;
+  while (start < end && Math.abs(mono[start]) < floor) start++;
+  while (end > start && Math.abs(mono[end]) < floor) end--;
+  const pad = Math.round(RATE * 0.3);
+  const clip = mono.subarray(Math.max(0, start - pad), Math.min(mono.length, end + pad));
+  const durationMs = Math.round((clip.length / RATE) * 1000);
+  if (durationMs > MAX_MS) throw new Error("That recording is longer than 20 minutes. Trim it a little and try again.");
+
+  // Even out the level so a quiet voicemail isn't a whisper (without blasting the hiss).
+  const gain = Math.min(4, 0.89 / peak);
+  const pcm = new Int16Array(clip.length);
+  for (let i = 0; i < clip.length; i++) {
+    const s = Math.max(-1, Math.min(1, clip[i] * gain));
+    pcm[i] = s < 0 ? s * 32768 : s * 32767;
+  }
+
+  const encoder = new Mp3Encoder(1, RATE, 96);
+  const parts: BlobPart[] = [];
+  const block = 1152 * 16;
+  for (let i = 0; i < pcm.length; i += block) {
+    const buf = encoder.encodeBuffer(pcm.subarray(i, i + block));
+    if (buf.length) parts.push(new Uint8Array(buf));
+    if (i % (block * 64) === 0) await new Promise((r) => setTimeout(r)); // keep the page responsive
+  }
+  const tail = encoder.flush();
+  if (tail.length) parts.push(new Uint8Array(tail));
+  return { file: new File(parts, `${name.replace(/[^\w-]+/g, "-").slice(0, 40) || "recording"}.mp3`, { type: "audio/mpeg" }), durationMs };
+}
+
+/** "1:05" */
+export function clock(ms: number): string {
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}

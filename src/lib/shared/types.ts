@@ -201,7 +201,27 @@ export interface VoiceOption {
   previewUrl: string | null;
   /** "persona" voices come with a friendly storybook name. */
   persona: { name: string; emoji: string; tagline: string } | null;
-  source: "default" | "account" | "designed";
+  source: "default" | "account" | "designed" | "family";
+}
+
+/** A family recording kept just as it was: a voicemail, a voice memo, a child reading. */
+export interface Keepsake {
+  id: string;
+  person: string;
+  title: string;
+  recordedOn: string | null;
+  audioUrl: string;
+  durationMs: number;
+  createdAt: number;
+}
+
+/** A storytelling voice learned from a grown-up's keepsake recordings. */
+export interface FamilyVoice {
+  voiceId: string;
+  name: string;
+  person: string;
+  previewUrl: string | null;
+  createdAt: number;
 }
 
 export interface AppStatus {

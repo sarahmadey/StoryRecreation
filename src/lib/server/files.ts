@@ -44,6 +44,19 @@ export async function saveImage(householdId: string, folder: string, file: File)
   return rel;
 }
 
+export const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
+
+/** Save an uploaded recording (the browser has already turned it into an MP3). */
+export async function saveAudio(householdId: string, folder: string, file: File): Promise<string> {
+  if (file.type !== "audio/mpeg") throw new HttpError(400, "Recordings need to arrive as MP3.");
+  if (file.size > MAX_AUDIO_BYTES) throw new HttpError(400, "That recording is too long (about 20 minutes at most).");
+  const rel = `${folder}/${randomUUID()}.mp3`;
+  const full = resolveHouseholdPath(householdId, rel);
+  await fs.promises.mkdir(path.dirname(full), { recursive: true });
+  await fs.promises.writeFile(full, Buffer.from(await file.arrayBuffer()));
+  return rel;
+}
+
 export function mediaTypeFor(file: string): string {
   const ext = path.extname(file).toLowerCase();
   switch (ext) {
@@ -76,4 +89,8 @@ export async function readImageForModel(
 
 export async function removeDir(full: string) {
   await fs.promises.rm(full, { recursive: true, force: true });
+}
+
+export async function removeHouseholdFile(householdId: string, rel: string) {
+  await fs.promises.rm(resolveHouseholdPath(householdId, rel), { force: true });
 }

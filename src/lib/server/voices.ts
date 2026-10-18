@@ -1,6 +1,6 @@
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { config } from "./config";
-import { listDesignedVoices } from "./db";
+import { listDesignedVoices, listFamilyVoices } from "./db";
 import { PERSONAS, personaFor, personaVoiceOptions } from "@/lib/shared/personas";
 import type { VoiceOption } from "@/lib/shared/types";
 
@@ -61,6 +61,7 @@ export function forgetVoiceCache() {
  */
 export async function voiceCatalog(householdId: string): Promise<VoiceOption[]> {
   const designed = listDesignedVoices(householdId);
+  const family = listFamilyVoices(householdId);
   let base: VoiceOption[];
   if (config.elevenLabsKey) {
     try {
@@ -85,16 +86,38 @@ export async function voiceCatalog(householdId: string): Promise<VoiceOption[]> 
     });
   }
 
+  for (const f of family) {
+    byId.set(f.voiceId, {
+      voiceId: f.voiceId,
+      name: f.name,
+      description: `${f.person}, in their own voice`,
+      gender: null,
+      age: null,
+      accent: null,
+      previewUrl: f.previewUrl,
+      persona: null,
+      source: "family",
+    });
+  }
+
   const personaOrder = new Map(PERSONAS.map((p, i) => [p.voiceId, i]));
   const rank = (v: VoiceOption) =>
-    personaOrder.has(v.voiceId) ? personaOrder.get(v.voiceId)! : v.source === "designed" ? 100 : 200;
+    v.source === "family" ? -1 : personaOrder.has(v.voiceId) ? personaOrder.get(v.voiceId)! : v.source === "designed" ? 100 : 200;
   return [...byId.values()].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+}
+
+/**
+ * The voices the storyteller may cast. A family voice reads only when the
+ * family picks it as the storyteller: Grandma never turns up as the troll.
+ */
+export function castableVoices(voices: VoiceOption[], narratorVoiceId: string | null | undefined): VoiceOption[] {
+  return voices.filter((v) => v.source !== "family" || v.voiceId === narratorVoiceId);
 }
 
 export function describeVoiceForCasting(v: VoiceOption): string {
   const traits = [v.gender, v.age?.replace("_", " "), v.accent].filter(Boolean).join(", ");
   const label = v.persona ? `${v.name} ("${v.persona.name}")` : v.name;
   return `- ${v.voiceId}: ${label}. ${traits}${traits && v.description ? ". " : ""}${v.description}${
-    v.source === "designed" ? " [custom character voice]" : ""
+    v.source === "designed" ? " [custom character voice]" : v.source === "family" ? " [a family member's own voice: the storyteller only, never a character]" : ""
   }`;
 }

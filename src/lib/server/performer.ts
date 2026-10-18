@@ -169,6 +169,34 @@ export async function saveDesignedVoice(generatedVoiceId: string, name: string, 
   return voice.voiceId;
 }
 
+/**
+ * Learn a grown-up's voice from their recordings (ElevenLabs Instant Voice
+ * Cloning), returning the new voice id. Old voicemails are often noisy, so
+ * background noise is cleaned up unless the family turns that off.
+ */
+export async function cloneFamilyVoice(
+  name: string,
+  person: string,
+  files: { data: Buffer; filename: string }[],
+  cleanNoise: boolean,
+): Promise<string> {
+  const voice = await withRetry(() =>
+    eleven().voices.ivc.create({
+      name: `Storyhollow · ${name}`.slice(0, 60),
+      description: `${person}, in their own voice, for family stories.`.slice(0, 500),
+      files: files.map((f) => ({ data: f.data, filename: f.filename, contentType: "audio/mpeg" })),
+      removeBackgroundNoise: cleanNoise,
+      labels: { source: "storyhollow-family" },
+    }),
+  );
+  return voice.voiceId;
+}
+
+/** Remove a voice from the ElevenLabs account, freeing its slot. */
+export async function deleteAccountVoice(voiceId: string): Promise<void> {
+  await eleven().voices.delete(voiceId);
+}
+
 async function readAll(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
   const reader = stream.getReader();

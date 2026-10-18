@@ -1,5 +1,5 @@
 import { pageCtx } from "@/lib/server/auth";
-import { listDesignedVoices, listProfiles } from "@/lib/server/db";
+import { listDesignedVoices, listFamilyVoices, listKeepsakes, listProfiles } from "@/lib/server/db";
 import { appStatus } from "@/lib/server/config";
 import { GrownupsView } from "./GrownupsView";
 
@@ -16,6 +16,8 @@ export default async function GrownupsPage() {
         pinSet={Boolean(ctx.household.pin_hash)}
         profiles={listProfiles(ctx.household.id)}
         designed={listDesignedVoices(ctx.household.id)}
+        keepsakes={listKeepsakes(ctx.household.id)}
+        familyVoices={listFamilyVoices(ctx.household.id)}
         status={appStatus()}
       />
     </main>

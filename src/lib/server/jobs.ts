@@ -16,7 +16,7 @@ import {
   type PageRow,
 } from "./db";
 import { readImageForModel, storyDir } from "./files";
-import { voiceCatalog } from "./voices";
+import { castableVoices, voiceCatalog } from "./voices";
 import { writeScript, StorytellerError, type StoryRequest } from "./storyteller";
 import { writeDemoScript } from "./demo-storyteller";
 import { performAmbience, performLines, PerformerError } from "./performer";
@@ -82,7 +82,7 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
   const progress = (step: string, done: number, total: number) =>
     updateStory(storyId, { progress: { step, done, total } });
 
-  const voices = await voiceCatalog(story.householdId);
+  const voices = castableVoices(await voiceCatalog(story.householdId), s.narratorVoiceId);
   const narratorVoice = s.narratorVoiceId ?? voices.find((v) => v.persona)?.voiceId ?? voices[0]?.voiceId ?? "";
 
   // Text to read aloud, for classics and pasted words.
@@ -103,7 +103,9 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
     const sections = sectionText(text, 900);
     script = {
       title: story.title,
-      synopsis: story.synopsis ?? `Read aloud by ${personaFor(narratorVoice)?.name ?? "a storyteller"}.`,
+      synopsis:
+        story.synopsis ??
+        `Read aloud by ${personaFor(narratorVoice)?.name ?? voices.find((v) => v.voiceId === narratorVoice)?.name ?? "a storyteller"}.`,
       ambience: "a quiet room with a softly crackling fire",
       cast: [{ id: "narrator", name: "Reader", description: "The reader", voiceBrief: "warm and clear", voiceId: narratorVoice }],
       pages: sections.map((t, i) => ({ page: i + 1, picture: "", lines: [{ speaker: "narrator", text: t }] })),

@@ -52,7 +52,7 @@ before(async () => {
     let raw = "";
     req.on("data", (c) => (raw += c));
     req.on("end", () => {
-      const body = raw ? JSON.parse(raw) : null;
+      const body = raw && String(req.headers["content-type"] ?? "").includes("json") ? JSON.parse(raw) : raw || null;
       captured.push({ method: req.method!, url: req.url!, headers: req.headers, body });
       if (req.url!.startsWith("/v1/messages")) return sse(res, scriptJson);
       if (req.url!.startsWith("/v1/text-to-dialogue/with-timestamps")) {
@@ -84,6 +84,14 @@ before(async () => {
             voice_segments: segments,
           }),
         );
+      }
+      if (req.url!.startsWith("/v1/voices/add")) {
+        res.writeHead(200, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ voice_id: "famVoice123", requires_verification: false }));
+      }
+      if (req.method === "DELETE" && req.url!.startsWith("/v1/voices/")) {
+        res.writeHead(200, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ status: "ok" }));
       }
       if (req.url!.startsWith("/v2/voices")) {
         res.writeHead(200, { "content-type": "application/json" });
@@ -270,6 +278,40 @@ test("pages photographed back to front are put back in reading order", async () 
   // If the pages changed meanwhile, leave them alone.
   applyPhotoOrder(hid, bookId, sent, [3, 2, 1]);
   assert.deepEqual(db.listPageRows(bookId).map((r) => r.image_path), ["books/p6.jpg", "books/p7.jpg", "books/p8.jpg"]);
+});
+
+test("a grown-up's recordings become a family voice that reads only when chosen", async () => {
+  const db = await import("@/lib/server/db");
+  const { cloneFamilyVoice, deleteAccountVoice } = await import("@/lib/server/performer");
+  const { voiceCatalog, castableVoices, forgetVoiceCache } = await import("@/lib/server/voices");
+
+  const voiceId = await cloneFamilyVoice("Grandma June", "Grandma June", [{ data: Buffer.from("ID3 fake audio"), filename: "recording-1.mp3" }], true);
+  assert.equal(voiceId, "famVoice123");
+  const req = captured.find((c) => c.url.startsWith("/v1/voices/add"))!;
+  assert.equal(req.method, "POST");
+  assert.match(String(req.headers["content-type"]), /multipart\/form-data/);
+  const body = String(req.body);
+  assert.match(body, /name="name"\r\n\r\nStoryhollow · Grandma June/);
+  assert.match(body, /name="files"; filename="recording-1.mp3"/);
+  assert.match(body, /name="remove_background_noise"\r\n\r\ntrue/);
+
+  const hh = db.createHousehold("The Junes", "june@example.com", "x");
+  const k = db.addKeepsake(hh, { person: "Grandma June", title: "Birthday voicemail", recordedOn: "2021", audioPath: "keepsakes/a.mp3", durationMs: 42_000 });
+  db.saveFamilyVoice(hh, { voiceId, name: "Grandma June", person: "Grandma June", keepsakeIds: [k.id] });
+  forgetVoiceCache();
+  const voices = await voiceCatalog(hh);
+  // first in every storyteller list, with her own voicemail as the sample
+  assert.equal(voices[0].voiceId, voiceId);
+  assert.equal(voices[0].source, "family");
+  assert.equal(voices[0].previewUrl, "/api/files/keepsakes/a.mp3");
+  // never cast as a character unless the family picked her to tell the story
+  assert.ok(!castableVoices(voices, null).some((v) => v.voiceId === voiceId));
+  assert.ok(castableVoices(voices, voiceId).some((v) => v.voiceId === voiceId));
+
+  await deleteAccountVoice(voiceId);
+  assert.ok(captured.some((c) => c.method === "DELETE" && c.url === `/v1/voices/${voiceId}`));
+  assert.ok(db.deleteFamilyVoice(hh, voiceId));
+  assert.equal(db.deleteKeepsake(hh, k.id), "keepsakes/a.mp3");
 });
 
 test("sign-ups close after the first family unless a sign-up code is set", async () => {

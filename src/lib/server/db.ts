@@ -8,6 +8,8 @@ import type {
   Book,
   BookKind,
   BookPage,
+  FamilyVoice,
+  Keepsake,
   Profile,
   Story,
   StoryCard,
@@ -116,6 +118,29 @@ CREATE TABLE IF NOT EXISTS designed_voices (
   household_id TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (household_id, voice_id)
+);
+
+-- Family recordings kept as they are, and voices learned from a grown-up's recordings.
+CREATE TABLE IF NOT EXISTS keepsakes (
+  id TEXT PRIMARY KEY,
+  household_id TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  person TEXT NOT NULL,
+  title TEXT NOT NULL,
+  recorded_on TEXT,
+  audio_path TEXT NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS keepsakes_household ON keepsakes(household_id, person, created_at);
+
+CREATE TABLE IF NOT EXISTS family_voices (
+  voice_id TEXT NOT NULL,
+  household_id TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  person TEXT NOT NULL,
+  keepsake_ids TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   PRIMARY KEY (household_id, voice_id)
 );
@@ -630,6 +655,98 @@ export function saveDesignedVoice(householdId: string, v: { voiceId: string; nam
       `INSERT OR REPLACE INTO designed_voices (voice_id, household_id, name, description, created_at) VALUES (?, ?, ?, ?, ?)`,
     )
     .run(v.voiceId, householdId, v.name, v.description, Date.now());
+}
+
+// ---------------------------------------------------------------- keepsakes
+
+function keepsakeFromRow(r: Row): Keepsake {
+  return {
+    id: r.id as string,
+    person: r.person as string,
+    title: r.title as string,
+    recordedOn: (r.recorded_on as string | null) ?? null,
+    audioUrl: fileUrl(r.audio_path as string)!,
+    durationMs: r.duration_ms as number,
+    createdAt: r.created_at as number,
+  };
+}
+
+export function listKeepsakes(householdId: string): Keepsake[] {
+  return (
+    db()
+      .prepare("SELECT * FROM keepsakes WHERE household_id = ? ORDER BY person COLLATE NOCASE, created_at")
+      .all(householdId) as Row[]
+  ).map(keepsakeFromRow);
+}
+
+/** The keepsakes with these ids, with their files, for this family only. */
+export function keepsakeFiles(householdId: string, ids: string[]): { id: string; person: string; audioPath: string; durationMs: number }[] {
+  if (!ids.length) return [];
+  const rows = db()
+    .prepare(`SELECT id, person, audio_path, duration_ms FROM keepsakes WHERE household_id = ? AND id IN (${ids.map(() => "?").join(",")})`)
+    .all(householdId, ...ids) as Row[];
+  return rows.map((r) => ({ id: r.id as string, person: r.person as string, audioPath: r.audio_path as string, durationMs: r.duration_ms as number }));
+}
+
+export function addKeepsake(
+  householdId: string,
+  k: { person: string; title: string; recordedOn: string | null; audioPath: string; durationMs: number },
+): Keepsake {
+  const id = newId();
+  const now = Date.now();
+  db()
+    .prepare(
+      "INSERT INTO keepsakes (id, household_id, person, title, recorded_on, audio_path, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .run(id, householdId, k.person, k.title, k.recordedOn, k.audioPath, k.durationMs, now);
+  return { id, person: k.person, title: k.title, recordedOn: k.recordedOn, audioUrl: fileUrl(k.audioPath)!, durationMs: k.durationMs, createdAt: now };
+}
+
+export function updateKeepsake(householdId: string, id: string, patch: { person?: string; title?: string; recordedOn?: string | null }) {
+  const sets: string[] = [];
+  const vals: (string | null)[] = [];
+  if (patch.person !== undefined) (sets.push("person = ?"), vals.push(patch.person));
+  if (patch.title !== undefined) (sets.push("title = ?"), vals.push(patch.title));
+  if (patch.recordedOn !== undefined) (sets.push("recorded_on = ?"), vals.push(patch.recordedOn));
+  if (!sets.length) return;
+  db().prepare(`UPDATE keepsakes SET ${sets.join(", ")} WHERE household_id = ? AND id = ?`).run(...vals, householdId, id);
+}
+
+/** Removes the keepsake and returns its audio path so the file can go too. */
+export function deleteKeepsake(householdId: string, id: string): string | null {
+  const row = db().prepare("SELECT audio_path FROM keepsakes WHERE household_id = ? AND id = ?").get(householdId, id) as Row | undefined;
+  if (!row) return null;
+  db().prepare("DELETE FROM keepsakes WHERE household_id = ? AND id = ?").run(householdId, id);
+  return row.audio_path as string;
+}
+
+// ------------------------------------------------------------ family voices
+
+export function listFamilyVoices(householdId: string): FamilyVoice[] {
+  const rows = db()
+    .prepare("SELECT voice_id, name, person, keepsake_ids, created_at FROM family_voices WHERE household_id = ? ORDER BY created_at")
+    .all(householdId) as Row[];
+  return rows.map((r) => {
+    // the person's own recording doubles as the voice's "Hear me" sample
+    const first = keepsakeFiles(householdId, json<string[]>(r.keepsake_ids) ?? [])[0];
+    return {
+      voiceId: r.voice_id as string,
+      name: r.name as string,
+      person: r.person as string,
+      previewUrl: first ? fileUrl(first.audioPath) : null,
+      createdAt: r.created_at as number,
+    };
+  });
+}
+
+export function saveFamilyVoice(householdId: string, v: { voiceId: string; name: string; person: string; keepsakeIds: string[] }) {
+  db()
+    .prepare("INSERT OR REPLACE INTO family_voices (voice_id, household_id, name, person, keepsake_ids, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(v.voiceId, householdId, v.name, v.person, JSON.stringify(v.keepsakeIds), Date.now());
+}
+
+export function deleteFamilyVoice(householdId: string, voiceId: string): boolean {
+  return db().prepare("DELETE FROM family_voices WHERE household_id = ? AND voice_id = ?").run(householdId, voiceId).changes > 0;
 }
 
 // ------------------------------------------------------------ classics cache

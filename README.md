@@ -42,6 +42,17 @@ a brand-new tale for the very same pictures.
 - **🪄 Conjure a voice.** Describe one ("a tiny, squeaky mouse who talks very fast"), hear three versions, and
   keep your favorite in the family's voice wardrobe for future stories.
 
+### 💛 Family voices
+- **Keepsakes, kept just as they are.** Upload a voicemail, a voice memo or a video (the sound is kept), or
+  record right in the app: Grandma's birthday message, your children reading at four. They're tidied into
+  MP3s in the browser, filed under each person, and stay private to your family.
+- **A grown-up's voice can read anything.** From a minute or so of an adult's recordings, ElevenLabs
+  instant voice cloning learns their voice. They then appear first in every storyteller list, ready to read a
+  book, a poem or a letter. Making one asks the grown-up to confirm the voice is an adult's and that the family
+  has the right to use it (they agreed, or, for someone who has passed away, the family is at peace with it).
+- **Never cast by accident.** A family voice only reads when you pick it as the storyteller; the casting
+  director never hands Grandma the troll's lines. Children's recordings stay keepsakes and are never cloned.
+
 ### 🔔 Made for real books
 - **A gentle page-turn chime** (bell, wand sparkle, or wind chime) with an adjustable pause after it.
 - **The classic read-along welcome:** *"You'll know it's time to turn the page when you hear this sound…"*
@@ -181,6 +192,8 @@ That's for your family's own listening; please don't share those recordings publ
 | Writing a 12-page story (Claude Opus 5.5) | about $0.15–$0.50, depending on photo count and length |
 | Recording a 6-minute story | about 5,000 characters of ElevenLabs voice credit. Compare with your plan's monthly allowance. |
 | Changing chimes, replaying, downloading | free |
+| Keeping family recordings | free |
+| Making a family storytelling voice | included in ElevenLabs plans from Starter up (each voice uses one of your plan's voice slots) |
 
 To trim costs, set `STORY_MODEL=claude-sonnet-5-5` for the storyteller, or pick a shorter length.
 
@@ -232,8 +245,8 @@ Optional settings live in `.env.example` (`STORY_MODEL`, `VOICE_MODEL`, `ELEVENL
 
 ## Roadmap: ideas for even more magic
 
-- **Grandparent voices.** With consent, record Granny once and have her voice read bedtime stories from
-  across the ocean (ElevenLabs instant voice cloning).
+- **Record a reading:** a child or grandparent reads a real book page by page, with chimes added, as a keepsake
+  story on the shelf.
 - **Sound effects on cue:** an owl's hoot as it appears on the page, waves as the boat sets sail.
 - **Ongoing sagas:** recurring characters with memories across nights ("Ollie remembers last week's
   adventure").

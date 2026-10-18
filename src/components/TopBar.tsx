@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Emblem } from "./Art";
+import { Emblem, Wordmark } from "./Art";
 import type { Profile } from "@/lib/shared/types";
 
 const NAV = [
@@ -19,8 +19,8 @@ export function TopBar({ profile }: { profile: Profile | null }) {
     <header className="topbar">
       <div className="topbar-inner">
         <Link href="/" className="brand" aria-label="Storyhollow, home">
-          <Emblem />
-          <span className="brand-name">Storyhollow</span>
+          <Emblem size={50} />
+          <Wordmark height={40} className="brand-wordmark" />
         </Link>
         <nav className="nav" aria-label="Main">
           {NAV.map((n) => (

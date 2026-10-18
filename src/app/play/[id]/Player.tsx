@@ -175,7 +175,7 @@ export function Player({ story, book, photos }: { story: Story; book: Book; phot
   // Lock screen and headphone controls.
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
-    const artwork = book.coverUrl ? [{ src: book.coverUrl, sizes: "512x512", type: "image/jpeg" }] : [{ src: "/pwa-icon", sizes: "512x512", type: "image/png" }];
+    const artwork = book.coverUrl ? [{ src: book.coverUrl, sizes: "512x512", type: "image/jpeg" }] : [{ src: "/brand/icon-512.png", sizes: "512x512", type: "image/png" }];
     navigator.mediaSession.metadata = new MediaMetadata({ title: story.title, artist: "Storyhollow", album: book.title, artwork });
     navigator.mediaSession.setActionHandler("play", play);
     navigator.mediaSession.setActionHandler("pause", pause);

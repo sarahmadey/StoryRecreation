@@ -1,4 +1,6 @@
-# 🌳 Storyhollow
+<p align="center"><img src="public/brand/storyhollow-lockup.webp" width="360" alt="Storyhollow"></p>
+
+# Storyhollow
 
 *A hollow old tree where stories live, with a little glowing door.*
 

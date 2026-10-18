@@ -189,6 +189,10 @@ export function getHousehold(id: string): HouseholdRow | undefined {
   return db().prepare("SELECT * FROM households WHERE id = ?").get(id) as HouseholdRow | undefined;
 }
 
+export function countHouseholds(): number {
+  return Number((db().prepare("SELECT COUNT(*) AS n FROM households").get() as Row).n);
+}
+
 export function createHousehold(name: string, email: string, passwordHash: string): string {
   const id = newId();
   db()

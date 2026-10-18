@@ -25,6 +25,10 @@ export const config = {
   get elevenLabsBaseUrl(): string | undefined {
     return process.env.ELEVENLABS_BASE_URL || undefined;
   },
+  /** When set, creating a library needs this code (keeps strangers off a public URL). */
+  get signupCode(): string | undefined {
+    return process.env.SIGNUP_CODE?.trim() || undefined;
+  },
   get secureCookies(): boolean {
     return process.env.NODE_ENV === "production" && process.env.INSECURE_COOKIES !== "1";
   },

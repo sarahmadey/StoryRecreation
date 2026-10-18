@@ -15,6 +15,5 @@ ENV NODE_ENV=production \
 COPY --from=build /app/package.json /app/next.config.ts ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
-VOLUME /data
 EXPOSE 3000
 CMD ["npx", "next", "start"]

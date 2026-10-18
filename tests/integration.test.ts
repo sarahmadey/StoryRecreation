@@ -271,3 +271,16 @@ test("pages photographed back to front are put back in reading order", async () 
   applyPhotoOrder(hid, bookId, sent, [3, 2, 1]);
   assert.deepEqual(db.listPageRows(bookId).map((r) => r.image_path), ["books/p6.jpg", "books/p7.jpg", "books/p8.jpg"]);
 });
+
+test("sign-ups close after the first family unless a sign-up code is set", async () => {
+  const { signupMode, codeMatches } = await import("@/lib/server/signup");
+  // Earlier tests created a household, so without a code the doors are closed.
+  delete process.env.SIGNUP_CODE;
+  assert.equal(signupMode(), "closed");
+  process.env.SIGNUP_CODE = "moonlight";
+  assert.equal(signupMode(), "code");
+  assert.ok(codeMatches(" moonlight "));
+  assert.ok(!codeMatches("moon"));
+  assert.ok(!codeMatches(""));
+  delete process.env.SIGNUP_CODE;
+});

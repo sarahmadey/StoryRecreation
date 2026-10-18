@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentCtx } from "@/lib/server/auth";
+import { signupMode } from "@/lib/server/signup";
 import { WelcomeForm } from "./WelcomeForm";
 import { Emblem } from "@/components/Art";
 
@@ -19,7 +20,7 @@ export default async function WelcomePage() {
           found today) and a cast of storytellers will bring it to life.
         </p>
       </div>
-      <WelcomeForm />
+      <WelcomeForm signup={signupMode()} />
     </main>
   );
 }

@@ -189,17 +189,40 @@ spending credits.
 
 ## Hosting it for the family
 
+### On Railway (recommended, about $5 a month)
+
+1. **Get your keys:** an Anthropic API key (console.anthropic.com → Billing → buy credits, $5 minimum →
+   API Keys → Create Key) and an ElevenLabs API key (elevenlabs.io → pick a plan → API Keys).
+2. Sign in at [railway.com](https://railway.com) with GitHub and choose the **Hobby** plan ($5/month, which
+   includes $5 of usage; Storyhollow normally fits inside it).
+3. **New Project → Deploy from GitHub repo →** allow access to this repository and pick it.
+4. If the repository's main branch isn't the one with Storyhollow, open the service's **Settings → Source**
+   and choose the right branch.
+5. **Add a volume** to the service with mount path **`/data`**. That's where books, photos and recordings live.
+6. **Variables:** add `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY` and `SIGNUP_CODE` (a secret word only your
+   family knows; it's needed to create a library card).
+7. **Settings → Networking → Generate Domain.** That's your Storyhollow address (`…up.railway.app`).
+8. Open it, create your library card with the sign-up code, and on the iPad use **Share → Add to Home Screen**.
+
+Railway rebuilds automatically whenever the branch is updated. Leave "serverless / app sleeping" off: stories
+are written and recorded in the background.
+
+### Anywhere else
+
 The camera and "Add to Home Screen" need **HTTPS** (or `localhost`).
 
-- **Docker** (a home server, NAS, Fly.io, Railway, Render…). Mount a volume for `/data`:
+- **Docker** (a home server, NAS, Fly.io, Render…). Mount a volume for `/data`:
   ```bash
   docker build -t storyhollow .
   docker run -p 3000:3000 -v storyhollow-data:/data \
-    -e ANTHROPIC_API_KEY=… -e ELEVENLABS_API_KEY=… storyhollow
+    -e ANTHROPIC_API_KEY=… -e ELEVENLABS_API_KEY=… -e SIGNUP_CODE=… storyhollow
   ```
 - On a home network over plain `http://`, add `-e INSECURE_COOKIES=1` so sign-in cookies work without HTTPS.
 - It needs a persistent disk (SQLite + audio files) and a long-running Node process for background jobs, so
   serverless-only hosts aren't a fit as-is.
+
+**Who can sign up:** with `SIGNUP_CODE` set, creating a library needs the code. Without it, only the first
+family can sign up and the door closes behind them, so strangers who find the address can't spend your credits.
 
 Optional settings live in `.env.example` (`STORY_MODEL`, `VOICE_MODEL`, `ELEVENLABS_BASE_URL`, `DATA_DIR`).
 

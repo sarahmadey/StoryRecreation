@@ -16,5 +16,8 @@ COPY --from=build /app/package.json /app/next.config.ts ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
+COPY --from=build /app/scripts/start.mjs ./scripts/start.mjs
 EXPOSE 3000
-CMD ["npx", "next", "start"]
+# Not "npx next start": npx exits with an error when Railway stops the old
+# version during an update, which Railway reports as a crash.
+CMD ["node", "scripts/start.mjs"]

@@ -192,6 +192,9 @@ export function db(): DatabaseSync {
   if (!globalForDb.__storyhollowDb) {
     fs.mkdirSync(config.dataDir, { recursive: true });
     const conn = new DatabaseSync(path.join(config.dataDir, "storyhollow.db"));
+    // If the old and new versions overlap for a moment during an update, wait
+    // for the other to finish writing rather than failing.
+    conn.exec("PRAGMA busy_timeout = 5000");
     conn.exec(SCHEMA);
     globalForDb.__storyhollowDb = conn;
     recoverInterruptedJobs(conn);

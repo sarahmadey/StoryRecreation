@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { ScrollShelf } from "./Shelf";
 import { BOOK_KINDS, formatDuration } from "@/lib/shared/options";
 import type { Book, BookKind, StoryCard } from "@/lib/shared/types";
 
 const LEATHERS = ["#6b1f2b", "#23432f", "#1f2d4a", "#5a3720", "#4a2a5a", "#2d4f56", "#6b4a1a", "#3a3a2a"];
 
-function hueFor(id: string): string {
+export function hueFor(id: string): string {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
   return LEATHERS[Math.abs(h) % LEATHERS.length];
@@ -61,13 +62,9 @@ export function BookOnShelf({ book }: { book: Book }) {
 
 export function Shelf({ label, books, empty }: { label: string; books: Book[]; empty?: React.ReactNode }) {
   return (
-    <section className="shelf" aria-label={label}>
-      <span className="shelf-label">{label}</span>
-      <div className="shelf-books">
-        {books.length ? books.map((b) => <BookOnShelf key={b.id} book={b} />) : <div className="shelf-empty">{empty}</div>}
-      </div>
-      <div className="shelf-plank" />
-    </section>
+    <ScrollShelf label={label} count={books.length}>
+      {books.length ? books.map((b) => <BookOnShelf key={b.id} book={b} />) : <div className="shelf-empty">{empty}</div>}
+    </ScrollShelf>
   );
 }
 

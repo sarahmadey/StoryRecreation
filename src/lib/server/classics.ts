@@ -1,4 +1,5 @@
-import { cacheClassic, getCachedClassic } from "./db";
+import { config } from "./config";
+import { cacheCatalogue, cacheClassic, getCachedCatalogue, getCachedClassic } from "./db";
 import { chapterize, cleanGutenberg, type Chapter } from "./text";
 
 // The Classic Treasury: public-domain children's books from Project
@@ -38,6 +39,19 @@ export const CLASSICS: Classic[] = [
   { slug: "secret-garden", gutenbergId: 113, title: "The Secret Garden", author: "Frances Hodgson Burnett", emoji: "🗝️", ages: "8+", blurb: "A locked garden, a robin and a little magic.", color: "#4a6b4a" },
 ];
 
+/** Ways to browse the whole library, as Gutendex topics (matched against Gutenberg's subjects and shelves). */
+export const TOPICS = [
+  { id: "loved", label: "Most loved", emoji: "⭐", topic: "children" },
+  { id: "animals", label: "Animal stories", emoji: "🐻", topic: "animals -- juvenile" },
+  { id: "fairy", label: "Fairy tales", emoji: "🧚", topic: "fairy tales" },
+  { id: "picture", label: "Picture books", emoji: "🎨", topic: "picture books" },
+  { id: "poems", label: "Poems & rhymes", emoji: "🌙", topic: "children's poetry" },
+  { id: "fables", label: "Fables & myths", emoji: "🦊", topic: "fables" },
+  { id: "adventure", label: "Adventure", emoji: "🏝️", topic: "adventure and adventurers -- juvenile" },
+  { id: "christmas", label: "Christmas", emoji: "🎄", topic: "christmas -- juvenile" },
+] as const;
+export type TopicId = (typeof TOPICS)[number]["id"];
+
 interface GutendexBook {
   id: number;
   title: string;
@@ -47,7 +61,6 @@ interface GutendexBook {
   download_count: number;
 }
 
-const GUTENDEX = "https://gutendex.com/books";
 const GUTENBERG_TEXT = (id: number) => `https://www.gutenberg.org/cache/epub/${id}/pg${id}.txt`;
 
 export class ClassicsError extends Error {}
@@ -86,15 +99,63 @@ export interface CatalogueHit {
   gutenbergId: number;
   title: string;
   author: string | null;
+  cover: string | null;
 }
 
-export async function searchGutenberg(query: string): Promise<CatalogueHit[]> {
-  const url = `${GUTENDEX}?languages=en&search=${encodeURIComponent(query)}`;
-  const data = await fetchJson<{ results: GutendexBook[] }>(url);
-  return data.results
-    .filter((b) => textUrl(b))
-    .slice(0, 12)
-    .map((b) => ({ gutenbergId: b.id, title: b.title, author: b.authors[0]?.name ?? null }));
+export interface CataloguePage {
+  results: CatalogueHit[];
+  more: boolean;
+}
+
+/** "Peter Pan; or, The Boy Who Wouldn't Grow Up" reads better on a little cover as "Peter Pan". */
+export function shortTitle(title: string): string {
+  const main = title.split(/;|:|\r?\n| — /)[0].trim();
+  return main.length >= 3 ? main : title.trim();
+}
+
+/** Gutenberg lists authors as "Carroll, Lewis (Charles Lutwidge Dodgson)": a child would say "Lewis Carroll". */
+export function authorName(name: string | undefined): string | null {
+  if (!name) return null;
+  const plain = name.replace(/\s*\([^)]*\)/g, "").trim();
+  const [last, first] = plain.split(/,\s*/);
+  return first ? `${first} ${last}` : plain;
+}
+
+const CATALOGUE_FRESH = 7 * 24 * 3600 * 1000;
+
+/**
+ * One page of the library: books matching a search (title or author), or a
+ * topic, most-downloaded first. Answers are kept for a week, because the
+ * free catalogue can be slow.
+ */
+export async function browseCatalogue({ q, topic, page = 1 }: { q?: string; topic?: TopicId; page?: number }): Promise<CataloguePage> {
+  const params = new URLSearchParams({ languages: "en", mime_type: "text/plain", page: String(Math.max(1, Math.floor(page))) });
+  if (q) params.set("search", q.slice(0, 100));
+  const t = TOPICS.find((x) => x.id === topic);
+  if (t && !q) params.set("topic", t.topic);
+  const url = `${config.gutendexUrl}?${params}`;
+  const cached = getCachedCatalogue<CataloguePage>(url, CATALOGUE_FRESH);
+  if (cached) return cached;
+  const data = await fetchJson<{ results: GutendexBook[]; next: string | null }>(url);
+  const result: CataloguePage = {
+    results: data.results
+      .filter((b) => textUrl(b))
+      .map((b) => ({ gutenbergId: b.id, title: shortTitle(b.title), author: authorName(b.authors[0]?.name), cover: b.formats["image/jpeg"] ?? null })),
+    more: Boolean(data.next),
+  };
+  cacheCatalogue(url, result);
+  return result;
+}
+
+let warming: Promise<void> | null = null;
+
+/** Fetch each topic's first page in the background, so browsing is quick when a family gets there. */
+export function warmCatalogue(): void {
+  warming ??= (async () => {
+    for (const t of TOPICS) await browseCatalogue({ topic: t.id }).catch(() => undefined);
+  })().finally(() => {
+    warming = null;
+  });
 }
 
 export interface LoadedClassic {
@@ -112,7 +173,7 @@ export async function loadClassic(gutenbergId: number): Promise<LoadedClassic> {
     const direct = await get(GUTENBERG_TEXT(gutenbergId), 30).catch(() => null);
     if (direct?.ok) raw = await direct.text();
     else {
-      const book = await fetchJson<GutendexBook>(`${GUTENDEX}/${gutenbergId}`);
+      const book = await fetchJson<GutendexBook>(`${config.gutendexUrl}/${gutenbergId}`);
       const url = textUrl(book);
       if (!url) throw new ClassicsError("That book has no plain-text edition.");
       const res = await get(url, 30);

@@ -6,6 +6,7 @@ import { previewChime, previewVoice } from "@/lib/client/sound";
 import { CHIMES } from "@/lib/shared/options";
 import type { ChimeSettings, ChimeStyle, VoiceOption } from "@/lib/shared/types";
 import { useApi } from "./Grownup";
+import { SideArrows, useSideScroll } from "./Shelf";
 
 // ------------------------------------------------------------------ photos
 
@@ -182,26 +183,14 @@ export function VoicePicker({
 }) {
   // The storytellers sit on one shelf you swipe along, so the cards stay big
   // however many voices the family collects.
-  const shelf = useRef<HTMLDivElement>(null);
-  const [ends, setEnds] = useState({ start: true, end: true });
-  const measure = () => {
-    const el = shelf.current;
-    if (el) setEnds({ start: el.scrollLeft < 4, end: el.scrollLeft + el.clientWidth > el.scrollWidth - 4 });
-  };
   const loaded = voices !== null;
-  useEffect(() => {
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
+  const { ref: shelf, ends, measure, slide, overflows } = useSideScroll<HTMLDivElement>(loaded);
   // Keep the chosen storyteller in view (a saved choice may be far along the shelf), without scrolling the page.
   useEffect(() => {
     const el = shelf.current;
     const chosen = el?.querySelector<HTMLElement>('[aria-checked="true"]');
     if (el && chosen) el.scrollTo({ left: chosen.offsetLeft - (el.clientWidth - chosen.clientWidth) / 2, behavior: "smooth" });
-  }, [loaded, value]);
-  const slide = (dir: 1 | -1) => shelf.current?.scrollBy({ left: dir * shelf.current.clientWidth * 0.8, behavior: "smooth" });
+  }, [loaded, value, shelf]);
 
   if (!voices) return <p className="muted">Gathering the storytellers…</p>;
   // family voices first: Grandma reading is the most special storyteller of all
@@ -219,18 +208,9 @@ export function VoicePicker({
     <div>
       <div className="voice-shelf-head">
         <span className="small" style={{ color: "var(--ink-soft)" }}>
-          {count} storytellers{ends.start && ends.end ? "" : " · swipe for more"}
+          {count} storytellers{overflows ? " · swipe for more" : ""}
         </span>
-        {!(ends.start && ends.end) && (
-          <span className="row" style={{ gap: 6 }}>
-            <button type="button" className="shelf-arrow" aria-label="Earlier storytellers" onClick={() => slide(-1)} disabled={ends.start}>
-              ‹
-            </button>
-            <button type="button" className="shelf-arrow" aria-label="More storytellers" onClick={() => slide(1)} disabled={ends.end}>
-              ›
-            </button>
-          </span>
-        )}
+        {overflows && <SideArrows ends={ends} slide={slide} what="storytellers" />}
       </div>
       <div className="voice-grid" ref={shelf} onScroll={measure} role="radiogroup" aria-label="Storyteller">
         {allowAuto && (

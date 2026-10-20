@@ -1,17 +1,49 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
-import { Cover, StoryCardView } from "@/components/Books";
+import { Cover, StoryCardView, hueFor } from "@/components/Books";
+import { ScrollShelf } from "@/components/Shelf";
 import { PhotoPicker, VoicePicker, useVoices } from "@/components/Pickers";
 import type { PickedPhoto } from "@/lib/client/images";
 import { DEFAULT_NARRATOR_ID } from "@/lib/shared/personas";
 import { defaultSettings } from "@/lib/shared/options";
 import type { AppStatus, Book, Profile, StoryCard } from "@/lib/shared/types";
-import type { Classic } from "@/lib/server/classics";
+import type { CatalogueHit, CataloguePage, Classic, TOPICS } from "@/lib/server/classics";
 
 type Tab = "classics" | "own" | "words";
+type Topic = (typeof TOPICS)[number];
+
+/** The treasury by the age each book is pitched at ("Ages 4+"). */
+const AGES_BANDS = [
+  { id: "all", label: "All ages", fits: () => true },
+  { id: "little", label: "Little ones", fits: (min: number) => min <= 4 },
+  { id: "middle", label: "Ages 5–7", fits: (min: number) => min >= 5 && min <= 7 },
+  { id: "older", label: "8 and up", fits: (min: number) => min >= 8 },
+] as const;
+
+/** A book from the whole library: its real Gutenberg cover, or a leather one if there isn't a cover. */
+function CatalogueBook({ hit, onOpen }: { hit: CatalogueHit; onOpen: () => void }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <button type="button" className="book catalogue-book" onClick={onOpen} title={hit.title}>
+      <div className="book-cover">
+        {hit.cover && !broken ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={hit.cover} alt="" loading="lazy" onError={() => setBroken(true)} />
+        ) : (
+          <div className="leather" style={{ ["--hue" as string]: hueFor(String(hit.gutenbergId)) }}>
+            <span className="leather-emoji">📖</span>
+            <span className="leather-title">{hit.title}</span>
+          </div>
+        )}
+      </div>
+      <div className="book-title">{hit.title}</div>
+      {hit.author && <div className="faint small center">{hit.author}</div>}
+    </button>
+  );
+}
 
 interface ChapterInfo {
   index: number;
@@ -23,6 +55,7 @@ interface ChapterInfo {
 
 export function ReadToMe({
   classics,
+  topics,
   ownBooks,
   readAlouds,
   profiles,
@@ -31,6 +64,7 @@ export function ReadToMe({
   preselectClassic,
 }: {
   classics: Classic[];
+  topics: readonly Topic[];
   ownBooks: Book[];
   readAlouds: StoryCard[];
   profiles: Profile[];
@@ -50,7 +84,14 @@ export function ReadToMe({
   // classics
   const [open, setOpen] = useState<{ gid: number; title: string; author: string | null; emoji: string; chapters: ChapterInfo[] } | null>(null);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<{ gutenbergId: number; title: string; author: string | null }[] | null>(null);
+  const [ages, setAges] = useState<(typeof AGES_BANDS)[number]["id"]>("all");
+  const [topic, setTopic] = useState<string>(topics[0]?.id ?? "loved");
+  const [searched, setSearched] = useState<string | null>(null);
+  const [catalogue, setCatalogue] = useState<(CataloguePage & { page: number }) | null>(null);
+  const [browsing, setBrowsing] = useState(false);
+  const [browseError, setBrowseError] = useState<string | null>(null);
+  const browseSeq = useRef(0);
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   // own book
   const [bookId, setBookId] = useState<string>(preselectBook ?? ownBooks[0]?.id ?? "new");
@@ -86,6 +127,8 @@ export function ReadToMe({
   const openClassic = async (gid: number, fallbackTitle: string, emoji: string) => {
     setBusy(`Fetching ${fallbackTitle} from the archives…`);
     setError(null);
+    // A book tapped far down the page opens up here, by the tabs: bring the family along.
+    tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
       const res = await api.get<{ title: string; author: string | null; chapters: ChapterInfo[] }>(`/api/classics/${gid}`);
       setOpen({ gid, title: res.title, author: res.author, emoji, chapters: res.chapters });
@@ -101,18 +144,54 @@ export function ReadToMe({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preselectClassic]);
 
-  const search = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-    setBusy("Searching the archives…");
+  /** A page of the whole library, by topic or by search. A later request always wins over an earlier one. */
+  const browse = async (by: { topic?: string; q?: string }, page = 1) => {
+    const seq = ++browseSeq.current;
+    setBrowsing(true);
+    setBrowseError(null);
+    if (page === 1) setCatalogue(null);
     try {
-      setResults((await api.get<{ results: typeof results }>(`/api/classics?q=${encodeURIComponent(query)}`)).results);
+      const params = new URLSearchParams({ page: String(page) });
+      if (by.q) params.set("q", by.q);
+      else if (by.topic) params.set("topic", by.topic);
+      const res = await api.get<CataloguePage>(`/api/classics?${params}`);
+      if (seq !== browseSeq.current) return;
+      setCatalogue((cur) => ({ results: page > 1 && cur ? [...cur.results, ...res.results] : res.results, more: res.more, page }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "The search didn't work.");
+      if (seq === browseSeq.current) setBrowseError(err instanceof Error ? err.message : "The library couldn't be reached.");
     } finally {
-      setBusy(null);
+      if (seq === browseSeq.current) setBrowsing(false);
     }
   };
+
+  // Open the card catalogue at the first topic the first time the treasury is shown.
+  useEffect(() => {
+    if (tab === "classics" && !catalogue && !browsing && !browseError) void browse({ topic });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const chooseTopic = (id: string) => {
+    setTopic(id);
+    setSearched(null);
+    setQuery("");
+    void browse({ topic: id });
+  };
+
+  const search = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+    setSearched(q);
+    void browse({ q });
+  };
+
+  const clearSearch = () => {
+    setSearched(null);
+    setQuery("");
+    void browse({ topic });
+  };
+
+  const treasury = classics.filter((c) => AGES_BANDS.find((b) => b.id === ages)!.fits(parseInt(c.ages, 10) || 0));
 
   const baseSettings = (source: "classic" | "book_read" | "text") =>
     defaultSettings({
@@ -207,7 +286,7 @@ export function ReadToMe({
         </label>
       </div>
 
-      <div className="chips" role="tablist" style={{ justifyContent: "center" }}>
+      <div className="chips" role="tablist" style={{ justifyContent: "center", scrollMarginTop: 96 }} ref={tabsRef}>
         {(
           [
             ["classics", "📜 The Classic Treasury"],
@@ -226,49 +305,94 @@ export function ReadToMe({
 
       {tab === "classics" && !open && (
         <>
-          <div className="bookcase">
-            <section className="shelf">
-              <span className="shelf-label">The Classic Treasury</span>
-              <div className="shelf-books">
-                {classics.map((c) => (
-                  <button key={c.slug} className="book" onClick={() => openClassic(c.gutenbergId, c.title, c.emoji)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                    <div className="book-cover">
-                      <div className="leather" style={{ ["--hue" as string]: c.color }}>
-                        <span className="leather-emoji">{c.emoji}</span>
-                        <span className="leather-title">{c.title}</span>
-                      </div>
-                    </div>
-                    <div className="book-title">{c.title}</div>
-                    <div className="faint small center">Ages {c.ages}</div>
-                  </button>
-                ))}
-              </div>
-              <div className="shelf-plank" />
-            </section>
+          <div className="topic-chips" aria-label="Ages">
+            {AGES_BANDS.map((b) => (
+              <button key={b.id} type="button" className="dark-chip" aria-pressed={ages === b.id} onClick={() => setAges(b.id)}>
+                {b.label}
+              </button>
+            ))}
           </div>
-          <form className="row" onSubmit={search} style={{ justifyContent: "center" }}>
-            <input
-              className="input"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search 70,000 free classics, e.g. “Black Beauty”"
-              style={{ maxWidth: 420 }}
-            />
-            <button className="btn btn-ghost">Search</button>
-          </form>
-          {results && (
-            <div className="story-list">
-              {results.length === 0 && <p className="muted">Nothing found. Try another title.</p>}
-              {results.map((r) => (
-                <button key={r.gutenbergId} className="story-card" onClick={() => openClassic(r.gutenbergId, r.title, "📜")} style={{ textAlign: "left", cursor: "pointer" }}>
-                  <div className="story-meta">
-                    <div className="story-title">{r.title}</div>
-                    <div className="story-sub">{r.author}</div>
+          <div className="bookcase">
+            <ScrollShelf label="The Classic Treasury" count={treasury.length}>
+              {treasury.map((c) => (
+                <button
+                  key={c.slug}
+                  className="book"
+                  onClick={() => openClassic(c.gutenbergId, c.title, c.emoji)}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                >
+                  <div className="book-cover">
+                    <div className="leather" style={{ ["--hue" as string]: c.color }}>
+                      <span className="leather-emoji">{c.emoji}</span>
+                      <span className="leather-title">{c.title}</span>
+                    </div>
                   </div>
+                  <div className="book-title">{c.title}</div>
+                  <div className="faint small center">Ages {c.ages}</div>
+                </button>
+              ))}
+            </ScrollShelf>
+          </div>
+
+          <section className="stack" style={{ ["--gap" as string]: "16px" }}>
+            <div className="center">
+              <h2 style={{ margin: 0 }}>Explore the whole library</h2>
+              <p className="muted" style={{ margin: "6px 0 0" }}>
+                70,000 free books from Project Gutenberg. Pick a kind of story, or look for a title or author.
+              </p>
+            </div>
+            <div className="topic-chips" aria-label="Kinds of story">
+              {topics.map((t) => (
+                <button key={t.id} type="button" className="dark-chip" aria-pressed={!searched && topic === t.id} onClick={() => chooseTopic(t.id)}>
+                  {t.emoji} {t.label}
                 </button>
               ))}
             </div>
-          )}
+            <form className="row" onSubmit={search} style={{ justifyContent: "center" }}>
+              <input
+                className="input"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="A title or author, like “Black Beauty”"
+                style={{ maxWidth: 420 }}
+                enterKeyHint="search"
+              />
+              <button className="btn btn-ghost">Search</button>
+            </form>
+            {searched && (
+              <p className="center muted" style={{ margin: 0 }}>
+                Books matching “{searched}” ·{" "}
+                <button type="button" className="btn btn-quiet btn-sm" onClick={clearSearch}>
+                  ✕ Back to {topics.find((t) => t.id === topic)?.label ?? "browsing"}
+                </button>
+              </p>
+            )}
+            {browseError && (
+              <div className="notice notice-error center">
+                <p style={{ margin: 0 }}>{browseError}</p>
+                <button type="button" className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => browse(searched ? { q: searched } : { topic }, (catalogue?.page ?? 0) + 1)}>
+                  Try again
+                </button>
+              </div>
+            )}
+            {catalogue && catalogue.results.length > 0 && (
+              <div className="catalogue-grid">
+                {catalogue.results.map((hit) => (
+                  <CatalogueBook key={hit.gutenbergId} hit={hit} onOpen={() => openClassic(hit.gutenbergId, hit.title, "📖")} />
+                ))}
+              </div>
+            )}
+            {catalogue && catalogue.results.length === 0 && !browsing && <p className="muted center">Nothing found. Try another title, or browse a kind of story.</p>}
+            {browsing && <p className="notice center">✨ Opening the card catalogue… the first look can take a few seconds.</p>}
+            {catalogue?.more && !browsing && (
+              <div className="center">
+                <button type="button" className="btn btn-ghost" onClick={() => browse(searched ? { q: searched } : { topic }, catalogue.page + 1)}>
+                  Show more books
+                </button>
+              </div>
+            )}
+          </section>
+
           <p className="faint small center">
             The Treasury holds public-domain books from Project Gutenberg. Newer picture books aren't in any free library, so
             photograph your own copy instead (“A book we own”).

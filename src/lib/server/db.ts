@@ -152,6 +152,12 @@ CREATE TABLE IF NOT EXISTS classics_cache (
   text TEXT NOT NULL,
   fetched_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS catalogue_cache (
+  key TEXT PRIMARY KEY,
+  json TEXT NOT NULL,
+  fetched_at INTEGER NOT NULL
+);
 `;
 
 type Row = Record<string, unknown>;
@@ -789,6 +795,16 @@ export function cacheClassic(id: number, title: string, author: string | null, t
   db()
     .prepare("INSERT OR REPLACE INTO classics_cache (gutenberg_id, title, author, text, fetched_at) VALUES (?, ?, ?, ?, ?)")
     .run(id, title, author, text, Date.now());
+}
+
+/** A saved answer from the Gutenberg catalogue, if it's fresh enough. */
+export function getCachedCatalogue<T>(key: string, maxAgeMs: number): T | undefined {
+  const r = db().prepare("SELECT json, fetched_at FROM catalogue_cache WHERE key = ?").get(key) as { json: string; fetched_at: number } | undefined;
+  return r && Date.now() - r.fetched_at < maxAgeMs ? (JSON.parse(r.json) as T) : undefined;
+}
+
+export function cacheCatalogue(key: string, value: unknown) {
+  db().prepare("INSERT OR REPLACE INTO catalogue_cache (key, json, fetched_at) VALUES (?, ?, ?)").run(key, JSON.stringify(value), Date.now());
 }
 
 /** The settings used last time a story was made for this book, for "another one tonight". */

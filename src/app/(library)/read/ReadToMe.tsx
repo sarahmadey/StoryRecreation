@@ -191,7 +191,16 @@ export function ReadToMe({
     void browse({ topic });
   };
 
-  const treasury = classics.filter((c) => AGES_BANDS.find((b) => b.id === ages)!.fits(parseInt(c.ages, 10) || 0));
+  // One set of choices for everything below: the favorites follow the age, the kind and the search; the
+  // wider library follows the kind and the search (it isn't sorted by age).
+  const fits = AGES_BANDS.find((b) => b.id === ages)!.fits;
+  const sought = searched?.toLowerCase();
+  const favorites = classics.filter(
+    (c) =>
+      fits(parseInt(c.ages, 10) || 0) &&
+      (sought ? `${c.title} ${c.author}`.toLowerCase().includes(sought) : topic === "loved" || (c.kinds as string[]).includes(topic)),
+  );
+  const topicLabel = topics.find((t) => t.id === topic)?.label ?? "browsing";
 
   const baseSettings = (source: "classic" | "book_read" | "text") =>
     defaultSettings({
@@ -305,68 +314,82 @@ export function ReadToMe({
 
       {tab === "classics" && !open && (
         <>
-          <div className="topic-chips" aria-label="Ages">
-            {AGES_BANDS.map((b) => (
-              <button key={b.id} type="button" className="dark-chip" aria-pressed={ages === b.id} onClick={() => setAges(b.id)}>
-                {b.label}
-              </button>
-            ))}
-          </div>
-          <div className="bookcase">
-            <ScrollShelf label="The Classic Treasury" count={treasury.length}>
-              {treasury.map((c) => (
-                <button
-                  key={c.slug}
-                  className="book"
-                  onClick={() => openClassic(c.gutenbergId, c.title, c.emoji)}
-                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                >
-                  <div className="book-cover">
-                    <div className="leather" style={{ ["--hue" as string]: c.color }}>
-                      <span className="leather-emoji">{c.emoji}</span>
-                      <span className="leather-title">{c.title}</span>
-                    </div>
-                  </div>
-                  <div className="book-title">{c.title}</div>
-                  <div className="faint small center">Ages {c.ages}</div>
-                </button>
-              ))}
-            </ScrollShelf>
-          </div>
-
-          <section className="stack" style={{ ["--gap" as string]: "16px" }}>
-            <div className="center">
-              <h2 style={{ margin: 0 }}>Explore the whole library</h2>
-              <p className="muted" style={{ margin: "6px 0 0" }}>
-                70,000 free books from Project Gutenberg. Pick a kind of story, or look for a title or author.
-              </p>
-            </div>
-            <div className="topic-chips" aria-label="Kinds of story">
-              {topics.map((t) => (
-                <button key={t.id} type="button" className="dark-chip" aria-pressed={!searched && topic === t.id} onClick={() => chooseTopic(t.id)}>
-                  {t.emoji} {t.label}
-                </button>
-              ))}
-            </div>
-            <form className="row" onSubmit={search} style={{ justifyContent: "center" }}>
+          <section className="find-panel stack" style={{ ["--gap" as string]: "14px" }} aria-label="Find a book">
+            <form className="find-search" onSubmit={search} role="search">
               <input
                 className="input"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="A title or author, like “Black Beauty”"
-                style={{ maxWidth: 420 }}
+                placeholder="Search by title or author"
+                aria-label="Search by title or author"
                 enterKeyHint="search"
               />
-              <button className="btn btn-ghost">Search</button>
+              <button className="btn btn-sm" aria-label="Search">
+                🔍
+              </button>
             </form>
+            <div>
+              <span className="find-label">Kind of story</span>
+              <div className="topic-chips">
+                {topics.map((t) => (
+                  <button key={t.id} type="button" className="dark-chip" aria-pressed={!searched && topic === t.id} onClick={() => chooseTopic(t.id)}>
+                    {t.emoji} {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="find-label">Age</span>
+              <div className="topic-chips">
+                {AGES_BANDS.map((b) => (
+                  <button key={b.id} type="button" className="dark-chip" aria-pressed={ages === b.id} onClick={() => setAges(b.id)}>
+                    {b.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             {searched && (
               <p className="center muted" style={{ margin: 0 }}>
                 Books matching “{searched}” ·{" "}
                 <button type="button" className="btn btn-quiet btn-sm" onClick={clearSearch}>
-                  ✕ Back to {topics.find((t) => t.id === topic)?.label ?? "browsing"}
+                  ✕ Back to {topicLabel}
                 </button>
               </p>
             )}
+          </section>
+
+          {favorites.length > 0 && (
+            <div className="bookcase">
+              <ScrollShelf label="Storyhollow favorites" count={favorites.length}>
+                {favorites.map((c) => (
+                  <button
+                    key={c.slug}
+                    className="book"
+                    onClick={() => openClassic(c.gutenbergId, c.title, c.emoji)}
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                  >
+                    <div className="book-cover">
+                      <div className="leather" style={{ ["--hue" as string]: c.color }}>
+                        <span className="leather-emoji">{c.emoji}</span>
+                        <span className="leather-title">{c.title}</span>
+                      </div>
+                    </div>
+                    <div className="book-title">{c.title}</div>
+                    <div className="faint small center">Ages {c.ages}</div>
+                  </button>
+                ))}
+              </ScrollShelf>
+            </div>
+          )}
+
+          <section className="stack" style={{ ["--gap" as string]: "14px" }}>
+            <div className="center">
+              <h2 style={{ margin: 0 }}>{searched ? "From the whole library" : `${topicLabel} from the whole library`}</h2>
+              <p className="muted small" style={{ margin: "4px 0 0" }}>
+                Free books from Project Gutenberg, most read first.
+                {ages !== "all" ? " These aren't sorted by age, so do look at the covers." : ""}
+              </p>
+            </div>
             {browseError && (
               <div className="notice notice-error center">
                 <p style={{ margin: 0 }}>{browseError}</p>
@@ -382,7 +405,7 @@ export function ReadToMe({
                 ))}
               </div>
             )}
-            {catalogue && catalogue.results.length === 0 && !browsing && <p className="muted center">Nothing found. Try another title, or browse a kind of story.</p>}
+            {catalogue && catalogue.results.length === 0 && !browsing && <p className="muted center">Nothing found. Try another title, or another kind of story.</p>}
             {browsing && <p className="notice center">✨ Opening the card catalogue… the first look can take a few seconds.</p>}
             {catalogue?.more && !browsing && (
               <div className="center">
@@ -394,8 +417,7 @@ export function ReadToMe({
           </section>
 
           <p className="faint small center">
-            The Treasury holds public-domain books from Project Gutenberg. Newer picture books aren't in any free library, so
-            photograph your own copy instead (“A book we own”).
+            Newer picture books aren't in any free library, so photograph your own copy instead (“A book we own”).
           </p>
         </>
       )}

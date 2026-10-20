@@ -18,25 +18,27 @@ export interface Classic {
   ages: string;
   blurb: string;
   color: string;
+  /** The kinds of story it is, beyond "most loved" (which every treasury book is). */
+  kinds: TopicId[];
 }
 
 export const CLASSICS: Classic[] = [
-  { slug: "peter-rabbit", gutenbergId: 14838, title: "The Tale of Peter Rabbit", author: "Beatrix Potter", emoji: "🐇", ages: "2+", blurb: "A naughty rabbit, a vegetable garden and a very close call.", color: "#4a6b3a" },
-  { slug: "velveteen-rabbit", gutenbergId: 11757, title: "The Velveteen Rabbit", author: "Margery Williams", emoji: "🧸", ages: "4+", blurb: "How a toy becomes Real, through being loved.", color: "#7a4a5a" },
-  { slug: "winnie-the-pooh", gutenbergId: 67098, title: "Winnie-the-Pooh", author: "A. A. Milne", emoji: "🍯", ages: "3+", blurb: "Pooh, Piglet and friends in the Hundred Acre Wood.", color: "#b07a1f" },
-  { slug: "just-so-stories", gutenbergId: 2781, title: "Just So Stories", author: "Rudyard Kipling", emoji: "🐘", ages: "5+", blurb: "How the Elephant got his trunk, and other wonders.", color: "#8a5a2a" },
-  { slug: "wind-in-the-willows", gutenbergId: 289, title: "The Wind in the Willows", author: "Kenneth Grahame", emoji: "🛶", ages: "6+", blurb: "Mole, Ratty, Badger and the irrepressible Mr. Toad.", color: "#2f5b4a" },
-  { slug: "wizard-of-oz", gutenbergId: 55, title: "The Wonderful Wizard of Oz", author: "L. Frank Baum", emoji: "🌪️", ages: "6+", blurb: "Dorothy follows the yellow brick road.", color: "#2d6b3a" },
-  { slug: "alice", gutenbergId: 11, title: "Alice's Adventures in Wonderland", author: "Lewis Carroll", emoji: "🐰", ages: "6+", blurb: "Down the rabbit hole and into Wonderland.", color: "#3a4f86" },
-  { slug: "peter-pan", gutenbergId: 16, title: "Peter Pan", author: "J. M. Barrie", emoji: "🧚", ages: "6+", blurb: "Second star to the right, and straight on till morning.", color: "#2d5f6b" },
-  { slug: "aesop", gutenbergId: 11339, title: "Aesop's Fables", author: "Aesop", emoji: "🦊", ages: "4+", blurb: "Tiny tales with big morals: the tortoise, the hare and more.", color: "#6b4a2a" },
-  { slug: "grimm", gutenbergId: 2591, title: "Grimms' Fairy Tales", author: "Jacob & Wilhelm Grimm", emoji: "🏰", ages: "5+", blurb: "Rapunzel, Hansel and Gretel, the Elves and the Shoemaker.", color: "#6e3b3b" },
-  { slug: "andersen", gutenbergId: 1597, title: "Andersen's Fairy Tales", author: "Hans Christian Andersen", emoji: "🦢", ages: "5+", blurb: "The Ugly Duckling, Thumbelina and the Snow Queen.", color: "#3f5f86" },
-  { slug: "english-fairy-tales", gutenbergId: 7439, title: "English Fairy Tales", author: "Joseph Jacobs", emoji: "🐷", ages: "3+", blurb: "Goldilocks, the Three Little Pigs and Jack and the Beanstalk.", color: "#7a5a2a" },
-  { slug: "happy-prince", gutenbergId: 902, title: "The Happy Prince and Other Tales", author: "Oscar Wilde", emoji: "👑", ages: "6+", blurb: "A golden statue and a little swallow who stays.", color: "#8a6a1f" },
-  { slug: "pinocchio", gutenbergId: 500, title: "The Adventures of Pinocchio", author: "Carlo Collodi", emoji: "🪵", ages: "6+", blurb: "A wooden puppet who longs to be a real boy.", color: "#7a3f2a" },
-  { slug: "jungle-book", gutenbergId: 236, title: "The Jungle Book", author: "Rudyard Kipling", emoji: "🐯", ages: "7+", blurb: "Mowgli, Baloo, Bagheera and Shere Khan.", color: "#3a5a2a" },
-  { slug: "secret-garden", gutenbergId: 113, title: "The Secret Garden", author: "Frances Hodgson Burnett", emoji: "🗝️", ages: "8+", blurb: "A locked garden, a robin and a little magic.", color: "#4a6b4a" },
+  { slug: "peter-rabbit", gutenbergId: 14838, title: "The Tale of Peter Rabbit", author: "Beatrix Potter", emoji: "🐇", ages: "2+", blurb: "A naughty rabbit, a vegetable garden and a very close call.", color: "#4a6b3a", kinds: ["animals"] },
+  { slug: "velveteen-rabbit", gutenbergId: 11757, title: "The Velveteen Rabbit", author: "Margery Williams", emoji: "🧸", ages: "4+", blurb: "How a toy becomes Real, through being loved.", color: "#7a4a5a", kinds: [] },
+  { slug: "winnie-the-pooh", gutenbergId: 67098, title: "Winnie-the-Pooh", author: "A. A. Milne", emoji: "🍯", ages: "3+", blurb: "Pooh, Piglet and friends in the Hundred Acre Wood.", color: "#b07a1f", kinds: ["animals"] },
+  { slug: "just-so-stories", gutenbergId: 2781, title: "Just So Stories", author: "Rudyard Kipling", emoji: "🐘", ages: "5+", blurb: "How the Elephant got his trunk, and other wonders.", color: "#8a5a2a", kinds: ["animals", "fables"] },
+  { slug: "wind-in-the-willows", gutenbergId: 289, title: "The Wind in the Willows", author: "Kenneth Grahame", emoji: "🛶", ages: "6+", blurb: "Mole, Ratty, Badger and the irrepressible Mr. Toad.", color: "#2f5b4a", kinds: ["animals", "adventure"] },
+  { slug: "wizard-of-oz", gutenbergId: 55, title: "The Wonderful Wizard of Oz", author: "L. Frank Baum", emoji: "🌪️", ages: "6+", blurb: "Dorothy follows the yellow brick road.", color: "#2d6b3a", kinds: ["fairy", "adventure"] },
+  { slug: "alice", gutenbergId: 11, title: "Alice's Adventures in Wonderland", author: "Lewis Carroll", emoji: "🐰", ages: "6+", blurb: "Down the rabbit hole and into Wonderland.", color: "#3a4f86", kinds: ["fairy", "adventure"] },
+  { slug: "peter-pan", gutenbergId: 16, title: "Peter Pan", author: "J. M. Barrie", emoji: "🧚", ages: "6+", blurb: "Second star to the right, and straight on till morning.", color: "#2d5f6b", kinds: ["fairy", "adventure"] },
+  { slug: "aesop", gutenbergId: 11339, title: "Aesop's Fables", author: "Aesop", emoji: "🦊", ages: "4+", blurb: "Tiny tales with big morals: the tortoise, the hare and more.", color: "#6b4a2a", kinds: ["fables", "animals"] },
+  { slug: "grimm", gutenbergId: 2591, title: "Grimms' Fairy Tales", author: "Jacob & Wilhelm Grimm", emoji: "🏰", ages: "5+", blurb: "Rapunzel, Hansel and Gretel, the Elves and the Shoemaker.", color: "#6e3b3b", kinds: ["fairy"] },
+  { slug: "andersen", gutenbergId: 1597, title: "Andersen's Fairy Tales", author: "Hans Christian Andersen", emoji: "🦢", ages: "5+", blurb: "The Ugly Duckling, Thumbelina and the Snow Queen.", color: "#3f5f86", kinds: ["fairy"] },
+  { slug: "english-fairy-tales", gutenbergId: 7439, title: "English Fairy Tales", author: "Joseph Jacobs", emoji: "🐷", ages: "3+", blurb: "Goldilocks, the Three Little Pigs and Jack and the Beanstalk.", color: "#7a5a2a", kinds: ["fairy"] },
+  { slug: "happy-prince", gutenbergId: 902, title: "The Happy Prince and Other Tales", author: "Oscar Wilde", emoji: "👑", ages: "6+", blurb: "A golden statue and a little swallow who stays.", color: "#8a6a1f", kinds: ["fairy"] },
+  { slug: "pinocchio", gutenbergId: 500, title: "The Adventures of Pinocchio", author: "Carlo Collodi", emoji: "🪵", ages: "6+", blurb: "A wooden puppet who longs to be a real boy.", color: "#7a3f2a", kinds: ["fairy", "adventure"] },
+  { slug: "jungle-book", gutenbergId: 236, title: "The Jungle Book", author: "Rudyard Kipling", emoji: "🐯", ages: "7+", blurb: "Mowgli, Baloo, Bagheera and Shere Khan.", color: "#3a5a2a", kinds: ["animals", "adventure"] },
+  { slug: "secret-garden", gutenbergId: 113, title: "The Secret Garden", author: "Frances Hodgson Burnett", emoji: "🗝️", ages: "8+", blurb: "A locked garden, a robin and a little magic.", color: "#4a6b4a", kinds: [] },
 ];
 
 /** Ways to browse the whole library, as Gutendex topics (matched against Gutenberg's subjects and shelves). */

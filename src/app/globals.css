@@ -1578,12 +1578,56 @@ textarea {
 
 /* ------------------------------------------------------------------ voices */
 
-.voice-grid {
+/* The storytellers: one shelf of big cards that you swipe along. */
+.voice-shelf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+  margin-bottom: 6px;
+}
+.shelf-arrow {
+  width: 34px;
+  height: 34px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  place-items: center;
+  padding: 0 0 2px;
+  border-radius: 50%;
+  border: 1px solid rgba(107, 63, 21, 0.35);
+  background: rgba(255, 255, 255, 0.55);
+  color: #6b3f15;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.shelf-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.voice-grid {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 172px;
   gap: 12px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 6px;
+  /* room for the chosen card's glow */
+  padding: 6px 6px 10px;
+  margin: 0 -6px;
+  scrollbar-width: thin;
+}
+@media (max-width: 520px) {
+  /* a card and a half, so it's plain there's more to swipe to */
+  .voice-grid {
+    grid-auto-columns: 62%;
+  }
 }
 .voice-card {
+  scroll-snap-align: start;
   position: relative;
   display: flex;
   flex-direction: column;

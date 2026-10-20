@@ -1,6 +1,7 @@
 import { pageCtx } from "@/lib/server/auth";
 import { listDesignedVoices, listFamilyVoices, listKeepsakes, listProfiles } from "@/lib/server/db";
 import { appStatus } from "@/lib/server/config";
+import { familyBackup } from "@/lib/server/backup";
 import { GrownupsView } from "./GrownupsView";
 
 export const metadata = { title: "Grown-ups' corner" };
@@ -18,6 +19,7 @@ export default async function GrownupsPage() {
         designed={listDesignedVoices(ctx.household.id)}
         keepsakes={listKeepsakes(ctx.household.id)}
         familyVoices={listFamilyVoices(ctx.household.id)}
+        backup={ctx.grownup ? familyBackup(ctx.household.id).summary : null}
         status={appStatus()}
       />
     </main>

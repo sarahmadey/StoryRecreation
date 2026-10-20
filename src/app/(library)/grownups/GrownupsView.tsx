@@ -17,6 +17,7 @@ export function GrownupsView({
   designed,
   keepsakes,
   familyVoices,
+  backup,
   status,
 }: {
   familyName: string;
@@ -27,6 +28,7 @@ export function GrownupsView({
   designed: { voiceId: string; name: string; description: string }[];
   keepsakes: Keepsake[];
   familyVoices: FamilyVoice[];
+  backup: { stories: number; recordings: number; photos: number; bytes: number } | null;
   status: AppStatus;
 }) {
   const api = useApi();
@@ -217,6 +219,31 @@ export function GrownupsView({
           <p className="faint small">No conjured voices yet.</p>
         )}
       </section>
+
+      {backup && (
+        <section className="parchment stack">
+          <h2 style={{ margin: 0 }}>Keep a copy</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            One file with every story as an MP3, your family recordings, the book photos, and the words of every story. Open{" "}
+            <i>Read me</i> inside to browse and play it all. Keep it somewhere safe, like your computer or a cloud drive: it&apos;s
+            yours, whatever happens to the app.
+          </p>
+          <p className="small" style={{ margin: 0 }}>
+            {[
+              `${backup.stories} ${backup.stories === 1 ? "story" : "stories"}`,
+              `${backup.recordings} family ${backup.recordings === 1 ? "recording" : "recordings"}`,
+              `${backup.photos} book ${backup.photos === 1 ? "photo" : "photos"}`,
+              backup.bytes < 1024 * 1024 ? "under 1 MB" : `about ${Math.round(backup.bytes / (1024 * 1024))} MB`,
+            ].join(" · ")}
+          </p>
+          <div>
+            <a className="btn btn-sm" href="/api/export" download>
+              ⬇ Download everything
+            </a>
+          </div>
+          <p className="hint" style={{ margin: 0 }}>On an iPhone or iPad, it lands in the Files app, under Downloads.</p>
+        </section>
+      )}
 
       <section className="panel spread">
         <div>

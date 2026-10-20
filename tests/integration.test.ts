@@ -314,6 +314,77 @@ test("a grown-up's recordings become a family voice that reads only when chosen"
   assert.equal(db.deleteKeepsake(hh, k.id), "keepsakes/a.mp3");
 });
 
+test("download everything packs stories, recordings and photos into a ZIP that opens", async () => {
+  const db = await import("@/lib/server/db");
+  const { familyBackup } = await import("@/lib/server/backup");
+  const { zipStream, crc32 } = await import("@/lib/server/zip");
+  const { householdDir } = await import("@/lib/server/files");
+  const { defaultSettings } = await import("@/lib/shared/options");
+
+  const hh = db.createHousehold("The Hollow Hill Family", "hill@example.com", "x");
+  const put = (rel: string, bytes: Buffer) => {
+    const full = path.join(householdDir(hh), rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, bytes);
+  };
+  const book = db.createBook(hh, { title: "Hollow Hill", kind: "shadow_book" });
+  put("books/p1.jpg", Buffer.from("jpeg-bytes"));
+  db.replacePages(book, ["books/p1.jpg"]);
+  const story = db.createStory(hh, { bookId: book, profileId: null, mode: "create", title: "The Hundredth Star", settings: defaultSettings({}), status: "ready" });
+  put("stories/s1.mp3", Buffer.from("ID3 the hundredth star"));
+  db.updateStory(story, {
+    audioPath: "stories/s1.mp3",
+    duration: 125,
+    script: { title: "The Hundredth Star", synopsis: "", ambience: "", cast: [{ id: "narrator", name: "Narrator", description: "", voiceBrief: "", voiceId: "v" }, { id: "owl", name: "Ollie", description: "", voiceBrief: "", voiceId: "v" }], pages: [{ page: 1, picture: "", lines: [{ speaker: "owl", text: "[softly] Ninety-nine... oh!" }] }] },
+  });
+  put("keepsakes/k1.mp3", Buffer.from("ID3 grandma"));
+  db.addKeepsake(hh, { person: "Grandma June", title: "Birthday voicemail", recordedOn: "Spring 2021", audioPath: "keepsakes/k1.mp3", durationMs: 42_000 });
+
+  const backup = familyBackup(hh);
+  assert.deepEqual({ ...backup.summary, bytes: 0 }, { stories: 1, recordings: 1, photos: 1, bytes: 0 });
+  const { stream, size } = zipStream(backup.entries);
+  const zip = Buffer.concat(await Array.fromAsync(stream as unknown as AsyncIterable<Uint8Array>));
+  assert.equal(zip.length, size, "Content-Length matches the bytes sent");
+  assert.equal(backup.summary.bytes, size);
+
+  // read the central directory back
+  const eocd = zip.length - 22;
+  assert.equal(zip.readUInt32LE(eocd), 0x06054b50);
+  const count = zip.readUInt16LE(eocd + 10);
+  let at = zip.readUInt32LE(eocd + 16);
+  const files: Record<string, Buffer> = {};
+  for (let i = 0; i < count; i++) {
+    assert.equal(zip.readUInt32LE(at), 0x02014b50);
+    const crc = zip.readUInt32LE(at + 16);
+    const len = zip.readUInt32LE(at + 20);
+    const nameLen = zip.readUInt16LE(at + 28);
+    const local = zip.readUInt32LE(at + 42);
+    const name = zip.subarray(at + 46, at + 46 + nameLen).toString("utf8");
+    const dataAt = local + 30 + zip.readUInt16LE(local + 26);
+    const data = zip.subarray(dataAt, dataAt + len);
+    assert.equal(crc32(data), crc, `checksum of ${name}`);
+    files[name.slice(backup.root.length + 1)] = data;
+    at += 46 + nameLen;
+  }
+  assert.deepEqual(Object.keys(files).sort(), [
+    "Book pages/Hollow Hill/page-01.jpg",
+    "Family voices/Grandma June/Birthday voicemail (Spring 2021).mp3",
+    "Read me.html",
+    "Stories/Hollow Hill/The Hundredth Star.mp3",
+  ]);
+  assert.equal(files["Stories/Hollow Hill/The Hundredth Star.mp3"].toString(), "ID3 the hundredth star");
+  const readme = files["Read me.html"].toString();
+  assert.match(readme, /<b>Ollie<\/b> Ninety-nine\.\.\. oh!/); // the words, without delivery cues
+  assert.match(readme, /src="Family%20voices\/Grandma%20June\/Birthday%20voicemail%20\(Spring%202021\)\.mp3"/);
+
+  // and a real unzip tool agrees, where one is installed
+  const out = path.join(os.tmpdir(), `storyhollow-${Date.now()}.zip`);
+  fs.writeFileSync(out, zip);
+  const { spawnSync } = await import("node:child_process");
+  const check = spawnSync("unzip", ["-tq", out], { encoding: "utf8" });
+  if (!check.error) assert.equal(check.status, 0, check.stdout + check.stderr);
+});
+
 test("sign-ups close after the first family unless a sign-up code is set", async () => {
   const { signupMode, codeMatches } = await import("@/lib/server/signup");
   // Earlier tests created a household, so without a code the doors are closed.

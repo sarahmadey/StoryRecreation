@@ -524,6 +524,34 @@ export function getStoryById(id: string): (Story & { householdId: string }) | un
   return r ? { ...toStory(r), householdId: r.household_id as string } : undefined;
 }
 
+/** Every story with its words and recording, for the family's backup download. */
+export function listStoriesForBackup(householdId: string): {
+  id: string;
+  bookId: string;
+  title: string;
+  synopsis: string | null;
+  mode: StoryMode;
+  script: StoryScript | null;
+  audioPath: string | null;
+  duration: number | null;
+  createdAt: number;
+}[] {
+  const rows = db()
+    .prepare("SELECT id, book_id, title, synopsis, mode, script, audio_path, duration, created_at FROM stories WHERE household_id = ? ORDER BY created_at")
+    .all(householdId) as Row[];
+  return rows.map((r) => ({
+    id: r.id as string,
+    bookId: r.book_id as string,
+    title: r.title as string,
+    synopsis: (r.synopsis as string | null) ?? null,
+    mode: r.mode as StoryMode,
+    script: json<StoryScript>(r.script),
+    audioPath: (r.audio_path as string | null) ?? null,
+    duration: (r.duration as number | null) ?? null,
+    createdAt: r.created_at as number,
+  }));
+}
+
 export function getStoryAudioPath(id: string): string | null {
   const r = db().prepare("SELECT audio_path FROM stories WHERE id = ?").get(id) as Row | undefined;
   return (r?.audio_path as string | null) ?? null;

@@ -224,13 +224,36 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
   throw lastErr;
 }
 
+/**
+ * What ElevenLabs actually said when it turned a request down, in words a
+ * family can act on. Null when there's nothing more useful than a retry.
+ */
+export function elevenLabsReason(err: unknown): string | null {
+  if (!(err instanceof ElevenLabsError)) return null;
+  const detail = (err.body as { detail?: unknown } | undefined)?.detail;
+  const field = (key: string) =>
+    detail && typeof detail === "object" && key in detail ? String((detail as Record<string, unknown>)[key] ?? "") : "";
+  const status = field("status");
+  const said = (
+    typeof detail === "string"
+      ? detail
+      : Array.isArray(detail)
+        ? detail.map((d) => (d && typeof d === "object" && "msg" in d ? String(d.msg) : "")).join(" ")
+        : field("message")
+  ).trim();
+
+  if (status === "missing_permissions")
+    return "The ElevenLabs API key isn't allowed to do this. In ElevenLabs, open API Keys, edit the key and turn on every permission.";
+  if (status === "quota_exceeded" || err.statusCode === 402 || err.statusCode === 429)
+    return "ElevenLabs says we're out of voice credits or going too fast. Try again later.";
+  if (err.statusCode === 401) return "The ElevenLabs API key was not accepted.";
+  if (said && err.statusCode && err.statusCode < 500) return `ElevenLabs said: “${said.slice(0, 300)}”`;
+  return null;
+}
+
 function explain(err: unknown): Error {
-  if (err instanceof ElevenLabsError) {
-    if (err.statusCode === 401) return new PerformerError("The ElevenLabs API key was not accepted.");
-    if (err.statusCode === 402 || err.statusCode === 429)
-      return new PerformerError("ElevenLabs says we're out of voice credits or going too fast. Try again later.");
-    return new PerformerError(`The voices hit a snag (${err.statusCode ?? "network"}). Please try again.`);
-  }
+  if (err instanceof ElevenLabsError)
+    return new PerformerError(elevenLabsReason(err) ?? `The voices hit a snag (${err.statusCode ?? "network"}). Please try again.`);
   return err instanceof Error ? err : new Error(String(err));
 }
 

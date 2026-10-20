@@ -3,7 +3,7 @@ import { apiCtx, HttpError, readJson, requireGrownup, route } from "@/lib/server
 import { config } from "@/lib/server/config";
 import { keepsakeFiles, newId, saveFamilyVoice } from "@/lib/server/db";
 import { resolveHouseholdPath } from "@/lib/server/files";
-import { cloneFamilyVoice } from "@/lib/server/performer";
+import { cloneFamilyVoice, elevenLabsReason } from "@/lib/server/performer";
 import { forgetVoiceCache } from "@/lib/server/voices";
 
 const MIN_MS = 10_000;
@@ -32,7 +32,7 @@ export const POST = route(async (req: Request) => {
       voiceId = await cloneFamilyVoice(name, person, audio, body.cleanNoise !== false);
     } catch (err) {
       console.error(err);
-      throw new HttpError(502, "ElevenLabs couldn't learn this voice. Your plan may not include voice cloning, or may be out of voice slots.");
+      throw new HttpError(502, elevenLabsReason(err) ?? "ElevenLabs couldn't learn this voice. Your plan may not include voice cloning, or may be out of voice slots.");
     }
   } else if (config.demoMode) {
     voiceId = `family-demo-${newId()}`; // a pretend voice: demo mode hums every part

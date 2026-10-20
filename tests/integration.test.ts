@@ -85,6 +85,15 @@ before(async () => {
           }),
         );
       }
+      if (req.url!.startsWith("/v1/text-to-voice/design")) {
+        // ElevenLabs turns some descriptions down; the reason rides in detail.message
+        const desc = String((body as { voice_description?: string }).voice_description);
+        const [code, detail] = desc.includes("no permission")
+          ? [401, { status: "missing_permissions", message: "The API key you used is missing the permission text_to_voice." }]
+          : [400, { status: "invalid_voice_description", message: "This voice description isn't allowed." }];
+        res.writeHead(code, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ detail }));
+      }
       if (req.url!.startsWith("/v1/voices/add")) {
         res.writeHead(200, { "content-type": "application/json" });
         return res.end(JSON.stringify({ voice_id: "famVoice123", requires_verification: false }));
@@ -312,6 +321,15 @@ test("a grown-up's recordings become a family voice that reads only when chosen"
   assert.ok(captured.some((c) => c.method === "DELETE" && c.url === `/v1/voices/${voiceId}`));
   assert.ok(db.deleteFamilyVoice(hh, voiceId));
   assert.equal(db.deleteKeepsake(hh, k.id), "keepsakes/a.mp3");
+});
+
+test("when ElevenLabs turns a voice down, the family hears why", async () => {
+  const { designVoicePreviews, elevenLabsReason } = await import("@/lib/server/performer");
+  const refused = await designVoicePreviews("a voice ElevenLabs will turn down today").catch((e) => e);
+  assert.equal(elevenLabsReason(refused), "ElevenLabs said: “This voice description isn't allowed.”");
+  const locked = await designVoicePreviews("a key with no permission for voice design").catch((e) => e);
+  assert.match(elevenLabsReason(locked)!, /isn't allowed to do this.*turn on every permission/);
+  assert.equal(elevenLabsReason(new Error("socket hang up")), null);
 });
 
 test("download everything packs stories, recordings and photos into a ZIP that opens", async () => {

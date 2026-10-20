@@ -1,7 +1,7 @@
 import { apiCtx, HttpError, readJson, requireGrownup, route } from "@/lib/server/auth";
 import { config } from "@/lib/server/config";
 import { saveDesignedVoice as saveVoiceRow } from "@/lib/server/db";
-import { saveDesignedVoice } from "@/lib/server/performer";
+import { elevenLabsReason, saveDesignedVoice } from "@/lib/server/performer";
 import { forgetVoiceCache } from "@/lib/server/voices";
 
 export const POST = route(async (req: Request) => {
@@ -18,6 +18,6 @@ export const POST = route(async (req: Request) => {
     return Response.json({ voiceId });
   } catch (err) {
     console.error(err);
-    throw new HttpError(502, "That voice couldn't be saved. Your ElevenLabs plan may be out of voice slots.");
+    throw new HttpError(502, elevenLabsReason(err) ?? "That voice couldn't be saved. Your ElevenLabs plan may be out of voice slots.");
   }
 });

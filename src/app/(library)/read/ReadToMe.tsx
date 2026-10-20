@@ -101,18 +101,6 @@ export function ReadToMe({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preselectClassic]);
 
-  const openCurated = async (c: Classic) => {
-    setBusy(`Finding ${c.title}…`);
-    setError(null);
-    try {
-      const { gutenbergId } = await api.get<{ gutenbergId: number }>(`/api/classics?slug=${c.slug}`);
-      await openClassic(gutenbergId, c.title, c.emoji);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "That book couldn't be found.");
-      setBusy(null);
-    }
-  };
-
   const search = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
@@ -243,7 +231,7 @@ export function ReadToMe({
               <span className="shelf-label">The Classic Treasury</span>
               <div className="shelf-books">
                 {classics.map((c) => (
-                  <button key={c.slug} className="book" onClick={() => openCurated(c)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                  <button key={c.slug} className="book" onClick={() => openClassic(c.gutenbergId, c.title, c.emoji)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                     <div className="book-cover">
                       <div className="leather" style={{ ["--hue" as string]: c.color }}>
                         <span className="leather-emoji">{c.emoji}</span>
@@ -314,7 +302,7 @@ export function ReadToMe({
                   </div>
                 </div>
                 <button className="btn btn-sm" onClick={() => readChapter(c)} disabled={Boolean(busy)}>
-                  🎧 Read this
+                  🎧 {open.chapters.length === 1 ? "Read it to me" : "Read this"}
                 </button>
               </div>
             ))}

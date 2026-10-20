@@ -2,39 +2,40 @@ import { cacheClassic, getCachedClassic } from "./db";
 import { chapterize, cleanGutenberg, type Chapter } from "./text";
 
 // The Classic Treasury: public-domain children's books from Project
-// Gutenberg (via the Gutendex catalogue). Modern picture books are still
-// under copyright and aren't in any open database, so for those the family
-// photographs their own copy instead.
+// Gutenberg. The curated books are fetched straight from Gutenberg by number;
+// the Gutendex catalogue (free, but often slow) is only used for searching.
+// Modern picture books are still under copyright and aren't in any open
+// database, so for those the family photographs their own copy instead.
 
 export interface Classic {
   slug: string;
+  /** The book's Project Gutenberg number. */
+  gutenbergId: number;
   title: string;
   author: string;
   emoji: string;
   ages: string;
   blurb: string;
-  /** Used to find the book in the Gutendex catalogue. */
-  search: string;
   color: string;
 }
 
 export const CLASSICS: Classic[] = [
-  { slug: "peter-rabbit", title: "The Tale of Peter Rabbit", author: "Beatrix Potter", emoji: "🐇", ages: "2+", blurb: "A naughty rabbit, a vegetable garden and a very close call.", search: "tale of peter rabbit potter", color: "#4a6b3a" },
-  { slug: "velveteen-rabbit", title: "The Velveteen Rabbit", author: "Margery Williams", emoji: "🧸", ages: "4+", blurb: "How a toy becomes Real, through being loved.", search: "velveteen rabbit williams", color: "#7a4a5a" },
-  { slug: "winnie-the-pooh", title: "Winnie-the-Pooh", author: "A. A. Milne", emoji: "🍯", ages: "3+", blurb: "Pooh, Piglet and friends in the Hundred Acre Wood.", search: "winnie-the-pooh milne", color: "#b07a1f" },
-  { slug: "just-so-stories", title: "Just So Stories", author: "Rudyard Kipling", emoji: "🐘", ages: "5+", blurb: "How the Elephant got his trunk, and other wonders.", search: "just so stories kipling", color: "#8a5a2a" },
-  { slug: "wind-in-the-willows", title: "The Wind in the Willows", author: "Kenneth Grahame", emoji: "🛶", ages: "6+", blurb: "Mole, Ratty, Badger and the irrepressible Mr. Toad.", search: "wind in the willows grahame", color: "#2f5b4a" },
-  { slug: "wizard-of-oz", title: "The Wonderful Wizard of Oz", author: "L. Frank Baum", emoji: "🌪️", ages: "6+", blurb: "Dorothy follows the yellow brick road.", search: "wonderful wizard of oz baum", color: "#2d6b3a" },
-  { slug: "alice", title: "Alice's Adventures in Wonderland", author: "Lewis Carroll", emoji: "🐰", ages: "6+", blurb: "Down the rabbit hole and into Wonderland.", search: "alice's adventures in wonderland carroll", color: "#3a4f86" },
-  { slug: "peter-pan", title: "Peter Pan", author: "J. M. Barrie", emoji: "🧚", ages: "6+", blurb: "Second star to the right, and straight on till morning.", search: "peter pan barrie", color: "#2d5f6b" },
-  { slug: "aesop", title: "Aesop's Fables", author: "Aesop", emoji: "🦊", ages: "4+", blurb: "Tiny tales with big morals: the tortoise, the hare and more.", search: "aesop's fables", color: "#6b4a2a" },
-  { slug: "grimm", title: "Grimms' Fairy Tales", author: "Jacob & Wilhelm Grimm", emoji: "🏰", ages: "5+", blurb: "Rapunzel, Hansel and Gretel, the Elves and the Shoemaker.", search: "grimms' fairy tales", color: "#6e3b3b" },
-  { slug: "andersen", title: "Andersen's Fairy Tales", author: "Hans Christian Andersen", emoji: "🦢", ages: "5+", blurb: "The Ugly Duckling, Thumbelina and the Snow Queen.", search: "andersen's fairy tales", color: "#3f5f86" },
-  { slug: "english-fairy-tales", title: "English Fairy Tales", author: "Joseph Jacobs", emoji: "🐷", ages: "3+", blurb: "Goldilocks, the Three Little Pigs and Jack and the Beanstalk.", search: "english fairy tales jacobs", color: "#7a5a2a" },
-  { slug: "happy-prince", title: "The Happy Prince and Other Tales", author: "Oscar Wilde", emoji: "👑", ages: "6+", blurb: "A golden statue and a little swallow who stays.", search: "happy prince wilde", color: "#8a6a1f" },
-  { slug: "pinocchio", title: "The Adventures of Pinocchio", author: "Carlo Collodi", emoji: "🪵", ages: "6+", blurb: "A wooden puppet who longs to be a real boy.", search: "adventures of pinocchio collodi", color: "#7a3f2a" },
-  { slug: "jungle-book", title: "The Jungle Book", author: "Rudyard Kipling", emoji: "🐯", ages: "7+", blurb: "Mowgli, Baloo, Bagheera and Shere Khan.", search: "jungle book kipling", color: "#3a5a2a" },
-  { slug: "secret-garden", title: "The Secret Garden", author: "Frances Hodgson Burnett", emoji: "🗝️", ages: "8+", blurb: "A locked garden, a robin and a little magic.", search: "secret garden burnett", color: "#4a6b4a" },
+  { slug: "peter-rabbit", gutenbergId: 14838, title: "The Tale of Peter Rabbit", author: "Beatrix Potter", emoji: "🐇", ages: "2+", blurb: "A naughty rabbit, a vegetable garden and a very close call.", color: "#4a6b3a" },
+  { slug: "velveteen-rabbit", gutenbergId: 11757, title: "The Velveteen Rabbit", author: "Margery Williams", emoji: "🧸", ages: "4+", blurb: "How a toy becomes Real, through being loved.", color: "#7a4a5a" },
+  { slug: "winnie-the-pooh", gutenbergId: 67098, title: "Winnie-the-Pooh", author: "A. A. Milne", emoji: "🍯", ages: "3+", blurb: "Pooh, Piglet and friends in the Hundred Acre Wood.", color: "#b07a1f" },
+  { slug: "just-so-stories", gutenbergId: 2781, title: "Just So Stories", author: "Rudyard Kipling", emoji: "🐘", ages: "5+", blurb: "How the Elephant got his trunk, and other wonders.", color: "#8a5a2a" },
+  { slug: "wind-in-the-willows", gutenbergId: 289, title: "The Wind in the Willows", author: "Kenneth Grahame", emoji: "🛶", ages: "6+", blurb: "Mole, Ratty, Badger and the irrepressible Mr. Toad.", color: "#2f5b4a" },
+  { slug: "wizard-of-oz", gutenbergId: 55, title: "The Wonderful Wizard of Oz", author: "L. Frank Baum", emoji: "🌪️", ages: "6+", blurb: "Dorothy follows the yellow brick road.", color: "#2d6b3a" },
+  { slug: "alice", gutenbergId: 11, title: "Alice's Adventures in Wonderland", author: "Lewis Carroll", emoji: "🐰", ages: "6+", blurb: "Down the rabbit hole and into Wonderland.", color: "#3a4f86" },
+  { slug: "peter-pan", gutenbergId: 16, title: "Peter Pan", author: "J. M. Barrie", emoji: "🧚", ages: "6+", blurb: "Second star to the right, and straight on till morning.", color: "#2d5f6b" },
+  { slug: "aesop", gutenbergId: 11339, title: "Aesop's Fables", author: "Aesop", emoji: "🦊", ages: "4+", blurb: "Tiny tales with big morals: the tortoise, the hare and more.", color: "#6b4a2a" },
+  { slug: "grimm", gutenbergId: 2591, title: "Grimms' Fairy Tales", author: "Jacob & Wilhelm Grimm", emoji: "🏰", ages: "5+", blurb: "Rapunzel, Hansel and Gretel, the Elves and the Shoemaker.", color: "#6e3b3b" },
+  { slug: "andersen", gutenbergId: 1597, title: "Andersen's Fairy Tales", author: "Hans Christian Andersen", emoji: "🦢", ages: "5+", blurb: "The Ugly Duckling, Thumbelina and the Snow Queen.", color: "#3f5f86" },
+  { slug: "english-fairy-tales", gutenbergId: 7439, title: "English Fairy Tales", author: "Joseph Jacobs", emoji: "🐷", ages: "3+", blurb: "Goldilocks, the Three Little Pigs and Jack and the Beanstalk.", color: "#7a5a2a" },
+  { slug: "happy-prince", gutenbergId: 902, title: "The Happy Prince and Other Tales", author: "Oscar Wilde", emoji: "👑", ages: "6+", blurb: "A golden statue and a little swallow who stays.", color: "#8a6a1f" },
+  { slug: "pinocchio", gutenbergId: 500, title: "The Adventures of Pinocchio", author: "Carlo Collodi", emoji: "🪵", ages: "6+", blurb: "A wooden puppet who longs to be a real boy.", color: "#7a3f2a" },
+  { slug: "jungle-book", gutenbergId: 236, title: "The Jungle Book", author: "Rudyard Kipling", emoji: "🐯", ages: "7+", blurb: "Mowgli, Baloo, Bagheera and Shere Khan.", color: "#3a5a2a" },
+  { slug: "secret-garden", gutenbergId: 113, title: "The Secret Garden", author: "Frances Hodgson Burnett", emoji: "🗝️", ages: "8+", blurb: "A locked garden, a robin and a little magic.", color: "#4a6b4a" },
 ];
 
 interface GutendexBook {
@@ -47,13 +48,33 @@ interface GutendexBook {
 }
 
 const GUTENDEX = "https://gutendex.com/books";
+const GUTENBERG_TEXT = (id: number) => `https://www.gutenberg.org/cache/epub/${id}/pg${id}.txt`;
 
 export class ClassicsError extends Error {}
 
+/** Fetch with a time limit, so a slow library never leaves a family waiting forever. */
+async function get(url: string, seconds: number): Promise<Response> {
+  try {
+    return await fetch(url, { headers: { "User-Agent": "Storyhollow/1.0 (family audio stories)" }, signal: AbortSignal.timeout(seconds * 1000) });
+  } catch (err) {
+    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+      throw new ClassicsError("The Gutenberg library is taking too long to answer. Please try again in a minute.");
+    }
+    throw new ClassicsError("The Gutenberg library couldn't be reached.");
+  }
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { "User-Agent": "Storyhollow/1.0 (family audio stories)" } });
+  const res = await get(url, 20);
   if (!res.ok) throw new ClassicsError(`The Gutenberg catalogue answered ${res.status}.`);
   return (await res.json()) as T;
+}
+
+/** "Title:" and "Author:" from the header Gutenberg puts at the top of every text. */
+export function gutenbergHeader(raw: string): { title: string | null; author: string | null } {
+  const head = raw.slice(0, 6000);
+  const field = (name: string) => head.match(new RegExp(`^${name}:[ \\t]*(.+)$`, "m"))?.[1].trim() || null;
+  return { title: field("Title"), author: field("Author") };
 }
 
 function textUrl(b: GutendexBook): string | null {
@@ -76,18 +97,6 @@ export async function searchGutenberg(query: string): Promise<CatalogueHit[]> {
     .map((b) => ({ gutenbergId: b.id, title: b.title, author: b.authors[0]?.name ?? null }));
 }
 
-/** Find a curated classic's Gutenberg id (most-downloaded match). */
-export async function resolveClassic(c: Classic): Promise<number> {
-  const data = await fetchJson<{ results: GutendexBook[] }>(`${GUTENDEX}?languages=en&search=${encodeURIComponent(c.search)}`);
-  const want = c.title.toLowerCase().replace(/[^a-z]/g, "");
-  const candidates = data.results.filter((b) => textUrl(b));
-  const best =
-    candidates.find((b) => b.title.toLowerCase().replace(/[^a-z]/g, "").startsWith(want)) ??
-    candidates.sort((a, b) => b.download_count - a.download_count)[0];
-  if (!best) throw new ClassicsError(`Couldn't find "${c.title}" in the Gutenberg catalogue.`);
-  return best.id;
-}
-
 export interface LoadedClassic {
   gutenbergId: number;
   title: string;
@@ -98,14 +107,26 @@ export interface LoadedClassic {
 export async function loadClassic(gutenbergId: number): Promise<LoadedClassic> {
   let cached = getCachedClassic(gutenbergId);
   if (!cached) {
-    const book = await fetchJson<GutendexBook>(`${GUTENDEX}/${gutenbergId}`);
-    const url = textUrl(book);
-    if (!url) throw new ClassicsError("That book has no plain-text edition.");
-    const res = await fetch(url, { headers: { "User-Agent": "Storyhollow/1.0 (family audio stories)" } });
-    if (!res.ok) throw new ClassicsError(`Project Gutenberg answered ${res.status}.`);
-    const text = cleanGutenberg(await res.text());
-    cached = { title: book.title, author: book.authors[0]?.name ?? null, text };
-    cacheClassic(gutenbergId, cached.title, cached.author, text);
+    // Straight from Gutenberg by number; the catalogue is only asked if that fails.
+    let raw: string | null = null;
+    const direct = await get(GUTENBERG_TEXT(gutenbergId), 30).catch(() => null);
+    if (direct?.ok) raw = await direct.text();
+    else {
+      const book = await fetchJson<GutendexBook>(`${GUTENDEX}/${gutenbergId}`);
+      const url = textUrl(book);
+      if (!url) throw new ClassicsError("That book has no plain-text edition.");
+      const res = await get(url, 30);
+      if (!res.ok) throw new ClassicsError(`Project Gutenberg answered ${res.status}.`);
+      raw = await res.text();
+    }
+    const curated = CLASSICS.find((c) => c.gutenbergId === gutenbergId);
+    const header = gutenbergHeader(raw);
+    cached = {
+      title: curated?.title ?? header.title ?? "A classic",
+      author: curated?.author ?? header.author,
+      text: cleanGutenberg(raw),
+    };
+    cacheClassic(gutenbergId, cached.title, cached.author, cached.text);
   }
   return { gutenbergId, title: cached.title, author: cached.author, chapters: chapterize(cached.text) };
 }

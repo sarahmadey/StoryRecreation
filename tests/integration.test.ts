@@ -496,3 +496,14 @@ test("sound effects are chosen for a finished script, made short, and land on th
   assert.ok(loudest(at, at + SAMPLE_RATE) > 0.05, "the creak is heard");
   assert.ok(loudest(at, at + SAMPLE_RATE) <= 0.3, "and stays beneath the voices");
 });
+
+test("a Gutenberg text's title and author are read from its header", async () => {
+  const { gutenbergHeader, CLASSICS } = await import("@/lib/server/classics");
+  const raw = "\ufeffThe Project Gutenberg eBook of The Tale of Peter Rabbit\r\n\r\nTitle: The Tale of Peter Rabbit\r\n\r\nAuthor: Beatrix Potter\r\n\r\nRelease date: January 30, 2005 [eBook #14838]\r\n";
+  assert.deepEqual(gutenbergHeader(raw), { title: "The Tale of Peter Rabbit", author: "Beatrix Potter" });
+  assert.deepEqual(gutenbergHeader("no header here"), { title: null, author: null });
+  // every treasury book opens by its Gutenberg number, with no catalogue search
+  assert.ok(CLASSICS.every((c) => Number.isInteger(c.gutenbergId) && c.gutenbergId > 0));
+  assert.equal(new Set(CLASSICS.map((c) => c.gutenbergId)).size, CLASSICS.length);
+  assert.equal(CLASSICS.find((c) => c.slug === "peter-rabbit")?.gutenbergId, 14838);
+});

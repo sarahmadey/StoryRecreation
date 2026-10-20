@@ -221,6 +221,8 @@ export interface VoiceOption {
   /** "persona" voices come with a friendly storybook name. */
   persona: { name: string; emoji: string; tagline: string } | null;
   source: "default" | "account" | "designed" | "family";
+  /** Starred by the family, so it's easy to find again. */
+  favorite?: boolean;
 }
 
 /** A family recording kept just as it was: a voicemail, a voice memo, a child reading. */

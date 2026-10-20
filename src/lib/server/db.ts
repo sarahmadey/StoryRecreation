@@ -158,6 +158,24 @@ CREATE TABLE IF NOT EXISTS catalogue_cache (
   json TEXT NOT NULL,
   fetched_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS favorite_voices (
+  household_id TEXT NOT NULL,
+  voice_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (household_id, voice_id)
+);
+
+CREATE TABLE IF NOT EXISTS favorite_classics (
+  household_id TEXT NOT NULL,
+  gutenberg_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  author TEXT,
+  cover TEXT,
+  emoji TEXT,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (household_id, gutenberg_id)
+);
 `;
 
 type Row = Record<string, unknown>;
@@ -795,6 +813,49 @@ export function cacheClassic(id: number, title: string, author: string | null, t
   db()
     .prepare("INSERT OR REPLACE INTO classics_cache (gutenberg_id, title, author, text, fetched_at) VALUES (?, ?, ?, ?, ?)")
     .run(id, title, author, text, Date.now());
+}
+
+// ---------------------------------------------------------------- favorites
+
+export function favoriteVoiceIds(householdId: string): Set<string> {
+  const rows = db().prepare("SELECT voice_id FROM favorite_voices WHERE household_id = ?").all(householdId) as { voice_id: string }[];
+  return new Set(rows.map((r) => r.voice_id));
+}
+
+export function setFavoriteVoice(householdId: string, voiceId: string, favorite: boolean) {
+  if (favorite) {
+    db().prepare("INSERT OR IGNORE INTO favorite_voices (household_id, voice_id, created_at) VALUES (?, ?, ?)").run(householdId, voiceId, Date.now());
+  } else {
+    db().prepare("DELETE FROM favorite_voices WHERE household_id = ? AND voice_id = ?").run(householdId, voiceId);
+  }
+}
+
+/** A book the family starred, kept with enough to show it without asking the library. */
+export interface FavoriteClassic {
+  gutenbergId: number;
+  title: string;
+  author: string | null;
+  cover: string | null;
+  emoji: string | null;
+}
+
+export function listFavoriteClassics(householdId: string): FavoriteClassic[] {
+  const rows = db()
+    .prepare("SELECT gutenberg_id, title, author, cover, emoji FROM favorite_classics WHERE household_id = ? ORDER BY created_at DESC")
+    .all(householdId) as { gutenberg_id: number; title: string; author: string | null; cover: string | null; emoji: string | null }[];
+  return rows.map((r) => ({ gutenbergId: r.gutenberg_id, title: r.title, author: r.author, cover: r.cover, emoji: r.emoji }));
+}
+
+export function setFavoriteClassic(householdId: string, book: FavoriteClassic, favorite: boolean) {
+  if (favorite) {
+    db()
+      .prepare(
+        "INSERT OR REPLACE INTO favorite_classics (household_id, gutenberg_id, title, author, cover, emoji, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(householdId, book.gutenbergId, book.title, book.author, book.cover, book.emoji, Date.now());
+  } else {
+    db().prepare("DELETE FROM favorite_classics WHERE household_id = ? AND gutenberg_id = ?").run(householdId, book.gutenbergId);
+  }
 }
 
 /** A saved answer from the Gutenberg catalogue, if it's fresh enough. */

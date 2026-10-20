@@ -942,11 +942,27 @@ textarea {
 }
 .catalogue-book {
   --w: 100%;
-  background: none;
-  border: none;
+}
+.book-open {
+  display: block;
+  width: 100%;
   padding: 0;
-  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
   font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+.book .fav-star {
+  top: 6px;
+  right: 6px;
+  background: rgba(20, 12, 8, 0.55);
+  color: var(--gold-1);
+}
+.book .fav-star[aria-pressed="true"] {
+  background: rgba(20, 12, 8, 0.75);
+  color: #ffc94a;
 }
 /* this cover's width is a percentage, so the leather emblem gets fixed sizes */
 .catalogue-book .leather-emoji {
@@ -1683,7 +1699,57 @@ textarea {
 
 /* ------------------------------------------------------------------ voices */
 
+/* Stars: a storyteller or a book the family wants to find again. */
+.fav-star {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  color: #a8792b;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.fav-star[aria-pressed="true"] {
+  color: #e0a21e;
+  background: rgba(255, 244, 214, 0.95);
+  box-shadow: 0 0 10px rgba(255, 190, 92, 0.6);
+}
+
 /* The storytellers: one shelf of big cards that you swipe along. */
+.voice-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+@media (max-width: 520px) {
+  .voice-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -6px 10px;
+    padding: 2px 6px 4px;
+  }
+  .voice-filters .chip {
+    flex: none;
+  }
+}
+.voice-empty {
+  margin: 0;
+  padding: 26px 12px;
+  text-align: center;
+  font-style: italic;
+  color: var(--ink-soft);
+}
 .voice-shelf-head {
   display: flex;
   align-items: center;

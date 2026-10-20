@@ -560,3 +560,28 @@ test("the whole library can be browsed by kind of story, with covers, and answer
   assert.equal(searched.get("page"), "2");
   assert.equal(found.more, false);
 });
+
+test("favorite storytellers and books are kept for the whole family", async () => {
+  const db = await import("@/lib/server/db");
+  const hh = db.createHousehold("The Stars", "stars@example.com", "x");
+  const other = db.createHousehold("The Neighbours", "next@example.com", "x");
+  db.setFavoriteVoice(hh, PERSONA_VOICE, true);
+  db.setFavoriteVoice(hh, PERSONA_VOICE, true); // starring twice is still one star
+  db.setFavoriteVoice(hh, OWL_VOICE, true);
+  db.setFavoriteVoice(hh, OWL_VOICE, false);
+  assert.deepEqual([...db.favoriteVoiceIds(hh)], [PERSONA_VOICE]);
+  assert.equal(db.favoriteVoiceIds(other).size, 0, "each family has its own stars");
+
+  db.setFavoriteClassic(hh, { gutenbergId: 14838, title: "The Tale of Peter Rabbit", author: "Beatrix Potter", cover: null, emoji: "🐇" }, true);
+  db.setFavoriteClassic(hh, { gutenbergId: 271, title: "Black Beauty", author: "Anna Sewell", cover: "https://www.gutenberg.org/cache/epub/271/pg271.cover.medium.jpg", emoji: null }, true);
+  // newest first, with what's needed to show the book without asking the library
+  assert.deepEqual(
+    db.listFavoriteClassics(hh).map((b) => [b.gutenbergId, b.title, b.cover]),
+    [
+      [271, "Black Beauty", "https://www.gutenberg.org/cache/epub/271/pg271.cover.medium.jpg"],
+      [14838, "The Tale of Peter Rabbit", null],
+    ],
+  );
+  db.setFavoriteClassic(hh, { gutenbergId: 271, title: "Black Beauty", author: null, cover: null, emoji: null }, false);
+  assert.deepEqual(db.listFavoriteClassics(hh).map((b) => b.gutenbergId), [14838]);
+});

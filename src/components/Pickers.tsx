@@ -168,6 +168,19 @@ function speakSample(text: string) {
   speechSynthesis.speak(new SpeechSynthesisUtterance(text));
 }
 
+type VoiceFilter = "all" | "favorites" | "family" | "made" | "included";
+
+const VOICE_FILTERS: { id: VoiceFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "favorites", label: "⭐ Favorites" },
+  { id: "family", label: "💛 Family" },
+  { id: "made", label: "🪄 Made by you" },
+  { id: "included", label: "🏰 Included" },
+];
+
+/** Family recordings, voices the family designed or cloned, or the storytellers that come with Storyhollow. */
+const groupOf = (v: VoiceOption): VoiceFilter => (v.source === "family" ? "family" : v.persona || v.source === "default" ? "included" : "made");
+
 export function VoicePicker({
   voices,
   value,
@@ -181,78 +194,132 @@ export function VoicePicker({
   allowAuto?: boolean;
   narratorsOnly?: boolean;
 }) {
+  const api = useApi();
+  const [filter, setFilter] = useState<VoiceFilter>("all");
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (voices) setFavorites(new Set(voices.filter((v) => v.favorite).map((v) => v.voiceId)));
+  }, [voices]);
+
   // The storytellers sit on one shelf you swipe along, so the cards stay big
   // however many voices the family collects.
   const loaded = voices !== null;
-  const { ref: shelf, ends, measure, slide, overflows } = useSideScroll<HTMLDivElement>(loaded);
+  const { ref: shelf, ends, measure, slide, overflows } = useSideScroll<HTMLDivElement>(`${loaded}-${filter}`);
   // Keep the chosen storyteller in view (a saved choice may be far along the shelf), without scrolling the page.
   useEffect(() => {
     const el = shelf.current;
     const chosen = el?.querySelector<HTMLElement>('[aria-checked="true"]');
-    if (el && chosen) el.scrollTo({ left: chosen.offsetLeft - (el.clientWidth - chosen.clientWidth) / 2, behavior: "smooth" });
-  }, [loaded, value, shelf]);
+    if (el) el.scrollTo({ left: chosen ? chosen.offsetLeft - (el.clientWidth - chosen.clientWidth) / 2 : 0, behavior: "smooth" });
+  }, [loaded, value, filter, shelf]);
 
   if (!voices) return <p className="muted">Gathering the storytellers…</p>;
   // family voices first: Grandma reading is the most special storyteller of all
   const family = voices.filter((v) => v.source === "family");
   const personas = voices.filter((v) => v.persona);
   const rest = voices.filter((v) => !v.persona && v.source !== "default" && v.source !== "family");
-  const shown = narratorsOnly ? [...family, ...personas, ...rest] : voices;
-  const count = shown.length + (allowAuto ? 1 : 0);
+  const all = narratorsOnly ? [...family, ...personas, ...rest] : voices;
+  const shown = all.filter((v) => filter === "all" || (filter === "favorites" ? favorites.has(v.voiceId) : groupOf(v) === filter));
+  const withAuto = allowAuto && filter === "all";
+  const count = shown.length + (withAuto ? 1 : 0);
+  // Offer only the groups the family has, but always "Favorites", so the star has somewhere to lead.
+  const filters = VOICE_FILTERS.filter((f) => f.id === "all" || f.id === "favorites" || all.some((v) => groupOf(v) === f.id));
 
   const hear = (v: VoiceOption) => {
     if (!previewVoice(v.previewUrl)) speakSample(`Hello! I'm ${v.persona?.name ?? v.name}.`);
   };
+  const toggleFavorite = (voiceId: string) => {
+    const favorite = !favorites.has(voiceId);
+    const flip = (on: boolean) =>
+      setFavorites((cur) => {
+        const next = new Set(cur);
+        if (on) next.add(voiceId);
+        else next.delete(voiceId);
+        return next;
+      });
+    flip(favorite);
+    api.post("/api/favorites", { voiceId, favorite }).catch(() => flip(!favorite));
+  };
 
   return (
     <div>
+      <div className="voice-filters" role="group" aria-label="Show storytellers">
+        {filters.map((f) => (
+          <button key={f.id} type="button" className="chip" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
+            {f.label}
+          </button>
+        ))}
+      </div>
       <div className="voice-shelf-head">
         <span className="small" style={{ color: "var(--ink-soft)" }}>
-          {count} storytellers{overflows ? " · swipe for more" : ""}
+          {count} {count === 1 ? "storyteller" : "storytellers"}
+          {overflows ? " · swipe for more" : ""}
         </span>
         {overflows && <SideArrows ends={ends} slide={slide} what="storytellers" />}
       </div>
-      <div className="voice-grid" ref={shelf} onScroll={measure} role="radiogroup" aria-label="Storyteller">
-        {allowAuto && (
-          <div
-            className="voice-card"
-            role="radio"
-            tabIndex={0}
-            aria-checked={value === null}
-            onClick={() => onChange(null)}
-            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onChange(null)}
-          >
-            <span className="voice-face">🎭</span>
-            <span className="voice-name">Casting director’s choice</span>
-            <span className="voice-tag">The perfect voice for this story</span>
-          </div>
-        )}
-        {shown.map((v) => (
-          <div
-            key={v.voiceId}
-            className="voice-card"
-            role="radio"
-            tabIndex={0}
-            aria-checked={value === v.voiceId}
-            onClick={() => onChange(v.voiceId)}
-            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onChange(v.voiceId)}
-          >
-            <span className="voice-face">{v.persona?.emoji ?? (v.source === "family" ? "💛" : v.source === "designed" ? "🪄" : "🗣️")}</span>
-            <span className="voice-name">{v.persona?.name ?? v.name}</span>
-            <span className="voice-tag">{v.persona?.tagline ?? v.description}</span>
-            <button
-              type="button"
-              className="hear"
-              onClick={(e) => {
-                e.stopPropagation();
-                hear(v);
-              }}
+      {count === 0 ? (
+        <p className="voice-empty">
+          {filter === "favorites" ? "Tap the ☆ on a storyteller to keep them here." : "No storytellers here yet."}
+        </p>
+      ) : (
+        <div className="voice-grid" ref={shelf} onScroll={measure} role="radiogroup" aria-label="Storyteller">
+          {withAuto && (
+            <div
+              className="voice-card"
+              role="radio"
+              tabIndex={0}
+              aria-checked={value === null}
+              onClick={() => onChange(null)}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onChange(null)}
             >
-              ▶ Hear me
-            </button>
-          </div>
-        ))}
-      </div>
+              <span className="voice-face">🎭</span>
+              <span className="voice-name">Casting director’s choice</span>
+              <span className="voice-tag">The perfect voice for this story</span>
+            </div>
+          )}
+          {shown.map((v) => {
+            const name = v.persona?.name ?? v.name;
+            const starred = favorites.has(v.voiceId);
+            return (
+              <div
+                key={v.voiceId}
+                className="voice-card"
+                role="radio"
+                tabIndex={0}
+                aria-checked={value === v.voiceId}
+                onClick={() => onChange(v.voiceId)}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onChange(v.voiceId)}
+              >
+                <button
+                  type="button"
+                  className="fav-star"
+                  aria-pressed={starred}
+                  aria-label={starred ? `Take ${name} out of favorites` : `Make ${name} a favorite`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(v.voiceId);
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  {starred ? "★" : "☆"}
+                </button>
+                <span className="voice-face">{v.persona?.emoji ?? (v.source === "family" ? "💛" : v.source === "designed" ? "🪄" : "🗣️")}</span>
+                <span className="voice-name">{name}</span>
+                <span className="voice-tag">{v.persona?.tagline ?? v.description}</span>
+                <button
+                  type="button"
+                  className="hear"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    hear(v);
+                  }}
+                >
+                  ▶ Hear me
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

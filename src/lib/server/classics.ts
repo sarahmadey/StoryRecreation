@@ -43,7 +43,7 @@ export const CLASSICS: Classic[] = [
 
 /** Ways to browse the whole library, as Gutendex topics (matched against Gutenberg's subjects and shelves). */
 export const TOPICS = [
-  { id: "loved", label: "Most loved", emoji: "⭐", topic: "children" },
+  { id: "loved", label: "Most loved", emoji: "📚", topic: "children" },
   { id: "animals", label: "Animal stories", emoji: "🐻", topic: "animals -- juvenile" },
   { id: "fairy", label: "Fairy tales", emoji: "🧚", topic: "fairy tales" },
   { id: "picture", label: "Picture books", emoji: "🎨", topic: "picture books" },

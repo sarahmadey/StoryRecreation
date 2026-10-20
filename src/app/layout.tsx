@@ -7,13 +7,18 @@ import "@fontsource/andika/400.css";
 import "./globals.css";
 import { GrownupProvider } from "@/components/Grownup";
 import { Motes } from "@/components/Art";
+import { TestCopyBanner } from "@/components/TestCopyBanner";
+import { appName } from "@/lib/server/config";
 
-export const metadata: Metadata = {
-  title: { default: "Storyhollow", template: "%s · Storyhollow" },
-  description: "Magical audio stories for your family's books, and anything you dream up.",
-  applicationName: "Storyhollow",
-  appleWebApp: { capable: true, title: "Storyhollow", statusBarStyle: "black-translucent" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const name = appName();
+  return {
+    title: { default: name, template: `%s · ${name}` },
+    description: "Magical audio stories for your family's books, and anything you dream up.",
+    applicationName: name,
+    appleWebApp: { capable: true, title: name, statusBarStyle: "black-translucent" },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#1b110a",
@@ -28,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <GrownupProvider>
           <Motes />
+          <TestCopyBanner />
           <div className="app">{children}</div>
         </GrownupProvider>
       </body>

@@ -1,9 +1,13 @@
 import type { MetadataRoute } from "next";
+import { appName } from "@/lib/server/config";
+
+// Answered per request, so the test copy installs as "Storyhollow Test".
+export const dynamic = "force-dynamic";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Storyhollow",
-    short_name: "Storyhollow",
+    name: appName(),
+    short_name: appName(),
     description: "Magical audio stories for your family's books.",
     start_url: "/",
     display: "standalone",

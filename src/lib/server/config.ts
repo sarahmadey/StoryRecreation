@@ -53,6 +53,19 @@ export function canWriteStories(): boolean {
   return Boolean(config.anthropicKey) || config.demoMode;
 }
 
+/**
+ * True in the test copy: Railway names each environment ("production",
+ * "staging"), and anything but the live one is for trying changes first.
+ * Read it while handling a request; the build doesn't know which copy it's for.
+ */
+export function isTestCopy(): boolean {
+  const name = process.env.STORYHOLLOW_ENV || process.env.RAILWAY_ENVIRONMENT_NAME;
+  return Boolean(name) && name !== "production";
+}
+
+/** The app's name, marked in the test copy so the two are never confused. */
+export const appName = () => (isTestCopy() ? "Storyhollow Test" : "Storyhollow");
+
 export function canRecordStories(): boolean {
   return Boolean(config.elevenLabsKey) || config.demoMode;
 }

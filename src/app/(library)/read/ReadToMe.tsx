@@ -382,14 +382,19 @@ export function ReadToMe({
                 className="input"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by title or author"
-                aria-label="Search by title or author"
+                placeholder="Title, author or subject…"
+                aria-label="Search by title, author or subject"
                 enterKeyHint="search"
               />
               <button className="btn btn-sm" aria-label="Search">
                 🔍
               </button>
             </form>
+            {!searched && (
+              <p className="small faint" style={{ margin: "-6px 0 0 4px" }}>
+                Try “Halloween”, “pirates”, “Easter” or “Beatrix Potter”.
+              </p>
+            )}
             <div>
               <span className="find-label">Kind of story</span>
               <div className="topic-chips">

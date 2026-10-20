@@ -33,6 +33,10 @@ const CATALOGUE_CSV = [
   '26223,Sound,2008-08-01,Just So Stories (audio),en,"Kipling, Rudyard, 1865-1936","Animals -- Juvenile fiction",PZ,',
   '2591,Text,2001-04-01,Grimms\' Fairy Tales,en,"Grimm, Jacob, 1785-1863; Grimm, Wilhelm, 1786-1859","Fairy tales -- Germany",GR,',
   '21,Text,1991-01-01,Aesop\'s Fables,en,"Aesop, 621? BCE-565? BCE","Fables, Greek",PA,',
+  '1342,Text,1998-06-01,Pride and Prejudice,en,"Austen, Jane, 1775-1817","Love stories; England -- Fiction",PR,',
+  '1400,Text,1998-01-01,All Hallows Eve Sermons,en,"Grey, Thomas","Halloween; Sermons",BV,',
+  '3000,Text,2002-01-01,The Pumpkin Party,en,"Bell, Ada, 1900-1950","Halloween -- Juvenile fiction",PZ,',
+  '5000,Text,2004-01-01,Tilly and the Dragon,en,"Moss, May","Dragons -- Juvenile fiction",PZ,',
 ].join("\r\n");
 let soundJson = "";
 
@@ -554,16 +558,23 @@ test("the whole library comes from Gutenberg's own catalogue, kept here and brow
       [11, "Alice's Adventures in Wonderland", "Lewis Carroll"],
       [16, "Peter Pan", "J. M. Barrie"],
       [271, "Black Beauty", "Anna Sewell"],
+      [3000, "The Pumpkin Party", "Ada Bell"],
+      [5000, "Tilly and the Dragon", "May Moss"],
       [14838, "The Tale of Peter Rabbit", "Beatrix Potter"],
     ],
   );
   const fairy = await browseCatalogue({ topic: "fairy" });
   assert.deepEqual(fairy.results.map((r) => r.gutenbergId), [16, 2591]);
 
-  // search looks at titles and authors across everything, a title that starts with it first
-  const peter = await browseCatalogue({ q: "peter" });
-  assert.deepEqual(peter.results.map((r) => r.title), ["Peter Pan", "The Tale of Peter Rabbit"]);
+  // search looks at titles, authors and subjects across everything, a title that starts with it first
+  const titles = async (q: string) => (await browseCatalogue({ q })).results.map((r) => r.title);
+  assert.deepEqual(await titles("peter"), ["Peter Pan", "The Tale of Peter Rabbit"]);
   assert.deepEqual((await browseCatalogue({ q: "grimm" })).results.map((r) => r.author), ["Jacob Grimm"]);
+  // a kind of story the family thinks of: children's books before grown-ups'
+  assert.deepEqual(await titles("Halloween"), ["The Pumpkin Party", "All Hallows Eve Sermons"]);
+  assert.deepEqual(await titles("romance"), ["Pride and Prejudice"], "romance finds Gutenberg's 'Love stories'");
+  assert.deepEqual(await titles("dragons"), ["Tilly and the Dragon"], "a plural finds the singular");
+  assert.deepEqual(await titles("halloween juvenile"), ["The Pumpkin Party"], "every word must be found");
   assert.deepEqual((await browseCatalogue({ q: "100%_" })).results, [], "search text is never read as a pattern");
   assert.equal(catalogueDownloads, 1, "and every look after that is answered here");
 });

@@ -901,16 +901,31 @@ export function catalogueBook(id: number): Omit<CatalogueRow, "topics"> | undefi
 const likeWords = (s: string) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 /**
- * Books whose title or author contains the search, or whose subjects or
- * shelves contain any of the phrases. Lower Gutenberg numbers come first:
- * the best-known classics were among the first to be added.
+ * Books for a search or a kind of story. A search is groups of words: every
+ * group must be found in the title, author, subjects or shelves, and any word
+ * in a group will do ("romance" or "love stories"). A kind of story is
+ * phrases, any of which its subjects or shelves must hold.
+ *
+ * Titles that match come first, then authors, then subjects; children's books
+ * before grown-ups'; then lower Gutenberg numbers, because the best-known
+ * classics were among the first to be added.
  */
-export function queryCatalogue({ q, match, limit, offset }: { q?: string; match?: readonly string[]; limit: number; offset: number }) {
+export function queryCatalogue({
+  search,
+  match,
+  limit,
+  offset,
+}: {
+  search?: { groups: string[][]; phrase: string };
+  match?: readonly string[];
+  limit: number;
+  offset: number;
+}) {
   const where: string[] = [];
   const args: string[] = [];
-  if (q) {
-    where.push("(title LIKE ? ESCAPE '\\' OR author LIKE ? ESCAPE '\\')");
-    args.push(likeWords(q), likeWords(q));
+  for (const group of search?.groups ?? []) {
+    where.push(`(${group.map(() => "title LIKE ? ESCAPE '\\' OR author LIKE ? ESCAPE '\\' OR topics LIKE ? ESCAPE '\\'").join(" OR ")})`);
+    for (const w of group) args.push(likeWords(w), likeWords(w), likeWords(w));
   }
   if (match?.length) {
     where.push(`(${match.map(() => "topics LIKE ? ESCAPE '\\'").join(" OR ")})`);
@@ -918,9 +933,11 @@ export function queryCatalogue({ q, match, limit, offset }: { q?: string; match?
   }
   const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const total = (db().prepare(`SELECT COUNT(*) AS n FROM catalogue_books ${clause}`).get(...args) as { n: number }).n;
-  // A title that starts with the search beats one that merely contains it.
-  const order = q ? "ORDER BY (title LIKE ? ESCAPE '\\') DESC, id" : "ORDER BY id";
-  const orderArgs = q ? [`${likeWords(q).slice(1)}`] : [];
+  const young = "(topics LIKE '%juvenile%' OR topics LIKE '%children%')";
+  const order = search
+    ? `ORDER BY CASE WHEN title LIKE ? ESCAPE '\\' THEN 0 WHEN title LIKE ? ESCAPE '\\' THEN 1 WHEN author LIKE ? ESCAPE '\\' THEN 2 ELSE 3 END, ${young} DESC, id`
+    : "ORDER BY id";
+  const orderArgs = search ? [likeWords(search.phrase).slice(1), likeWords(search.phrase), likeWords(search.phrase)] : [];
   const rows = db()
     .prepare(`SELECT id, title, author FROM catalogue_books ${clause} ${order} LIMIT ? OFFSET ?`)
     .all(...args, ...orderArgs, limit, offset) as Omit<CatalogueRow, "topics">[];

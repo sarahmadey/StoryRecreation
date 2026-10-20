@@ -169,6 +169,38 @@ export function* parseCsv(text: string): Generator<string[]> {
 const CATALOGUE_FRESH = 7 * 24 * 3600 * 1000;
 const PAGE_SIZE = 24;
 
+/** Words a family might search for, and the phrases Gutenberg's subjects use for them. */
+const SEARCH_ALSO: Record<string, string[]> = {
+  romance: ["love stories"],
+  romantic: ["love stories"],
+  love: ["love stories"],
+  scary: ["ghost stories", "horror"],
+  spooky: ["ghost stories", "witches", "halloween"],
+  funny: ["humorous stories", "humor"],
+  silly: ["humorous stories", "nonsense"],
+  mystery: ["detective and mystery stories"],
+  detective: ["detective and mystery stories"],
+  bedtime: ["lullabies"],
+  princess: ["princesses"],
+  magic: ["magic", "wizards", "witches"],
+  space: ["outer space", "science fiction"],
+};
+
+/**
+ * What a family typed, as groups of words to look for: each word, its
+ * singular ("dragons" finds "Dragon"), and the subject phrases it means.
+ */
+export function searchGroups(q: string): { groups: string[][]; phrase: string } {
+  const phrase = q.trim().replace(/\s+/g, " ").slice(0, 100);
+  const words = phrase.toLowerCase().split(" ").filter((w) => w.length > 1).slice(0, 6);
+  const groups = (words.length ? words : [phrase.toLowerCase()]).map((w) => {
+    const forms = new Set([w, ...(SEARCH_ALSO[w] ?? [])]);
+    if (w.length > 3 && w.endsWith("s") && !w.endsWith("ss")) forms.add(w.slice(0, -1));
+    return [...forms];
+  });
+  return { groups, phrase };
+}
+
 /** Download Gutenberg's catalogue and keep its English books. Returns how many there are. */
 export async function refreshCatalogue(): Promise<number> {
   const res = await get(config.gutenbergCatalogUrl, 120);
@@ -212,12 +244,13 @@ async function ensureCatalogue(): Promise<void> {
   else if (Date.now() - loadedAt > CATALOGUE_FRESH) void refreshOnce().catch((err) => console.warn("Catalogue refresh failed:", err));
 }
 
-/** One page of the library: books matching a search (title or author), or a kind of story. */
+/** One page of the library: books matching a search (title, author or subject), or a kind of story. */
 export async function browseCatalogue({ q, topic, page = 1 }: { q?: string; topic?: TopicId; page?: number }): Promise<CataloguePage> {
   await ensureCatalogue();
   const offset = (Math.max(1, Math.floor(page)) - 1) * PAGE_SIZE;
-  const match = q ? undefined : (TOPICS.find((t) => t.id === topic) ?? TOPICS[0]).match;
-  const { rows, total } = queryCatalogue({ q: q?.slice(0, 100), match, limit: PAGE_SIZE, offset });
+  const search = q?.trim() ? searchGroups(q) : undefined;
+  const match = search ? undefined : (TOPICS.find((t) => t.id === topic) ?? TOPICS[0]).match;
+  const { rows, total } = queryCatalogue({ search, match, limit: PAGE_SIZE, offset });
   return {
     results: rows.map((r) => ({ gutenbergId: r.id, title: r.title, author: r.author, cover: GUTENBERG_COVER(r.id) })),
     more: offset + rows.length < total,

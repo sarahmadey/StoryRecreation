@@ -1,12 +1,13 @@
+import { gunzipSync } from "node:zlib";
 import { config } from "./config";
-import { cacheCatalogue, cacheClassic, getCachedCatalogue, getCachedClassic } from "./db";
+import { cacheClassic, catalogueBook, catalogueLoadedAt, getCachedClassic, queryCatalogue, replaceCatalogue, type CatalogueRow } from "./db";
 import { chapterize, cleanGutenberg, type Chapter } from "./text";
 
 // The Classic Treasury: public-domain children's books from Project
-// Gutenberg. The curated books are fetched straight from Gutenberg by number;
-// the Gutendex catalogue (free, but often slow) is only used for searching.
-// Modern picture books are still under copyright and aren't in any open
-// database, so for those the family photographs their own copy instead.
+// Gutenberg. The curated books are fetched straight from Gutenberg by number,
+// and the whole library is browsed from Storyhollow's own copy of Gutenberg's
+// catalogue. Modern picture books are still under copyright and aren't in any
+// open database, so for those the family photographs their own copy instead.
 
 export interface Classic {
   slug: string;
@@ -41,29 +42,40 @@ export const CLASSICS: Classic[] = [
   { slug: "secret-garden", gutenbergId: 113, title: "The Secret Garden", author: "Frances Hodgson Burnett", emoji: "🗝️", ages: "8+", blurb: "A locked garden, a robin and a little magic.", color: "#4a6b4a", kinds: [] },
 ];
 
-/** Ways to browse the whole library, as Gutendex topics (matched against Gutenberg's subjects and shelves). */
+/**
+ * Ways to browse the whole library. Each matches phrases in Gutenberg's own
+ * subjects and bookshelves ("Animals -- Juvenile fiction").
+ */
 export const TOPICS = [
-  { id: "loved", label: "Most loved", emoji: "📚", topic: "children" },
-  { id: "animals", label: "Animal stories", emoji: "🐻", topic: "animals -- juvenile" },
-  { id: "fairy", label: "Fairy tales", emoji: "🧚", topic: "fairy tales" },
-  { id: "picture", label: "Picture books", emoji: "🎨", topic: "picture books" },
-  { id: "poems", label: "Poems & rhymes", emoji: "🌙", topic: "children's poetry" },
-  { id: "fables", label: "Fables & myths", emoji: "🦊", topic: "fables" },
-  { id: "adventure", label: "Adventure", emoji: "🏝️", topic: "adventure and adventurers -- juvenile" },
-  { id: "christmas", label: "Christmas", emoji: "🎄", topic: "christmas -- juvenile" },
+  {
+    id: "loved",
+    label: "Children's classics",
+    emoji: "📚",
+    match: ["juvenile fiction", "juvenile literature", "children's literature", "children's stories", "children & young adult"],
+  },
+  {
+    id: "animals",
+    label: "Animal stories",
+    emoji: "🐻",
+    match: ["animals -- juvenile", "pets -- juvenile", "dogs -- juvenile", "cats -- juvenile", "horses -- juvenile", "rabbits -- juvenile", "bears -- juvenile"],
+  },
+  { id: "fairy", label: "Fairy tales", emoji: "🧚", match: ["fairy tales", "folklore -- juvenile"] },
+  { id: "picture", label: "Picture books", emoji: "🎨", match: ["picture books", "stories in rhyme", "toy and movable books"] },
+  { id: "poems", label: "Poems & rhymes", emoji: "🌙", match: ["children's poetry", "nursery rhymes", "juvenile poetry"] },
+  { id: "fables", label: "Fables & myths", emoji: "🦊", match: ["fables", "mythology -- juvenile"] },
+  {
+    id: "adventure",
+    label: "Adventure",
+    emoji: "🏝️",
+    match: ["adventure and adventurers -- juvenile", "voyages and travels -- juvenile", "pirates -- juvenile", "islands -- juvenile"],
+  },
+  { id: "christmas", label: "Christmas", emoji: "🎄", match: ["christmas -- juvenile", "christmas stories", "santa claus"] },
 ] as const;
 export type TopicId = (typeof TOPICS)[number]["id"];
 
-interface GutendexBook {
-  id: number;
-  title: string;
-  authors: { name: string }[];
-  formats: Record<string, string>;
-  languages: string[];
-  download_count: number;
-}
-
 const GUTENBERG_TEXT = (id: number) => `https://www.gutenberg.org/cache/epub/${id}/pg${id}.txt`;
+const GUTENBERG_TEXT_ALT = (id: number) => `https://www.gutenberg.org/ebooks/${id}.txt.utf-8`;
+const GUTENBERG_COVER = (id: number) => `https://www.gutenberg.org/cache/epub/${id}/pg${id}.cover.medium.jpg`;
 
 export class ClassicsError extends Error {}
 
@@ -79,22 +91,11 @@ async function get(url: string, seconds: number): Promise<Response> {
   }
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await get(url, 20);
-  if (!res.ok) throw new ClassicsError(`The Gutenberg catalogue answered ${res.status}.`);
-  return (await res.json()) as T;
-}
-
 /** "Title:" and "Author:" from the header Gutenberg puts at the top of every text. */
 export function gutenbergHeader(raw: string): { title: string | null; author: string | null } {
   const head = raw.slice(0, 6000);
   const field = (name: string) => head.match(new RegExp(`^${name}:[ \\t]*(.+)$`, "m"))?.[1].trim() || null;
   return { title: field("Title"), author: field("Author") };
-}
-
-function textUrl(b: GutendexBook): string | null {
-  const key = Object.keys(b.formats).find((k) => k.startsWith("text/plain") && !b.formats[k].endsWith(".zip"));
-  return key ? b.formats[key] : null;
 }
 
 export interface CatalogueHit {
@@ -123,41 +124,109 @@ export function authorName(name: string | undefined): string | null {
   return first ? `${first} ${last}` : plain;
 }
 
-const CATALOGUE_FRESH = 7 * 24 * 3600 * 1000;
-
-/**
- * One page of the library: books matching a search (title or author), or a
- * topic, most-downloaded first. Answers are kept for a week, because the
- * free catalogue can be slow.
- */
-export async function browseCatalogue({ q, topic, page = 1 }: { q?: string; topic?: TopicId; page?: number }): Promise<CataloguePage> {
-  const params = new URLSearchParams({ languages: "en", mime_type: "text/plain", page: String(Math.max(1, Math.floor(page))) });
-  if (q) params.set("search", q.slice(0, 100));
-  const t = TOPICS.find((x) => x.id === topic);
-  if (t && !q) params.set("topic", t.topic);
-  const url = `${config.gutendexUrl}?${params}`;
-  const cached = getCachedCatalogue<CataloguePage>(url, CATALOGUE_FRESH);
-  if (cached) return cached;
-  const data = await fetchJson<{ results: GutendexBook[]; next: string | null }>(url);
-  const result: CataloguePage = {
-    results: data.results
-      .filter((b) => textUrl(b))
-      .map((b) => ({ gutenbergId: b.id, title: shortTitle(b.title), author: authorName(b.authors[0]?.name), cover: b.formats["image/jpeg"] ?? null })),
-    more: Boolean(data.next),
-  };
-  cacheCatalogue(url, result);
-  return result;
+/** The first author in the catalogue's list, without dates or roles: "Carroll, Lewis, 1832-1898; Tenniel, John [Illustrator]". */
+export function firstAuthor(authors: string): string | undefined {
+  const first = authors.split(";")[0]?.replace(/\[[^\]]*\]/g, "").trim();
+  return first ? first.replace(/,\s*[^,]*\d[^,]*$/, "").trim() || undefined : undefined;
 }
 
-let warming: Promise<void> | null = null;
+/** Rows of a CSV file, whose quoted fields may hold commas, doubled quotes and line breaks. */
+export function* parseCsv(text: string): Generator<string[]> {
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch !== '"') field += ch;
+      else if (text[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else quoted = false;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ",") {
+      row.push(field);
+      field = "";
+    } else if (ch === "\n") {
+      row.push(field);
+      yield row;
+      row = [];
+      field = "";
+    } else if (ch !== "\r") field += ch;
+  }
+  if (field || row.length) {
+    row.push(field);
+    yield row;
+  }
+}
 
-/** Fetch each topic's first page in the background, so browsing is quick when a family gets there. */
-export function warmCatalogue(): void {
-  warming ??= (async () => {
-    for (const t of TOPICS) await browseCatalogue({ topic: t.id }).catch(() => undefined);
-  })().finally(() => {
-    warming = null;
+// ---------------------------------------------------------- the whole library
+//
+// Project Gutenberg publishes its catalogue as one file. Storyhollow keeps its
+// own copy, refreshed weekly, so browsing and searching are quick and never
+// wait on anyone else's server.
+
+const CATALOGUE_FRESH = 7 * 24 * 3600 * 1000;
+const PAGE_SIZE = 24;
+
+/** Download Gutenberg's catalogue and keep its English books. Returns how many there are. */
+export async function refreshCatalogue(): Promise<number> {
+  const res = await get(config.gutenbergCatalogUrl, 120);
+  if (!res.ok) throw new ClassicsError(`Project Gutenberg answered ${res.status}.`);
+  const body = Buffer.from(await res.arrayBuffer());
+  const text = (body[0] === 0x1f && body[1] === 0x8b ? gunzipSync(body) : body).toString("utf8");
+  const rows: CatalogueRow[] = [];
+  let col: Record<string, number> | null = null;
+  for (const cells of parseCsv(text)) {
+    if (!col) {
+      col = Object.fromEntries(cells.map((name, i) => [name.trim(), i]));
+      continue;
+    }
+    const at = (name: string) => cells[col![name]] ?? "";
+    const id = Number(at("Text#"));
+    if (!Number.isInteger(id) || id <= 0 || at("Type") !== "Text" || !at("Language").split(/;\s*/).includes("en")) continue;
+    rows.push({
+      id,
+      title: shortTitle(at("Title")),
+      author: authorName(firstAuthor(at("Authors"))),
+      topics: `${at("Subjects")}; ${at("Bookshelves")}`.toLowerCase(),
+    });
+  }
+  if (!rows.length) throw new ClassicsError("Project Gutenberg's catalogue came back empty.");
+  replaceCatalogue(rows);
+  return rows.length;
+}
+
+let refreshing: Promise<number> | null = null;
+const refreshOnce = () => {
+  refreshing ??= refreshCatalogue().finally(() => {
+    refreshing = null;
   });
+  return refreshing;
+};
+
+/** Fetch the catalogue the first time; after that, refresh it in the background once it's a week old. */
+async function ensureCatalogue(): Promise<void> {
+  const loadedAt = catalogueLoadedAt();
+  if (!loadedAt) await refreshOnce();
+  else if (Date.now() - loadedAt > CATALOGUE_FRESH) void refreshOnce().catch((err) => console.warn("Catalogue refresh failed:", err));
+}
+
+/** One page of the library: books matching a search (title or author), or a kind of story. */
+export async function browseCatalogue({ q, topic, page = 1 }: { q?: string; topic?: TopicId; page?: number }): Promise<CataloguePage> {
+  await ensureCatalogue();
+  const offset = (Math.max(1, Math.floor(page)) - 1) * PAGE_SIZE;
+  const match = q ? undefined : (TOPICS.find((t) => t.id === topic) ?? TOPICS[0]).match;
+  const { rows, total } = queryCatalogue({ q: q?.slice(0, 100), match, limit: PAGE_SIZE, offset });
+  return {
+    results: rows.map((r) => ({ gutenbergId: r.id, title: r.title, author: r.author, cover: GUTENBERG_COVER(r.id) })),
+    more: offset + rows.length < total,
+  };
+}
+
+/** Get the catalogue ready in the background, so browsing is quick when a family gets there. */
+export function warmCatalogue(): void {
+  void ensureCatalogue().catch((err) => console.warn("Catalogue unavailable:", err));
 }
 
 export interface LoadedClassic {
@@ -170,23 +239,17 @@ export interface LoadedClassic {
 export async function loadClassic(gutenbergId: number): Promise<LoadedClassic> {
   let cached = getCachedClassic(gutenbergId);
   if (!cached) {
-    // Straight from Gutenberg by number; the catalogue is only asked if that fails.
-    let raw: string | null = null;
-    const direct = await get(GUTENBERG_TEXT(gutenbergId), 30).catch(() => null);
-    if (direct?.ok) raw = await direct.text();
-    else {
-      const book = await fetchJson<GutendexBook>(`${config.gutendexUrl}/${gutenbergId}`);
-      const url = textUrl(book);
-      if (!url) throw new ClassicsError("That book has no plain-text edition.");
-      const res = await get(url, 30);
-      if (!res.ok) throw new ClassicsError(`Project Gutenberg answered ${res.status}.`);
-      raw = await res.text();
-    }
+    // Straight from Gutenberg by number, from its usual place or its other one.
+    let res = await get(GUTENBERG_TEXT(gutenbergId), 30).catch(() => null);
+    if (!res?.ok) res = await get(GUTENBERG_TEXT_ALT(gutenbergId), 30);
+    if (!res.ok) throw new ClassicsError(res.status === 404 ? "That book has no plain-text edition." : `Project Gutenberg answered ${res.status}.`);
+    const raw = await res.text();
     const curated = CLASSICS.find((c) => c.gutenbergId === gutenbergId);
+    const listed = catalogueBook(gutenbergId);
     const header = gutenbergHeader(raw);
     cached = {
-      title: curated?.title ?? header.title ?? "A classic",
-      author: curated?.author ?? header.author,
+      title: curated?.title ?? listed?.title ?? header.title ?? "A classic",
+      author: curated?.author ?? listed?.author ?? header.author,
       text: cleanGutenberg(raw),
     };
     cacheClassic(gutenbergId, cached.title, cached.author, cached.text);

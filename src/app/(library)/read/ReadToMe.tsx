@@ -444,7 +444,7 @@ export function ReadToMe({
                 <div className="center">
                   <h2 style={{ margin: 0 }}>{searched ? "From the whole library" : `${topicLabel} from the whole library`}</h2>
                   <p className="muted small" style={{ margin: "4px 0 0" }}>
-                    Free books from Project Gutenberg, most read first.
+                    Free books from Project Gutenberg, best-known classics first.
                     {ages !== "all" ? " These aren't sorted by age, so do look at the covers." : ""}
                   </p>
                 </div>

@@ -153,10 +153,16 @@ CREATE TABLE IF NOT EXISTS classics_cache (
   fetched_at INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS catalogue_cache (
+CREATE TABLE IF NOT EXISTS catalogue_books (
+  id INTEGER PRIMARY KEY,
+  title TEXT NOT NULL,
+  author TEXT,
+  topics TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS catalogue_meta (
   key TEXT PRIMARY KEY,
-  json TEXT NOT NULL,
-  fetched_at INTEGER NOT NULL
+  value TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS favorite_voices (
@@ -858,14 +864,67 @@ export function setFavoriteClassic(householdId: string, book: FavoriteClassic, f
   }
 }
 
-/** A saved answer from the Gutenberg catalogue, if it's fresh enough. */
-export function getCachedCatalogue<T>(key: string, maxAgeMs: number): T | undefined {
-  const r = db().prepare("SELECT json, fetched_at FROM catalogue_cache WHERE key = ?").get(key) as { json: string; fetched_at: number } | undefined;
-  return r && Date.now() - r.fetched_at < maxAgeMs ? (JSON.parse(r.json) as T) : undefined;
+// --------------------------------------------------------------- catalogue
+
+/** One English book from Project Gutenberg's catalogue; "topics" is its subjects and shelves, lowercased. */
+export interface CatalogueRow {
+  id: number;
+  title: string;
+  author: string | null;
+  topics: string;
 }
 
-export function cacheCatalogue(key: string, value: unknown) {
-  db().prepare("INSERT OR REPLACE INTO catalogue_cache (key, json, fetched_at) VALUES (?, ?, ?)").run(key, JSON.stringify(value), Date.now());
+export function replaceCatalogue(rows: CatalogueRow[]) {
+  const conn = db();
+  conn.exec("BEGIN");
+  try {
+    conn.exec("DELETE FROM catalogue_books");
+    const ins = conn.prepare("INSERT OR REPLACE INTO catalogue_books (id, title, author, topics) VALUES (?, ?, ?, ?)");
+    for (const r of rows) ins.run(r.id, r.title, r.author, r.topics);
+    conn.prepare("INSERT OR REPLACE INTO catalogue_meta (key, value) VALUES ('loaded_at', ?)").run(String(Date.now()));
+    conn.exec("COMMIT");
+  } catch (e) {
+    conn.exec("ROLLBACK");
+    throw e;
+  }
+}
+
+export function catalogueLoadedAt(): number | null {
+  const r = db().prepare("SELECT value FROM catalogue_meta WHERE key = 'loaded_at'").get() as { value: string } | undefined;
+  return r ? Number(r.value) : null;
+}
+
+export function catalogueBook(id: number): Omit<CatalogueRow, "topics"> | undefined {
+  return db().prepare("SELECT id, title, author FROM catalogue_books WHERE id = ?").get(id) as Omit<CatalogueRow, "topics"> | undefined;
+}
+
+const likeWords = (s: string) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+/**
+ * Books whose title or author contains the search, or whose subjects or
+ * shelves contain any of the phrases. Lower Gutenberg numbers come first:
+ * the best-known classics were among the first to be added.
+ */
+export function queryCatalogue({ q, match, limit, offset }: { q?: string; match?: readonly string[]; limit: number; offset: number }) {
+  const where: string[] = [];
+  const args: string[] = [];
+  if (q) {
+    where.push("(title LIKE ? ESCAPE '\\' OR author LIKE ? ESCAPE '\\')");
+    args.push(likeWords(q), likeWords(q));
+  }
+  if (match?.length) {
+    where.push(`(${match.map(() => "topics LIKE ? ESCAPE '\\'").join(" OR ")})`);
+    args.push(...match.map((m) => likeWords(m.toLowerCase())));
+  }
+  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const total = (db().prepare(`SELECT COUNT(*) AS n FROM catalogue_books ${clause}`).get(...args) as { n: number }).n;
+  // A title that starts with the search beats one that merely contains it.
+  const order = q ? "ORDER BY (title LIKE ? ESCAPE '\\') DESC, id" : "ORDER BY id";
+  const orderArgs = q ? [`${likeWords(q).slice(1)}`] : [];
+  const rows = db()
+    .prepare(`SELECT id, title, author FROM catalogue_books ${clause} ${order} LIMIT ? OFFSET ?`)
+    .all(...args, ...orderArgs, limit, offset) as Omit<CatalogueRow, "topics">[];
+  return { rows, total };
 }
 
 /** The settings used last time a story was made for this book, for "another one tonight". */

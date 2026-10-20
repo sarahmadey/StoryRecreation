@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import type { AddressInfo } from "node:net";
+import { gzipSync } from "node:zlib";
 
 interface Captured {
   method: string;
@@ -19,6 +20,20 @@ interface Captured {
 const captured: Captured[] = [];
 let server: http.Server;
 let scriptJson = "";
+let catalogueDownloads = 0;
+
+// A slice of Project Gutenberg's pg_catalog.csv, awkward bits included.
+const CATALOGUE_CSV = [
+  "Text#,Type,Issued,Title,Language,Authors,Subjects,LoCC,Bookshelves",
+  '11,Text,2008-06-27,Alice\'s Adventures in Wonderland,en,"Carroll, Lewis, 1832-1898; Tenniel, John, 1820-1914 [Illustrator]","Fantasy fiction; Children\'s stories; Imaginary places -- Juvenile fiction",PR,Category: Children & Young Adult Reading',
+  '16,Text,1994-07-01,"Peter Pan\nor, The Boy Who Wouldn\'t Grow Up",en,"Barrie, J. M. (James Matthew), 1860-1937","Fairy tales; Peter Pan (Fictitious character) -- Juvenile fiction",PR,Children\'s Literature',
+  '14838,Text,2005-01-30,The Tale of Peter Rabbit,en,"Potter, Beatrix, 1866-1943","Rabbits -- Juvenile fiction; Animals -- Juvenile fiction",PZ,Children\'s Picture Books',
+  '271,Text,1995-04-01,Black Beauty,en,"Sewell, Anna, 1820-1878","Horses -- Juvenile fiction",PZ,"Children\'s Literature, Animals"',
+  '19033,Text,2006-08-12,Le Petit Prince,fr,"Someone, A.","Juvenile fiction",PQ,',
+  '26223,Sound,2008-08-01,Just So Stories (audio),en,"Kipling, Rudyard, 1865-1936","Animals -- Juvenile fiction",PZ,',
+  '2591,Text,2001-04-01,Grimms\' Fairy Tales,en,"Grimm, Jacob, 1785-1863; Grimm, Wilhelm, 1786-1859","Fairy tales -- Germany",GR,',
+  '21,Text,1991-01-01,Aesop\'s Fables,en,"Aesop, 621? BCE-565? BCE","Fables, Greek",PA,',
+].join("\r\n");
 let soundJson = "";
 
 const PERSONA_VOICE = "JBFqnCBsd6RMkjVDRZzb";
@@ -65,24 +80,10 @@ before(async () => {
           }),
         );
       }
-      if (req.url!.startsWith("/books")) {
-        // the Gutendex catalogue
-        const page = new URL(req.url!, "http://x").searchParams.get("page");
-        res.writeHead(200, { "content-type": "application/json" });
-        return res.end(
-          JSON.stringify({
-            count: 3,
-            next: page === "1" ? "http://x/books?page=2" : null,
-            results: [
-              {
-                id: 11, title: "Alice's Adventures in Wonderland", authors: [{ name: "Carroll, Lewis (Charles Lutwidge Dodgson)" }], languages: ["en"], download_count: 9,
-                formats: { "text/plain; charset=us-ascii": "http://x/11.txt", "image/jpeg": "https://www.gutenberg.org/cache/epub/11/pg11.cover.medium.jpg" },
-              },
-              { id: 16, title: "Peter Pan; or, the boy who wouldn't grow up", authors: [{ name: "Barrie, J. M. (James Matthew)" }], languages: ["en"], download_count: 8, formats: { "text/plain": "http://x/16.txt" } },
-              { id: 99, title: "A reading, sound only", authors: [], languages: ["en"], download_count: 1, formats: { "audio/mpeg": "http://x/99.mp3" } },
-            ],
-          }),
-        );
+      if (req.url!.startsWith("/pg_catalog.csv.gz")) {
+        catalogueDownloads++;
+        res.writeHead(200, { "content-type": "application/gzip" });
+        return res.end(gzipSync(CATALOGUE_CSV));
       }
       if (req.url!.startsWith("/v1/sound-generation")) {
         res.writeHead(200, { "content-type": "audio/pcm" });
@@ -158,7 +159,7 @@ before(async () => {
   process.env.ANTHROPIC_BASE_URL = base;
   process.env.ELEVENLABS_API_KEY = "test-eleven";
   process.env.ELEVENLABS_BASE_URL = base;
-  process.env.GUTENDEX_URL = `${base}/books`;
+  process.env.GUTENBERG_CATALOG_URL = `${base}/pg_catalog.csv.gz`;
   process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "storyhollow-test-"));
   delete process.env.DEMO_MODE;
 });
@@ -528,37 +529,43 @@ test("a Gutenberg text's title and author are read from its header", async () =>
   assert.equal(CLASSICS.find((c) => c.slug === "peter-rabbit")?.gutenbergId, 14838);
 });
 
-test("the whole library can be browsed by kind of story, with covers, and answers are kept", async () => {
-  const { browseCatalogue } = await import("@/lib/server/classics");
-  const catalogueCalls = () => captured.filter((c) => c.url.startsWith("/books"));
-  const page = await browseCatalogue({ topic: "animals" });
-  const asked = new URL(catalogueCalls().at(-1)!.url, "http://x").searchParams;
-  assert.equal(asked.get("topic"), "animals -- juvenile");
-  assert.equal(asked.get("languages"), "en");
-  assert.equal(asked.get("mime_type"), "text/plain");
-  // only books that can be read aloud, with names a child would know
+test("the whole library comes from Gutenberg's own catalogue, kept here and browsed by kind of story", async () => {
+  const { browseCatalogue, firstAuthor, parseCsv } = await import("@/lib/server/classics");
+  assert.deepEqual([...parseCsv('a,"b, ""c""\nd"\r\n1,2')], [["a", 'b, "c"\nd'], ["1", "2"]]);
+  assert.equal(firstAuthor("Aesop, 621? BCE-565? BCE"), "Aesop");
+
+  const animals = await browseCatalogue({ topic: "animals" });
+  assert.equal(catalogueDownloads, 1, "the catalogue is downloaded once");
+  // English texts only (no French, no audio), best-known (lowest number) first, with names a child would know
   assert.deepEqual(
-    page.results.map((r) => [r.gutenbergId, r.title, r.author]),
+    animals.results.map((r) => [r.gutenbergId, r.title, r.author]),
+    [
+      [271, "Black Beauty", "Anna Sewell"],
+      [14838, "The Tale of Peter Rabbit", "Beatrix Potter"],
+    ],
+  );
+  assert.equal(animals.results[0].cover, "https://www.gutenberg.org/cache/epub/271/pg271.cover.medium.jpg");
+  assert.equal(animals.more, false);
+
+  const classics = await browseCatalogue({ topic: "loved" });
+  assert.deepEqual(
+    classics.results.map((r) => [r.gutenbergId, r.title, r.author]),
     [
       [11, "Alice's Adventures in Wonderland", "Lewis Carroll"],
       [16, "Peter Pan", "J. M. Barrie"],
+      [271, "Black Beauty", "Anna Sewell"],
+      [14838, "The Tale of Peter Rabbit", "Beatrix Potter"],
     ],
   );
-  assert.equal(page.results[0].cover, "https://www.gutenberg.org/cache/epub/11/pg11.cover.medium.jpg");
-  assert.equal(page.results[1].cover, null);
-  assert.equal(page.more, true);
+  const fairy = await browseCatalogue({ topic: "fairy" });
+  assert.deepEqual(fairy.results.map((r) => r.gutenbergId), [16, 2591]);
 
-  const before = catalogueCalls().length;
-  await browseCatalogue({ topic: "animals" });
-  assert.equal(catalogueCalls().length, before, "a second look is answered from what was kept");
-
-  // a search looks at titles and authors across the whole library
-  const found = await browseCatalogue({ q: "black beauty", topic: "animals", page: 2 });
-  const searched = new URL(catalogueCalls().at(-1)!.url, "http://x").searchParams;
-  assert.equal(searched.get("search"), "black beauty");
-  assert.equal(searched.get("topic"), null);
-  assert.equal(searched.get("page"), "2");
-  assert.equal(found.more, false);
+  // search looks at titles and authors across everything, a title that starts with it first
+  const peter = await browseCatalogue({ q: "peter" });
+  assert.deepEqual(peter.results.map((r) => r.title), ["Peter Pan", "The Tale of Peter Rabbit"]);
+  assert.deepEqual((await browseCatalogue({ q: "grimm" })).results.map((r) => r.author), ["Jacob Grimm"]);
+  assert.deepEqual((await browseCatalogue({ q: "100%_" })).results, [], "search text is never read as a pattern");
+  assert.equal(catalogueDownloads, 1, "and every look after that is answered here");
 });
 
 test("favorite storytellers and books are kept for the whole family", async () => {

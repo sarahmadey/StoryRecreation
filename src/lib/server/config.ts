@@ -15,9 +15,9 @@ export const config = {
   get elevenLabsKey(): string | undefined {
     return process.env.ELEVENLABS_API_KEY || undefined;
   },
-  /** The Gutenberg catalogue (changeable for tests). */
-  get gutendexUrl(): string {
-    return process.env.GUTENDEX_URL || "https://gutendex.com/books";
+  /** Project Gutenberg's catalogue of every book (changeable for tests). */
+  get gutenbergCatalogUrl(): string {
+    return process.env.GUTENBERG_CATALOG_URL || "https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv.gz";
   },
   get storyModel(): string {
     return process.env.STORY_MODEL || "claude-opus-5-5";

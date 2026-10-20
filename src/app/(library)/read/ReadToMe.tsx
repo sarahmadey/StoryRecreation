@@ -357,16 +357,19 @@ export function ReadToMe({
         </label>
       </div>
 
-      <div className="chips" role="tablist" style={{ justifyContent: "center", scrollMarginTop: 96 }} ref={tabsRef}>
+      <div className="chips read-tabs" role="tablist" style={{ justifyContent: "center", scrollMarginTop: 96 }} ref={tabsRef}>
         {(
           [
-            ["classics", "📜 The Classic Treasury"],
-            ["own", "📕 A book we own"],
-            ["words", "✉️ Our own words"],
+            ["classics", "📜", "The Classic Treasury"],
+            ["own", "📕", "A book we own"],
+            ["words", "✉️", "Our own words"],
           ] as const
-        ).map(([t, label]) => (
+        ).map(([t, emoji, label]) => (
           <button key={t} role="tab" aria-selected={tab === t} className="dark-chip" aria-pressed={tab === t} onClick={() => setTab(t)}>
-            {label}
+            <span className="tab-emoji" aria-hidden="true">
+              {emoji}
+            </span>
+            <span>{label}</span>
           </button>
         ))}
       </div>
@@ -377,24 +380,22 @@ export function ReadToMe({
       {tab === "classics" && !open && (
         <>
           <section className="find-panel stack" style={{ ["--gap" as string]: "14px" }} aria-label="Find a book">
-            <form className="find-search" onSubmit={search} role="search">
-              <input
-                className="input"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Title, author or subject…"
-                aria-label="Search by title, author or subject"
-                enterKeyHint="search"
-              />
-              <button className="btn btn-sm" aria-label="Search">
-                🔍
-              </button>
-            </form>
-            {!searched && (
-              <p className="small faint" style={{ margin: "-6px 0 0 4px" }}>
-                Try “Halloween”, “pirates”, “Easter” or “Beatrix Potter”.
-              </p>
-            )}
+            <div>
+              <form className="find-search" onSubmit={search} role="search">
+                <input
+                  className="input"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Title, author, subject"
+                  aria-label="Search by title, author or subject"
+                  enterKeyHint="search"
+                />
+                <button className="btn btn-sm" aria-label="Search">
+                  🔍
+                </button>
+              </form>
+              {!searched && <p className="find-hint">Try “Halloween”, “pirates” or “Easter”.</p>}
+            </div>
             <div>
               <span className="find-label">Kind of story</span>
               <div className="topic-chips">

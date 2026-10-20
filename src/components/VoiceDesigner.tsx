@@ -85,7 +85,10 @@ export function VoiceDesigner({
             onChange={(e) => setDescription(e.target.value)}
             placeholder="A very old, very wise owl. Slow and creaky, warm and kind, with a soft British accent and a sleepy little hoot in his voice."
           />
-          <div className="hint">Age, accent, pace, personality and texture all help. Each try uses a little ElevenLabs credit.</div>
+          <div className="hint">
+            Describe personality, energy, accent, pace and texture. ElevenLabs won&apos;t make voices of young children. Each try uses a little
+            ElevenLabs credit.
+          </div>
         </label>
         <div className="center">
           <button className="btn" onClick={conjure} disabled={Boolean(busy) || description.trim().length < 20}>

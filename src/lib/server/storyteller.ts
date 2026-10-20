@@ -3,7 +3,7 @@ import { z } from "zod";
 import { config } from "./config";
 import { describeVoiceForCasting } from "./voices";
 import { AGES, BOOK_KINDS, LENGTHS, MOODS, WORDS_PER_MINUTE, wordsPerPage } from "@/lib/shared/options";
-import type { BookKind, StoryScript, StorySettings, VoiceOption } from "@/lib/shared/types";
+import type { BookKind, SoundCue, StoryScript, StorySettings, VoiceOption } from "@/lib/shared/types";
 import type { RememberedCharacter } from "./db";
 
 // --------------------------------------------------------------------------
@@ -380,6 +380,90 @@ export function normalizeScript(raw: RawScript, req: StoryRequest): StoryScript 
     cast: req.settings.fullCast ? cast : [narrator],
     pages: req.settings.fullCast ? pages : pages.map((p) => ({ ...p, lines: p.lines.map((l) => ({ ...l, speaker: "narrator" })) })),
   };
+}
+
+// ------------------------------------------------------------ sound effects
+
+const SOUND_SYSTEM = `You are the sound designer for Storyhollow, a family audio-story app heard by young children, very often at bedtime. You are given a finished story script. Choose a few moments where one short, real-world sound effect would delight a child and make the story feel alive: a door creaking open just as the narrator says so, an owl's hoot, footsteps crunching through leaves, a splash, a knock, a cat's meow, a spoon clinking in a bowl.
+
+- Few and well placed: about one for every two pages, never more than one on a page, and at most eight in all. Return fewer, or none, when nothing fits.
+- Each sound lands on the word where it happens in the story ("creaked", "splash", "knocked"). Give the page, the line's index on that page (counting from 0), and that word copied exactly as it is written in the line.
+- Short and gentle: one to four seconds, soft enough to sit beneath a voice. Describe the sound itself, concretely, for a sound-effects generator ("a small wooden door creaks slowly open"), never a mood.
+- Never music, singing, voices or speech, crowds, a continuous background (rain, crickets, a wind that keeps blowing), alarms, screams, thunder, explosions, or anything loud, harsh or frightening.`;
+
+const SOUND_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["effects"],
+  properties: {
+    effects: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["page", "line", "word", "sound", "seconds"],
+        properties: {
+          page: { type: "integer" },
+          line: { type: "integer" },
+          word: { type: "string" },
+          sound: { type: "string" },
+          seconds: { type: "number" },
+        },
+      },
+    },
+  },
+};
+const SoundCuesSchema = z.object({
+  effects: z.array(z.object({ page: z.number(), line: z.number(), word: z.string(), sound: z.string(), seconds: z.number() })),
+});
+
+/** Keep cues that point at a real line, at most one a page and eight in all. */
+export function cleanSoundCues(script: StoryScript, cues: SoundCue[]): SoundCue[] {
+  const used = new Set<number>();
+  const out: SoundCue[] = [];
+  for (const c of cues) {
+    const page = script.pages.find((p) => p.page === c.page);
+    const sound = c.sound.trim().slice(0, 200);
+    if (!page || !page.lines[c.line] || !sound || used.has(c.page)) continue;
+    used.add(c.page);
+    out.push({ page: c.page, line: c.line, word: c.word.trim().slice(0, 40), sound, seconds: Math.min(4.5, Math.max(0.8, c.seconds || 2)) });
+    if (out.length === 8) break;
+  }
+  return out.sort((a, b) => a.page - b.page);
+}
+
+/** Ask the sound designer where a few short effects belong in a finished script. */
+export async function spotSoundEffects(script: StoryScript): Promise<SoundCue[]> {
+  const cast = new Map(script.cast.map((c) => [c.id, c.name]));
+  const pages = script.pages
+    .map((p) => [`Page ${p.page}`, ...p.lines.map((l, i) => `  [${i}] ${cast.get(l.speaker) ?? l.speaker}: ${l.text}`)].join("\n"))
+    .join("\n\n");
+  let message: Anthropic.Beta.BetaMessage;
+  try {
+    message = await anthropic().beta.messages.create({
+      model: config.storyModel,
+      max_tokens: 16000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: "low", format: { type: "json_schema", schema: SOUND_SCHEMA } },
+      system: SOUND_SYSTEM,
+      messages: [{ role: "user", content: `"${script.title}"\n\n${pages}` }],
+    });
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) throw new StorytellerError("The Anthropic API key was not accepted.");
+    if (err instanceof Anthropic.APIError) throw new StorytellerError(`The sound designer hit a snag (${err.status}). Please try again.`);
+    throw err;
+  }
+  if (message.stop_reason !== "end_turn") throw new StorytellerError("The sound designer couldn't place sounds in this story.");
+  const out = message.content
+    .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+  try {
+    return cleanSoundCues(script, SoundCuesSchema.parse(JSON.parse(out)).effects);
+  } catch {
+    throw new StorytellerError("The sound designer's notes got jumbled. Please try again.");
+  }
 }
 
 function slug(s: string): string {

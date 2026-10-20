@@ -17,14 +17,14 @@ import {
 } from "./db";
 import { readImageForModel, storyDir } from "./files";
 import { castableVoices, voiceCatalog } from "./voices";
-import { writeScript, StorytellerError, type StoryRequest } from "./storyteller";
-import { writeDemoScript } from "./demo-storyteller";
-import { performAmbience, performLines, PerformerError } from "./performer";
-import { encodeMp3, floatToPcm16, mixStory, pcm16ToFloat, type Clip } from "./audio";
+import { spotSoundEffects, writeScript, StorytellerError, type StoryRequest } from "./storyteller";
+import { demoSoundCues, writeDemoScript } from "./demo-storyteller";
+import { performAmbience, performLines, performSoundEffect, PerformerError } from "./performer";
+import { encodeMp3, floatToPcm16, mixStory, pcm16ToFloat, type Clip, type PlacedEffect } from "./audio";
 import { loadClassic } from "./classics";
 import { sectionText, stripTags } from "./text";
 import { personaFor } from "@/lib/shared/personas";
-import type { ScriptLine, StoryScript } from "@/lib/shared/types";
+import type { ScriptLine, ScriptPage, SoundCue, StoryScript } from "@/lib/shared/types";
 
 // Stories are written and recorded in the background so a phone can lock, or
 // a parent can wander off to brush teeth, without losing anything. Progress
@@ -166,7 +166,8 @@ export function applyPhotoOrder(householdId: string, bookId: string, sent: PageR
 // ------------------------------------------------------------ recording
 
 export function startRecording(storyId: string) {
-  updateStory(storyId, { status: "recording", error: null, progress: { step: "Warming up the voices", done: 0, total: 1 } });
+  const step = getStoryById(storyId)?.audioUrl ? "Opening the recordings" : "Warming up the voices";
+  updateStory(storyId, { status: "recording", error: null, progress: { step, done: 0, total: 1 } });
   launch("record", storyId, () => recordStory(storyId));
 }
 
@@ -237,7 +238,7 @@ async function recordStory(storyId: string) {
   const dir = storyDir(story.householdId, storyId);
   await fs.promises.mkdir(dir, { recursive: true });
 
-  const steps = script.pages.length + (settings.intro ? 1 : 0) + (settings.ambience ? 1 : 0) + 1;
+  const steps = script.pages.length + (settings.intro ? 1 : 0) + (settings.ambience ? 1 : 0) + (settings.effects ? 1 : 0) + 1;
   let done = 0;
   const tick = (step: string) => updateStory(storyId, { progress: { step, done: done++, total: steps } });
 
@@ -271,8 +272,18 @@ async function recordStory(storyId: string) {
     ambience = await cachedAmbience(dir, script.ambience);
   }
 
+  let effects: PlacedEffect[] = [];
+  if (settings.effects) {
+    tick("Adding the sound effects");
+    // A story is still lovely without its sound effects, so a hiccup here never stops it.
+    effects = await recordEffects(storyId, dir, script, pages).catch((err) => {
+      console.warn("Sound effects unavailable:", err);
+      return [];
+    });
+  }
+
   tick("Binding the story together");
-  await finishMix(storyId, dir, { pages, intro, ambience });
+  await finishMix(storyId, dir, { pages, intro, ambience, effects });
 
   if (story.mode === "create") {
     rememberCharacters(
@@ -296,10 +307,65 @@ async function cachedAmbience(dir: string, description: string): Promise<Float32
   }
 }
 
+// ------------------------------------------------------------ sound effects
+
+const tokens = (text: string) => text.replace(/\[[^\]]*\]/g, " ").split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
+const bare = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+
+/**
+ * When a cue's word is spoken, in seconds from the start of its page's
+ * recording. Null when the word is no longer on the page (it was edited).
+ */
+export function cueTime(page: ScriptPage, clip: Clip, cue: SoundCue): number | null {
+  const counts = page.lines.map((l) => tokens(l.text).length);
+  const lineStart = counts.slice(0, cue.line).reduce((n, c) => n + c, 0);
+  const inLine = tokens(page.lines[cue.line]?.text ?? "").findIndex((w) => bare(w) === bare(cue.word));
+  const onPage = inLine >= 0 ? lineStart + inLine : page.lines.flatMap((l) => tokens(l.text)).findIndex((w) => bare(w) === bare(cue.word));
+  if (onPage < 0) return null;
+  if (!clip.words.length) return 0;
+  // Spoken words can drift a little from the written ones; take the nearest match.
+  let at = Math.min(onPage, clip.words.length - 1);
+  for (let d = 0; d <= 8; d++) {
+    const k = [onPage - d, onPage + d].find((i) => clip.words[i] && bare(clip.words[i].w) === bare(cue.word));
+    if (k !== undefined) {
+      at = k;
+      break;
+    }
+  }
+  return Math.max(0, clip.words[at].t - 0.05);
+}
+
+const effectFile = (dir: string, cue: SoundCue) =>
+  path.join(dir, `sfx-${hashOf({ sound: cue.sound, seconds: cue.seconds, demo: !config.elevenLabsKey })}.pcm`);
+
+/** Choose the sound effects (once per script), make any not yet made, and place them. */
+async function recordEffects(storyId: string, dir: string, script: StoryScript, pages: { page: number; clip: Clip }[]): Promise<PlacedEffect[]> {
+  if (!script.effects) {
+    script.effects = config.anthropicKey || !config.demoMode ? await spotSoundEffects(script) : demoSoundCues(script);
+    updateStory(storyId, { script });
+  }
+  const placed: PlacedEffect[] = [];
+  for (const cue of script.effects) {
+    const i = script.pages.findIndex((p) => p.page === cue.page);
+    const at = i >= 0 ? cueTime(script.pages[i], pages[i].clip, cue) : null;
+    if (at === null) continue;
+    const file = effectFile(dir, cue);
+    let samples: Float32Array;
+    try {
+      samples = pcm16ToFloat(await fs.promises.readFile(file));
+    } catch {
+      samples = await performSoundEffect(cue.sound, cue.seconds);
+      await fs.promises.writeFile(file, floatToPcm16(samples));
+    }
+    placed.push({ page: cue.page, at, samples });
+  }
+  return placed;
+}
+
 async function finishMix(
   storyId: string,
   dir: string,
-  parts: { pages: { page: number; clip: Clip }[]; intro: { before: Clip; after: Clip } | null; ambience: Float32Array | null },
+  parts: { pages: { page: number; clip: Clip }[]; intro: { before: Clip; after: Clip } | null; ambience: Float32Array | null; effects: PlacedEffect[] },
 ) {
   const story = getStoryById(storyId)!;
   const { samples, timeline } = mixStory({ ...parts, chime: story.settings.chime });
@@ -354,6 +420,20 @@ export async function remixStory(storyId: string): Promise<boolean> {
       return false;
     }
   }
-  await finishMix(storyId, dir, { pages, intro, ambience });
+  const effects: PlacedEffect[] = [];
+  if (story.settings.effects) {
+    if (!story.script.effects) return false;
+    for (const cue of story.script.effects) {
+      const i = story.script.pages.findIndex((p) => p.page === cue.page);
+      const at = i >= 0 ? cueTime(story.script.pages[i], pages[i].clip, cue) : null;
+      if (at === null) continue;
+      try {
+        effects.push({ page: cue.page, at, samples: pcm16ToFloat(await fs.promises.readFile(effectFile(dir, cue))) });
+      } catch {
+        return false;
+      }
+    }
+  }
+  await finishMix(storyId, dir, { pages, intro, ambience, effects });
   return true;
 }

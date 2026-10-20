@@ -82,6 +82,9 @@ export function BookView({
 
   return (
     <>
+      <Link href="/library" className="back-link">
+        ‹ Back to the library
+      </Link>
       <div className="book-header">
         <div className="book" style={{ ["--w" as string]: "220px" }}>
           <div className="book-cover">

@@ -81,7 +81,7 @@ const STATUS: Record<string, { label: string; className: string } | undefined> =
 export function StoryCardView({ story, profileEmoji }: { story: StoryCard; profileEmoji?: string }) {
   const ready = story.status === "ready";
   const status = STATUS[story.status];
-  return (
+  const card = (
     <Link href={ready ? `/play/${story.id}` : `/stories/${story.id}`} className="story-card">
       <div className="story-thumb">
         <Cover id={story.bookId} title={story.bookTitle} kind={story.bookKind} coverUrl={story.coverUrl} showTitle={false} />
@@ -104,5 +104,15 @@ export function StoryCardView({ story, profileEmoji }: { story: StoryCard; profi
         </span>
       )}
     </Link>
+  );
+  if (!ready) return card;
+  // A finished story opens straight into the player; its words, voices and sounds are one tap away.
+  return (
+    <div className="story-card-wrap">
+      {card}
+      <Link href={`/stories/${story.id}`} className="story-edit" aria-label={`Edit ${story.title}`} title="Edit the words, voices and sounds">
+        ✎
+      </Link>
+    </div>
   );
 }

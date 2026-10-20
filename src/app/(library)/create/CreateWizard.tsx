@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
-import { ChimePicker, PhotoPicker, VoicePicker, useVoices } from "@/components/Pickers";
+import { ChimePicker, PhotoPicker, SoundsPicker, VoicePicker, soundsOf, useVoices } from "@/components/Pickers";
 import { Cover } from "@/components/Books";
 import type { PickedPhoto } from "@/lib/client/images";
 import { AGES, LENGTHS, MOODS, defaultSettings, estimateMinutes } from "@/lib/shared/options";
@@ -401,13 +401,13 @@ export function CreateWizard({
                 </span>
               </span>
             </label>
-            <label className="toggle">
-              <input type="checkbox" checked={settings.ambience} onChange={(e) => set("ambience", e.target.checked)} />
-              <span>
-                <b>A soft soundscape underneath</b>
-                <span className="muted small">Crickets, rain on the window, waves… whatever suits the story. Very quiet.</span>
-              </span>
-            </label>
+            <SoundsPicker
+              value={soundsOf(settings)}
+              onChange={(v) => {
+                set("effects", v === "effects");
+                set("ambience", v === "soundscape");
+              }}
+            />
           </>
         )}
 
@@ -428,7 +428,7 @@ export function CreateWizard({
               <p className="muted">
                 {settings.fullCast ? "A full cast of voices" : "One storyteller"}
                 {settings.chime.enabled ? `, a ${settings.chime.style === "bell" ? "bell" : settings.chime.style === "sparkle" ? "sparkle" : "wind chime"} to turn each page` : ""}
-                {settings.ambience ? ", and a soft soundscape" : ""}.
+                {settings.effects ? ", and a few sound effects" : settings.ambience ? ", and a soft soundscape" : ""}.
               </p>
             </div>
             <label className="toggle">

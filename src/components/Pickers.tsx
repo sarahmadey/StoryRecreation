@@ -276,6 +276,35 @@ export function VoiceSelect({
 
 // ------------------------------------------------------------------ chime
 
+export type SoundsChoice = "none" | "effects" | "soundscape";
+
+export const soundsOf = (s: { effects: boolean; ambience: boolean }): SoundsChoice => (s.effects ? "effects" : s.ambience ? "soundscape" : "none");
+
+const SOUNDS: Record<SoundsChoice, { emoji: string; label: string; sub: string }> = {
+  none: { emoji: "🎙️", label: "Just the voices", sub: "Nothing underneath" },
+  effects: { emoji: "🦉", label: "Sound effects", sub: "A few short sounds at just the right moments: a door's creak, an owl's hoot" },
+  soundscape: { emoji: "🌧️", label: "Soft soundscape", sub: "A quiet background the whole way through" },
+};
+
+/** What plays besides the voices. The continuous soundscape is only offered where a story already has it. */
+export function SoundsPicker({ value, onChange }: { value: SoundsChoice; onChange: (v: SoundsChoice) => void }) {
+  const options = (Object.keys(SOUNDS) as SoundsChoice[]).filter((k) => k !== "soundscape" || value === "soundscape");
+  return (
+    <div>
+      <span className="label">Sounds</span>
+      <div className="choices" style={{ ["--min" as string]: "150px" }} role="radiogroup" aria-label="Sounds">
+        {options.map((k) => (
+          <button key={k} type="button" className="choice" role="radio" aria-checked={value === k} onClick={() => onChange(k)}>
+            <span className="choice-emoji">{SOUNDS[k].emoji}</span>
+            <span className="choice-title">{SOUNDS[k].label}</span>
+            <span className="choice-sub">{SOUNDS[k].sub}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ChimePicker({ value, onChange }: { value: ChimeSettings; onChange: (c: ChimeSettings) => void }) {
   return (
     <div className="stack" style={{ ["--gap" as string]: "14px" }}>

@@ -61,7 +61,9 @@ a brand-new tale for the very same pictures.
   shadow book on the bedroom wall. It's off until you turn it on.
 - **Aa Read-along words:** each word lights up as it's spoken, right under the picture of the page, which
   helps early readers.
-- **An optional soundscape** (crickets, rain, waves) looped very quietly underneath.
+- **🦉 Sound effects on cue** (optional): a sound designer picks a few moments, like a door's creak on
+  "creaked" or an owl's hoot, and each short sound lands on its word, softly beneath the voices. Turn
+  sounds on or off for any finished story without re-recording the voices.
 - **One MP3** with narration, chimes and pauses baked in, so it plays on a lock screen, a Bluetooth speaker or
   in the car, and can be **downloaded for a make-your-own Yoto card**.
 
@@ -100,7 +102,7 @@ npm run dev                    # open http://localhost:3000
 | Key | What it powers | Where to get it |
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | The storyteller (Claude reads the photos and writes the scripts) | [console.anthropic.com](https://console.anthropic.com) |
-| `ELEVENLABS_API_KEY` | The voices, voice design and soundscapes | [elevenlabs.io → API keys](https://elevenlabs.io/app/settings/api-keys) |
+| `ELEVENLABS_API_KEY` | The voices, voice design and sound effects | [elevenlabs.io → API keys](https://elevenlabs.io/app/settings/api-keys) |
 
 **No keys yet?** Run `DEMO_MODE=1 npm run dev` to click through every screen with a pretend storyteller and
 humming placeholder voices.
@@ -125,7 +127,7 @@ humming placeholder voices.
                                                              │
  ElevenLabs Text-to-Dialogue (Eleven v4, PCM + timestamps) ◄─┘   one request per page
                                                              │
- mixer: welcome · page 1 · chime · pause · page 2 · … ◄──────┘   + optional looping soundscape
+ mixer: welcome · page 1 · chime · pause · page 2 · … ◄──────┘   + optional sound effects, each on its word
                                                              │
  story.mp3 + page timeline + word timings ──► player (page cues, wait-for-me, read-along, lock screen)
 ```
@@ -140,7 +142,10 @@ humming placeholder voices.
   what gets mixed into the story.
 - **Mixing and MP3 encoding** are pure JavaScript (`src/lib/server/audio.ts`); no ffmpeg needed.
 - **Editing a page only re-records that page.** Recordings are cached by content, and changing the chime
-  re-binds the story without spending any voice credits.
+  or the sounds re-binds the story without re-recording any voices.
+- **Sound effects** are placed by a small, separate Claude request that reads the finished script
+  (`spotSoundEffects` in `src/lib/server/storyteller.ts`), made with ElevenLabs Sound Effects, and laid on
+  the spoken word's timing about 8 dB under the narration (`src/lib/server/audio.ts`).
 - **Background jobs** keep writing and recording if a phone locks or the page is closed. If the server
   restarts mid-job, the story shows *Try again* and resumes where it stopped.
 
@@ -195,7 +200,8 @@ That's for your family's own listening; please don't share those recordings publ
 | --- | --- |
 | Writing a 12-page story (Claude Opus 5.5) | about $0.15–$0.50, depending on photo count and length |
 | Recording a 6-minute story | about 5,000 characters of ElevenLabs voice credit. Compare with your plan's monthly allowance. |
-| Changing chimes, replaying, downloading | free |
+| Sound effects for a story | at most 8 short sounds of ElevenLabs credit, made once and kept, plus a tiny Claude request |
+| Changing chimes or sounds, replaying, downloading | free (new sound effects aside) |
 | Keeping family recordings | free |
 | Making a family storytelling voice | included in ElevenLabs plans from Starter up (each voice uses one of your plan's voice slots) |
 
@@ -251,7 +257,6 @@ Optional settings live in `.env.example` (`STORY_MODEL`, `VOICE_MODEL`, `ELEVENL
 
 - **Record a reading:** a child or grandparent reads a real book page by page, with chimes added, as a keepsake
   story on the shelf.
-- **Sound effects on cue:** an owl's hoot as it appears on the page, waves as the boat sets sail.
 - **Ongoing sagas:** recurring characters with memories across nights ("Ollie remembers last week's
   adventure").
 - **Kid-made covers:** photograph a child's drawing as the book's cover.

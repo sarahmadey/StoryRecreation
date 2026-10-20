@@ -47,11 +47,20 @@ export function concatClips(clips: Clip[], gapSeconds: number): Clip {
   return { samples, words };
 }
 
+/** A sound effect to play at a moment in one page's recording. */
+export interface PlacedEffect {
+  page: number;
+  /** Seconds from the start of that page's recording. */
+  at: number;
+  samples: Float32Array;
+}
+
 export interface MixInput {
   pages: { page: number; clip: Clip }[];
   intro?: { before: Clip; after: Clip } | null;
   chime: ChimeSettings;
   ambience?: Float32Array | null;
+  effects?: PlacedEffect[];
 }
 
 const LEAD_IN = 0.8;
@@ -117,6 +126,7 @@ export function mixStory(input: MixInput): { samples: Float32Array; timeline: St
       }
     }
     pages.push({ page, start, speechEnd, chimeAt, next: t, words });
+    for (const fx of input.effects ?? []) if (fx.page === page) parts.push({ at: start + fx.at, samples: shapeEffect(fx.samples) });
   });
 
   t += TAIL;
@@ -182,6 +192,33 @@ function layAmbience(out: Float32Array, loop: Float32Array) {
   }
 }
 
+/**
+ * Fit a sound effect beneath the voices: a quick fade in, a gentle fade out,
+ * and a level that's clearly heard without ever covering a word.
+ */
+function shapeEffect(samples: Float32Array): Float32Array {
+  const out = samples.slice(0, Math.min(samples.length, 5 * SAMPLE_RATE));
+  let peak = 0;
+  let sumSq = 0;
+  for (let i = 0; i < out.length; i++) {
+    peak = Math.max(peak, Math.abs(out[i]));
+    sumSq += out[i] * out[i];
+  }
+  if (!peak) return out;
+  const rms = Math.sqrt(sumSq / out.length);
+  const gain = Math.min(0.045 / (rms || 1), 0.3 / peak); // about 8 dB under the narration
+  const fadeIn = Math.min(out.length, Math.round(0.02 * SAMPLE_RATE));
+  const fadeOut = Math.min(out.length, Math.round(0.4 * SAMPLE_RATE));
+  for (let i = 0; i < out.length; i++) {
+    let env = 1;
+    if (i < fadeIn) env = i / fadeIn;
+    const fromEnd = out.length - i;
+    if (fromEnd < fadeOut) env = Math.min(env, fromEnd / fadeOut);
+    out[i] *= gain * env;
+  }
+  return out;
+}
+
 function softLimit(out: Float32Array) {
   const knee = 0.9;
   for (let i = 0; i < out.length; i++) {
@@ -235,6 +272,18 @@ export function demoVoiceClip(lines: { speaker: string; text: string; voiceId: s
     };
   });
   return concatClips(clips, 0.35);
+}
+
+/** DEMO_MODE stand-in for a sound effect: a soft two-note chime. */
+export function demoSoundEffect(seconds: number): Float32Array {
+  const n = Math.round(Math.min(seconds, 2) * SAMPLE_RATE);
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = i / SAMPLE_RATE;
+    const note = t < 0.25 ? 1318.5 : 1760;
+    out[i] = 0.3 * Math.sin(2 * Math.PI * note * t) * Math.exp(-3 * (t < 0.25 ? t : t - 0.25));
+  }
+  return out;
 }
 
 export function demoAmbience(): Float32Array {

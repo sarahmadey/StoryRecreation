@@ -19,6 +19,7 @@ interface Captured {
 const captured: Captured[] = [];
 let server: http.Server;
 let scriptJson = "";
+let soundJson = "";
 
 const PERSONA_VOICE = "JBFqnCBsd6RMkjVDRZzb";
 const OWL_VOICE = "pqHfZKP75CvOlQylNhV4";
@@ -54,7 +55,20 @@ before(async () => {
     req.on("end", () => {
       const body = raw && String(req.headers["content-type"] ?? "").includes("json") ? JSON.parse(raw) : raw || null;
       captured.push({ method: req.method!, url: req.url!, headers: req.headers, body });
-      if (req.url!.startsWith("/v1/messages")) return sse(res, scriptJson);
+      if (req.url!.startsWith("/v1/messages")) {
+        if ((body as { stream?: boolean }).stream) return sse(res, scriptJson);
+        res.writeHead(200, { "content-type": "application/json" });
+        return res.end(
+          JSON.stringify({
+            id: "msg_2", type: "message", role: "assistant", model: "claude-opus-5-5", stop_reason: "end_turn", stop_sequence: null,
+            content: [{ type: "text", text: soundJson }], usage: { input_tokens: 10, output_tokens: 40 },
+          }),
+        );
+      }
+      if (req.url!.startsWith("/v1/sound-generation")) {
+        res.writeHead(200, { "content-type": "audio/pcm" });
+        return res.end(Buffer.from(pcmBase64(1.5), "base64"));
+      }
       if (req.url!.startsWith("/v1/text-to-dialogue/with-timestamps")) {
         const inputs = (body as { inputs: { text: string; voice_id: string }[] }).inputs;
         const text = inputs.map((i) => i.text).join(" ");
@@ -414,4 +428,71 @@ test("sign-ups close after the first family unless a sign-up code is set", async
   assert.ok(!codeMatches("moon"));
   assert.ok(!codeMatches(""));
   delete process.env.SIGNUP_CODE;
+});
+
+test("sound effects are chosen for a finished script, made short, and land on their word", async () => {
+  const { spotSoundEffects } = await import("@/lib/server/storyteller");
+  const { performSoundEffect } = await import("@/lib/server/performer");
+  const { cueTime } = await import("@/lib/server/jobs");
+  const { mixStory, SAMPLE_RATE } = await import("@/lib/server/audio");
+  const { defaultSettings } = await import("@/lib/shared/options");
+  const script = {
+    title: "The Little Door",
+    synopsis: "",
+    ambience: "",
+    cast: [{ id: "narrator", name: "Narrator", description: "", voiceBrief: "", voiceId: PERSONA_VOICE }],
+    pages: [
+      { page: 1, picture: "", lines: [{ speaker: "narrator", text: "Mia tiptoed down the hall." }, { speaker: "narrator", text: "[softly] Then the little door creaked open." }] },
+      { page: 2, picture: "", lines: [{ speaker: "narrator", text: "An owl said hoo." }] },
+    ],
+  };
+  soundJson = JSON.stringify({
+    effects: [
+      { page: 1, line: 1, word: "creaked", sound: "a small wooden door creaks slowly open", seconds: 2 },
+      { page: 1, line: 0, word: "hall", sound: "a second sound on the same page", seconds: 2 },
+      { page: 9, line: 0, word: "nope", sound: "a page that isn't there", seconds: 2 },
+      { page: 2, line: 0, word: "hoo", sound: "a soft owl hoot", seconds: 30 },
+    ],
+  });
+  const cues = await spotSoundEffects(script);
+  const req = captured.findLast((c) => c.url.startsWith("/v1/messages"))!;
+  const body = req.body as Record<string, any>;
+  assert.equal(body.stream, undefined, "a quick request, not a stream");
+  assert.equal(body.output_config.effort, "low");
+  assert.equal(body.fallbacks, "default");
+  assert.match(body.messages[0].content, /\[1\] Narrator: \[softly\] Then the little door creaked open\./);
+  // one a page, only real pages, and never long
+  assert.deepEqual(
+    cues.map((c) => [c.page, c.word, c.seconds]),
+    [
+      [1, "creaked", 2],
+      [2, "hoo", 4.5],
+    ],
+  );
+
+  const sfx = await performSoundEffect(cues[0].sound, cues[0].seconds);
+  const sfxReq = captured.findLast((c) => c.url.startsWith("/v1/sound-generation"))!;
+  assert.match(String((sfxReq.body as Record<string, unknown>).text), /^a small wooden door creaks slowly open\./);
+  assert.equal((sfxReq.body as Record<string, unknown>).duration_seconds, 2);
+  assert.match(sfxReq.url, /output_format=pcm_24000/);
+  assert.equal(sfx.length, Math.round(1.5 * SAMPLE_RATE));
+
+  // "creaked" is the 9th spoken word on page 1 ([softly] isn't spoken)
+  const words = "Mia tiptoed down the hall. Then the little door creaked open.".split(" ").map((w, i) => ({ t: i * 0.5, e: i * 0.5 + 0.4, w, speaker: "narrator" }));
+  const clip = { samples: new Float32Array(SAMPLE_RATE * 6), words };
+  assert.equal(cueTime(script.pages[0], clip, cues[0]), 4.45);
+  // a word edited away means no sound, rather than one in the wrong place
+  assert.equal(cueTime(script.pages[0], clip, { ...cues[0], word: "slammed" }), null);
+
+  const silent = { samples: new Float32Array(SAMPLE_RATE * 6), words };
+  const { samples, timeline } = mixStory({
+    pages: [{ page: 1, clip: silent }],
+    chime: { ...defaultSettings().chime, enabled: false },
+    effects: [{ page: 1, at: 4.45, samples: sfx }],
+  });
+  const at = Math.round((timeline.pages[0].start + 4.45) * SAMPLE_RATE);
+  const loudest = (from: number, to: number) => samples.subarray(from, to).reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+  assert.equal(loudest(0, at - 10), 0, "silent before the door creaks");
+  assert.ok(loudest(at, at + SAMPLE_RATE) > 0.05, "the creak is heard");
+  assert.ok(loudest(at, at + SAMPLE_RATE) <= 0.3, "and stays beneath the voices");
 });

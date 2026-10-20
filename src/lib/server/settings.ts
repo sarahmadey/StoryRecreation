@@ -33,6 +33,7 @@ export function sanitizeSettings(input: unknown): StorySettings {
     },
     intro: i.intro === undefined ? d.intro : Boolean(i.intro),
     ambience: Boolean(i.ambience),
+    effects: Boolean(i.effects),
     review: i.review === undefined ? d.review : Boolean(i.review),
     ...(classic && Number.isInteger(classic.gutenbergId) && Number.isInteger(classic.chapter)
       ? { classic: { gutenbergId: Number(classic.gutenbergId), chapter: Number(classic.chapter) } }

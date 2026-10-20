@@ -69,6 +69,20 @@ export interface ScriptPage {
   lines: ScriptLine[];
 }
 
+/** One short sound effect, landing on a word as it's spoken. */
+export interface SoundCue {
+  /** The page it belongs to (1-based). */
+  page: number;
+  /** Which line on that page (0-based). */
+  line: number;
+  /** The word in that line where the sound happens, e.g. "creaked". */
+  word: string;
+  /** What the sound is, for the sound generator: "a small wooden door creaks open". */
+  sound: string;
+  /** About how long it lasts. */
+  seconds: number;
+}
+
 export interface StoryScript {
   title: string;
   synopsis: string;
@@ -76,6 +90,8 @@ export interface StoryScript {
   ambience: string;
   cast: CastMember[];
   pages: ScriptPage[];
+  /** Sound effects chosen for this script, once they've been asked for. */
+  effects?: SoundCue[];
 }
 
 export interface ChimeSettings {
@@ -110,7 +126,10 @@ export interface StorySettings {
   fullCast: boolean;
   chime: ChimeSettings;
   intro: boolean;
+  /** A continuous soundscape under the whole story. */
   ambience: boolean;
+  /** A few short sound effects at just the right moments. */
+  effects: boolean;
   review: boolean;
   /** For read-aloud: a classic chapter reference. */
   classic?: { gutenbergId: number; chapter: number };

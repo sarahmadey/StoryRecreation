@@ -133,6 +133,7 @@ export function defaultSettings(overrides: Partial<StorySettings> = {}): StorySe
     chime: { enabled: true, style: "bell", gapSeconds: 3 },
     intro: true,
     ambience: false,
+    effects: false,
     review: true,
     ...overrides,
   };

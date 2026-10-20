@@ -2,7 +2,7 @@ import { ElevenLabsError } from "@elevenlabs/elevenlabs-js";
 import { config } from "./config";
 import { eleven } from "./voices";
 import { chunkLines, speakable } from "./text";
-import { concatClips, demoAmbience, demoVoiceClip, pcm16ToFloat, SAMPLE_RATE, type Clip } from "./audio";
+import { concatClips, demoAmbience, demoSoundEffect, demoVoiceClip, pcm16ToFloat, SAMPLE_RATE, type Clip } from "./audio";
 import type { CastMember, ScriptLine, TimelineWord } from "@/lib/shared/types";
 
 // The performer turns script lines into audio using ElevenLabs Text to
@@ -140,6 +140,24 @@ export async function performAmbience(description: string): Promise<Float32Array
   } catch (err) {
     console.warn("Ambience unavailable:", err);
     return null; // a story without ambience is still a lovely story
+  }
+}
+
+/** One short sound effect ("a small wooden door creaks open"), as audio. */
+export async function performSoundEffect(description: string, seconds: number): Promise<Float32Array> {
+  if (useDemo()) return demoSoundEffect(seconds);
+  try {
+    const stream = await withRetry(() =>
+      eleven().textToSoundEffects.convert({
+        text: `${description}. A single, gentle, clean sound effect for a children's bedtime story. No music, no voices.`,
+        durationSeconds: seconds,
+        promptInfluence: 0.6,
+        outputFormat: OUTPUT,
+      }),
+    );
+    return pcm16ToFloat(await readAll(stream));
+  } catch (err) {
+    throw explain(err);
   }
 }
 

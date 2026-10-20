@@ -1,5 +1,6 @@
 import { wordsPerPage } from "@/lib/shared/options";
-import { normalizeScript, type RawScript, type StoryRequest, type WriteProgress, type WrittenStory } from "./storyteller";
+import { cleanSoundCues, normalizeScript, type RawScript, type StoryRequest, type WriteProgress, type WrittenStory } from "./storyteller";
+import type { SoundCue, StoryScript } from "@/lib/shared/types";
 import { sectionText } from "./text";
 
 // A pretend storyteller for DEMO_MODE, so every screen can be explored
@@ -89,4 +90,14 @@ export async function writeDemoScript(req: StoryRequest, onProgress: WriteProgre
     onProgress(req.mode === "create" ? "Writing the pages" : "Reading the pages", i + 1, req.pageCount);
   }
   return { script: normalizeScript(raw, req), photoOrder: null };
+}
+
+/** DEMO_MODE sound designer: a soft chime on the first word of every other page. */
+export function demoSoundCues(script: StoryScript): SoundCue[] {
+  return cleanSoundCues(
+    script,
+    script.pages
+      .filter((p, i) => i % 2 === 0 && p.lines.length)
+      .map((p) => ({ page: p.page, line: 0, word: p.lines[0].text.replace(/\[[^\]]*\]/g, "").trim().split(/\s+/)[0] ?? "", sound: "a soft, twinkly chime", seconds: 1.5 })),
+  );
 }

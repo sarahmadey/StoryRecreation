@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Brewing } from "@/components/Brewing";
-import { ChimePicker, VoiceSelect, useVoices } from "@/components/Pickers";
+import { ChimePicker, SoundsPicker, VoiceSelect, soundsOf, useVoices, type SoundsChoice } from "@/components/Pickers";
 import { VoiceDesigner } from "@/components/VoiceDesigner";
 import { imageForPage } from "@/lib/shared/pages";
 import { formatDuration } from "@/lib/shared/options";
@@ -22,6 +22,8 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
   const [busy, setBusy] = useState(false);
   const [designing, setDesigning] = useState<{ castId: string } | null>(null);
   const [chime, setChime] = useState<ChimeSettings>(initial.settings.chime);
+  const [sounds, setSounds] = useState<SoundsChoice>(soundsOf(initial.settings));
+  const soundsChanged = sounds !== soundsOf(story.settings) || JSON.stringify(chime) !== JSON.stringify(story.settings.chime);
   const loadedVoices = useVoices();
   const [extraVoices, setExtraVoices] = useState<VoiceOption[]>([]);
   const voices = [...extraVoices, ...(loadedVoices ?? [])];
@@ -84,15 +86,20 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
       await refresh();
     });
 
+  // A recording that stumbled is tried again with the same words; only an unwritten story is rewritten.
   const retry = () =>
     run(async () => {
-      await api.post(`/api/stories/${story.id}/rewrite`);
+      await api.post(`/api/stories/${story.id}/${story.script ? "record" : "rewrite"}`);
       await refresh();
     });
 
   const remix = () =>
     run(async () => {
-      const res = await api.post<{ story: Story }>(`/api/stories/${story.id}/remix`, { chime });
+      const res = await api.post<{ story: Story }>(`/api/stories/${story.id}/remix`, {
+        chime,
+        effects: sounds === "effects",
+        ambience: sounds === "soundscape",
+      });
       setStory(res.story);
     });
 
@@ -123,9 +130,13 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
   if (story.status === "recording") {
     return (
       <Brewing
-        title="The voices are recording"
+        title={story.audioUrl ? "Re-binding the story" : "The voices are recording"}
         progress={story.progress}
-        note="Each character is stepping up to the microphone. This takes a minute or two."
+        note={
+          story.audioUrl
+            ? "The voices you love are kept just as they are. This takes a minute."
+            : "Each character is stepping up to the microphone. This takes a minute or two."
+        }
       />
     );
   }
@@ -135,6 +146,9 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
 
   return (
     <div className="stack" style={{ ["--gap" as string]: "22px" }}>
+      <Link href={`/books/${book.id}`} className="back-link">
+        ‹ Back to {book.title}
+      </Link>
       <div className="center">
         <div className="eyebrow">
           <Link href={`/books/${book.id}`}>{book.title}</Link>
@@ -167,19 +181,26 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
             </a>{" "}
             for a speaker, the car, or a make-your-own Yoto card.
           </p>
-          <details style={{ textAlign: "left" }}>
-            <summary style={{ cursor: "pointer" }} className="muted">
-              Change the page-turn chime
-            </summary>
-            <div style={{ marginTop: 14 }} className="parchment">
-              <ChimePicker value={chime} onChange={setChime} />
-              <div className="center" style={{ marginTop: 14 }}>
-                <button className="btn btn-sm" onClick={remix} disabled={busy}>
-                  {busy ? "Re-binding…" : "Re-bind the story (no new recording)"}
-                </button>
+          <div className="parchment stack" style={{ textAlign: "left" }}>
+            <SoundsPicker value={sounds} onChange={setSounds} />
+            <details>
+              <summary style={{ cursor: "pointer" }}>Change the page-turn chime</summary>
+              <div style={{ marginTop: 14 }}>
+                <ChimePicker value={chime} onChange={setChime} />
               </div>
-            </div>
-          </details>
+            </details>
+            {soundsChanged && (
+              <div className="center stack" style={{ ["--gap" as string]: "8px" }}>
+                <button className="btn btn-sm" onClick={remix} disabled={busy}>
+                  {busy ? "Re-binding…" : "Save the new sounds"}
+                </button>
+                <p className="small" style={{ margin: 0, color: "var(--ink-soft)" }}>
+                  The voices aren&apos;t re-recorded.
+                  {sounds === "effects" && !story.settings.effects ? " New sound effects use a little ElevenLabs credit." : ""}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

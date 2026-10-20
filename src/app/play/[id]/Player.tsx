@@ -38,6 +38,58 @@ function usePref<T>(key: string, initial: T): [T, (v: T) => void] {
   return [value, set];
 }
 
+type IconName = "close" | "prev" | "next" | "play" | "pause" | "again";
+
+/** Drawn icons, so the controls look the same on every phone (emoji vary). */
+function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
+  const line = { fill: "none", stroke: "currentColor", strokeWidth: 2.4, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+  const shapes: Record<IconName, React.ReactNode> = {
+    close: <path d="M6 6l12 12M18 6L6 18" {...line} />,
+    prev: (
+      <>
+        <rect x="5" y="5" width="2.6" height="14" rx="1" />
+        <path d="M19 5.5v13L9 12z" />
+      </>
+    ),
+    next: (
+      <>
+        <rect x="16.4" y="5" width="2.6" height="14" rx="1" />
+        <path d="M5 5.5v13L15 12z" />
+      </>
+    ),
+    play: <path d="M8 4.8v14.4L20 12z" />,
+    pause: (
+      <>
+        <rect x="6" y="5" width="4" height="14" rx="1.2" />
+        <rect x="14" y="5" width="4" height="14" rx="1.2" />
+      </>
+    ),
+    again: (
+      <>
+        <path d="M5.6 9.2A7 7 0 1 1 5 12" {...line} />
+        <path d="M4.6 4.6v4.8h4.8" {...line} />
+      </>
+    ),
+  };
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
+      {shapes[name]}
+    </svg>
+  );
+}
+
+/** A player option that says plainly whether it's on. */
+function Toggle({ on, onClick, icon, label, title }: { on: boolean; onClick: () => void; icon: string; label: string; title?: string }) {
+  return (
+    <button className="dark-chip toggle-chip" aria-pressed={on} onClick={onClick} title={title}>
+      <span aria-hidden="true">{icon}</span> {label}
+      <span className="toggle-state" aria-hidden="true">
+        {on ? "On" : "Off"}
+      </span>
+    </button>
+  );
+}
+
 function pageAt(pages: TimelinePage[], t: number): number {
   let lo = 0;
   let hi = pages.length - 1;
@@ -72,7 +124,10 @@ export function Player({ story, book, photos }: { story: Story; book: Book; phot
   const physical = story.settings.source === "book" || story.settings.source === "book_read";
   const [waitMode, setWaitMode] = usePref("waitForMe", false);
   const [showWords, setShowWords] = usePref("showWords", true);
-  const [lightsOut, setLightsOut] = usePref(`lightsOut:${book.kind}`, book.kind === "shadow_book");
+  // Off until asked for: a near-black screen is for shadows on the wall, and
+  // it looks broken to anyone who didn't choose it.
+  const [lightsOut, setLightsOut] = usePref("lightsOut", false);
+  const wordsBox = useRef<HTMLDivElement>(null);
 
   const idx = pageAt(pages, t);
   const page = pages[idx];
@@ -223,6 +278,27 @@ export function Player({ story, book, photos }: { story: Story; book: Book; phot
     return ans;
   }, [page, t]);
   const speaking = wordIdx >= 0 && t <= page.speechEnd ? castById.get(page.words[wordIdx].speaker) : undefined;
+  // If a page has no word timings, still show its words, just without the highlight.
+  const pageText = useMemo(
+    () =>
+      (story.script?.pages.find((p) => p.page === page.page)?.lines ?? [])
+        .map((l) => l.text.replace(/\[[^\]]{1,40}\]\s*/g, "").trim())
+        .filter(Boolean)
+        .join(" "),
+    [story.script, page.page],
+  );
+
+  // Keep the word being read in view, and start each page at the top.
+  useEffect(() => {
+    if (wordsBox.current) wordsBox.current.scrollTop = 0;
+  }, [idx]);
+  useEffect(() => {
+    const box = wordsBox.current;
+    const now = box?.querySelector<HTMLElement>(`[data-i="${wordIdx}"]`);
+    if (!box || !now) return;
+    const y = now.offsetTop - box.scrollTop;
+    if (y < 0 || y > box.clientHeight * 0.65) box.scrollTo({ top: now.offsetTop - box.clientHeight * 0.3, behavior: "smooth" });
+  }, [wordIdx]);
 
   const img = page.page > 0 ? imageForPage(page.page, photos, story.settings.source, storyPages) : null;
   const label =
@@ -258,8 +334,8 @@ export function Player({ story, book, photos }: { story: Story; book: Book; phot
       />
 
       <div className="player-top">
-        <Link href={`/books/${book.id}`} className="icon-btn" aria-label="Back to the book">
-          ←
+        <Link href={`/books/${book.id}`} className="icon-btn" aria-label="Close the story" title="Close">
+          <Icon name="close" size={20} />
         </Link>
         <div className="player-title">
           <div className="eyebrow">{book.title}</div>
@@ -271,7 +347,7 @@ export function Player({ story, book, photos }: { story: Story; book: Book; phot
       </div>
 
       <div className="player-stage">
-        <div className="page-frame">
+        <div className={`page-frame ${img ? "photo" : ""}`}>
           {img ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img key={img} src={img} alt={label} />
@@ -302,21 +378,34 @@ export function Player({ story, book, photos }: { story: Story; book: Book; phot
         <span className="page-badge">{label}</span>
       </div>
 
+      {showWords && (page.words.length > 0 || pageText) && (
+        <div className="read-along" ref={wordsBox} aria-hidden="true">
+          {speaking && castById.size > 1 && <span className="who-speaks">{speaking.name}</span>}
+          {page.words.length > 0
+            ? page.words.map((w, i) => (
+                <span key={i} data-i={i} className={`w ${i < wordIdx ? "said" : ""} ${i === wordIdx && t <= w.e + 0.25 ? "now" : ""}`}>
+                  {w.w}{" "}
+                </span>
+              ))
+            : pageText}
+        </div>
+      )}
+
       <div className="controls">
         <button className="icon-btn" onClick={() => goPage(idx - 1)} disabled={idx === 0} aria-label="Previous page">
-          ⏮
+          <Icon name="prev" />
         </button>
         {playing ? (
           <button className="big-play" onClick={pause} aria-label="Pause">
-            ❚❚
+            <Icon name="pause" size={38} />
           </button>
         ) : (
           <button className="big-play" onClick={play} aria-label={ended ? "Play again" : started ? "Keep listening" : "Play the story"}>
-            {ended ? "↺" : "▶"}
+            <Icon name={ended ? "again" : "play"} size={40} />
           </button>
         )}
         <button className="icon-btn" onClick={() => goPage(idx + 1)} disabled={idx >= pages.length - 1} aria-label="Next page">
-          ⏭
+          <Icon name="next" />
         </button>
       </div>
 
@@ -347,28 +436,11 @@ export function Player({ story, book, photos }: { story: Story; book: Book; phot
 
       <div className="player-options">
         {physical && story.settings.chime.enabled && (
-          <button className="dark-chip" aria-pressed={waitMode} onClick={() => setWaitMode(!waitMode)} title="Pause after each chime until you tap">
-            ✋ Wait for me to turn
-          </button>
+          <Toggle on={waitMode} onClick={() => setWaitMode(!waitMode)} icon="✋" label="Wait for me to turn" title="Pause after each chime until you tap" />
         )}
-        <button className="dark-chip" aria-pressed={showWords} onClick={() => setShowWords(!showWords)}>
-          🔤 Show the words
-        </button>
-        <button className="dark-chip" aria-pressed={lightsOut} onClick={() => setLightsOut(!lightsOut)} title="A nearly-black screen for shadow books on the wall">
-          🌙 Lights out
-        </button>
+        <Toggle on={showWords} onClick={() => setShowWords(!showWords)} icon="Aa" label="Words" />
+        <Toggle on={lightsOut} onClick={() => setLightsOut(!lightsOut)} icon="🌙" label="Lights out" title="A nearly-black screen for shadow books on the wall" />
       </div>
-
-      {showWords && !lightsOut && page.words.length > 0 && (
-        <div className="read-along" aria-hidden="true">
-          {speaking && castById.size > 1 && <span className="who-speaks">{speaking.name}</span>}
-          {page.words.map((w, i) => (
-            <span key={i} className={`w ${i < wordIdx ? "said" : ""} ${i === wordIdx && t <= w.e + 0.25 ? "now" : ""}`}>
-              {w.w}{" "}
-            </span>
-          ))}
-        </div>
-      )}
 
       {waiting && (
         <button className="wait-overlay" onClick={turned} autoFocus>

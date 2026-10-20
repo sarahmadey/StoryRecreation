@@ -8,7 +8,7 @@ export const metadata = { title: "Welcome" };
 export default async function WelcomePage() {
   if (await currentCtx()) redirect("/");
   return (
-    <main className="page page-narrow" style={{ paddingTop: 40 }}>
+    <main className="page page-narrow" style={{ paddingTop: "calc(var(--safe-top) + 32px)" }}>
       <div className="hero">
         <h1 className="welcome-title">
           <img src="/brand/storyhollow-lockup.webp" width={960} height={960} alt="Storyhollow" />

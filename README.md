@@ -57,9 +57,10 @@ a brand-new tale for the very same pictures.
 - **A gentle page-turn chime** (bell, wand sparkle, or wind chime) with an adjustable pause after it.
 - **The classic read-along welcome:** *"You'll know it's time to turn the page when you hear this sound…"*
 - **✋ Wait for me:** after each chime the story pauses until someone taps, for slow little page-turners.
-- **🌙 Lights out:** a near-black screen with ember-dim controls, so the phone doesn't wash out a shadow book
-  on the bedroom wall.
-- **🔤 Read-along words:** each word lights up as it's spoken, which helps early readers.
+- **🌙 Lights out:** a near-black screen with ember-dim controls and words, so the phone doesn't wash out a
+  shadow book on the bedroom wall. It's off until you turn it on.
+- **Aa Read-along words:** each word lights up as it's spoken, right under the picture of the page, which
+  helps early readers.
 - **An optional soundscape** (crickets, rain, waves) looped very quietly underneath.
 - **One MP3** with narration, chimes and pauses baked in, so it plays on a lock screen, a Bluetooth speaker or
   in the car, and can be **downloaded for a make-your-own Yoto card**.

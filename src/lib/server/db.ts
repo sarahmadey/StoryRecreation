@@ -183,6 +183,19 @@ CREATE TABLE IF NOT EXISTS favorite_classics (
   created_at INTEGER NOT NULL,
   PRIMARY KEY (household_id, gutenberg_id)
 );
+
+-- Each automatic backup to the family's own cloud storage, kept for the Grown-ups' corner.
+CREATE TABLE IF NOT EXISTS backup_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at INTEGER NOT NULL,
+  finished_at INTEGER,
+  ok INTEGER,
+  uploaded_files INTEGER NOT NULL DEFAULT 0,
+  uploaded_bytes INTEGER NOT NULL DEFAULT 0,
+  total_files INTEGER NOT NULL DEFAULT 0,
+  total_bytes INTEGER NOT NULL DEFAULT 0,
+  error TEXT
+);
 `;
 
 type Row = Record<string, unknown>;
@@ -987,4 +1000,79 @@ export function lastSettingsForBook(bookId: string, mode: StoryMode): StorySetti
     .prepare("SELECT settings FROM stories WHERE book_id = ? AND mode = ? ORDER BY created_at DESC LIMIT 1")
     .get(bookId, mode) as Row | undefined;
   return r ? json<StorySettings>(r.settings) : null;
+}
+
+// --------------------------------------------------------------------- automatic backups
+
+export interface BackupRun {
+  id: number;
+  startedAt: number;
+  finishedAt: number | null;
+  ok: boolean | null;
+  uploadedFiles: number;
+  uploadedBytes: number;
+  totalFiles: number;
+  totalBytes: number;
+  error: string | null;
+}
+
+const toRun = (r: Row): BackupRun => ({
+  id: Number(r.id),
+  startedAt: Number(r.started_at),
+  finishedAt: (r.finished_at as number | null) ?? null,
+  ok: r.ok === null || r.ok === undefined ? null : Boolean(r.ok),
+  uploadedFiles: Number(r.uploaded_files),
+  uploadedBytes: Number(r.uploaded_bytes),
+  totalFiles: Number(r.total_files),
+  totalBytes: Number(r.total_bytes),
+  error: (r.error as string | null) ?? null,
+});
+
+export function startBackupRun(): number {
+  return Number(db().prepare("INSERT INTO backup_runs (started_at) VALUES (?)").run(Date.now()).lastInsertRowid);
+}
+
+export function finishBackupRun(
+  id: number,
+  result: { ok: boolean; uploadedFiles: number; uploadedBytes: number; totalFiles: number; totalBytes: number; error?: string },
+) {
+  db()
+    .prepare(
+      `UPDATE backup_runs SET finished_at = ?, ok = ?, uploaded_files = ?, uploaded_bytes = ?, total_files = ?, total_bytes = ?, error = ?
+       WHERE id = ?`,
+    )
+    .run(Date.now(), result.ok ? 1 : 0, result.uploadedFiles, result.uploadedBytes, result.totalFiles, result.totalBytes, result.error ?? null, id);
+}
+
+/** The latest backups, newest first. */
+export function recentBackupRuns(limit = 5): BackupRun[] {
+  return (db().prepare("SELECT * FROM backup_runs ORDER BY id DESC LIMIT ?").all(limit) as Row[]).map(toRun);
+}
+
+export function lastGoodBackup(): BackupRun | null {
+  const r = db().prepare("SELECT * FROM backup_runs WHERE ok = 1 ORDER BY id DESC LIMIT 1").get() as Row | undefined;
+  return r ? toRun(r) : null;
+}
+
+/** A backup cut short by a restart never finished: say so instead of leaving it "running". */
+export function closeUnfinishedBackups() {
+  db()
+    .prepare("UPDATE backup_runs SET finished_at = ?, ok = 0, error = 'Interrupted by a restart.' WHERE finished_at IS NULL")
+    .run(Date.now());
+}
+
+/**
+ * A consistent copy of the database at this moment, without the library catalogue and
+ * fetched book texts (both are fetched again from Project Gutenberg when needed), and
+ * without anyone's sign-in (a copy that went astray can't be used to get in; after a
+ * restore, everyone signs in again).
+ */
+export function snapshotDatabase(toPath: string) {
+  db().exec(`VACUUM INTO '${toPath.replace(/'/g, "''")}'`);
+  const copy = new DatabaseSync(toPath);
+  try {
+    copy.exec("DELETE FROM catalogue_books; DELETE FROM catalogue_meta; DELETE FROM classics_cache; DELETE FROM sessions; VACUUM;");
+  } finally {
+    copy.close();
+  }
 }

@@ -1,6 +1,14 @@
 import path from "node:path";
 import type { AppStatus } from "@/lib/shared/types";
 
+export interface BackupStorage {
+  endpoint: string;
+  bucket: string;
+  keyId: string;
+  secret: string;
+  region: string;
+}
+
 export const config = {
   get dataDir(): string {
     // Runtime data, not part of the build: keep the bundler from tracing it.
@@ -32,6 +40,25 @@ export const config = {
   /** When set, creating a library needs this code (keeps strangers off a public URL). */
   get signupCode(): string | undefined {
     return process.env.SIGNUP_CODE?.trim() || undefined;
+  },
+  /**
+   * Where automatic backups go: any S3-compatible storage the family owns
+   * (Backblaze B2, Cloudflare R2, Amazon S3). Off unless all four are set.
+   */
+  get backupStorage(): BackupStorage | null {
+    const endpoint = process.env.BACKUP_ENDPOINT?.trim();
+    const bucket = process.env.BACKUP_BUCKET?.trim();
+    const keyId = process.env.BACKUP_KEY_ID?.trim();
+    const secret = process.env.BACKUP_SECRET_KEY?.trim();
+    if (!endpoint || !bucket || !keyId || !secret) return null;
+    const url = (/^https?:\/\//.test(endpoint) ? endpoint : `https://${endpoint}`).replace(/\/+$/, "");
+    // Backblaze and Amazon name the region in the address ("s3.us-west-004.backblazeb2.com"); Cloudflare R2 uses "auto".
+    const region = process.env.BACKUP_REGION?.trim() || url.match(/s3[.-]([a-z0-9-]+)\.(?:backblazeb2|amazonaws)\.com/)?.[1] || "auto";
+    return { endpoint: url, bucket, keyId, secret, region };
+  },
+  /** Each copy of the app (live, test) keeps its backups in its own folder of the bucket. */
+  get backupFolder(): string {
+    return (process.env.STORYHOLLOW_ENV || process.env.RAILWAY_ENVIRONMENT_NAME || "storyhollow").replace(/[^a-z0-9_-]/gi, "-");
   },
   get secureCookies(): boolean {
     return process.env.NODE_ENV === "production" && process.env.INSECURE_COOKIES !== "1";

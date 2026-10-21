@@ -155,9 +155,10 @@ humming placeholder voices.
 src/app/(library)/   hall, library, book, create wizard, studio, read-to-me, grown-ups
 src/app/play/        the player
 src/app/api/         auth, profiles, PIN, books, stories, voices, classics, files
-src/lib/server/      db (SQLite), auth, storyteller, performer, audio, jobs, classics, voices
+src/lib/server/      db (SQLite), auth, storyteller, performer, audio, jobs, classics, voices, offsite (backups)
 src/lib/shared/      types, options & presets, personas, chime synthesis
-tests/               unit tests and API integration tests (fake Claude + ElevenLabs servers)
+scripts/             start (for Railway), restore-backup
+tests/               unit tests and API integration tests (fake Claude, ElevenLabs and S3 servers)
 ```
 
 Storage is a single SQLite file plus photos and audio under `DATA_DIR` (default `./data`), using Node's
@@ -250,6 +251,36 @@ The camera and "Add to Home Screen" need **HTTPS** (or `localhost`).
 family can sign up and the door closes behind them, so strangers who find the address can't spend your credits.
 
 Optional settings live in `.env.example` (`STORY_MODEL`, `VOICE_MODEL`, `ELEVENLABS_BASE_URL`, `DATA_DIR`).
+
+### Automatic backups
+
+Every night, the app can copy everything (the database, every story's audio, family recordings and book photos)
+to S3-compatible cloud storage you own, away from the server: Backblaze B2 (10 GB free), Cloudflare R2 or Amazon
+S3. Make a **private** bucket and a key that can read and write only that bucket, then set:
+
+| Variable | What it is |
+| --- | --- |
+| `BACKUP_ENDPOINT` | The storage's S3 address, e.g. `s3.us-west-004.backblazeb2.com` |
+| `BACKUP_BUCKET` | The bucket's name |
+| `BACKUP_KEY_ID` | The key's ID (Backblaze: keyID) |
+| `BACKUP_SECRET_KEY` | The key's secret (Backblaze: applicationKey) |
+| `BACKUP_REGION` | Optional; read from Backblaze and Amazon addresses, `auto` otherwise |
+
+Backups start a few minutes after the app does, then run whenever the last good one is a day old (a failed one is
+tried again within the hour). After the first, only new or changed files are sent. The Grown-ups' corner shows how
+the last one went and has a **Back up now** button. Each copy of the app keeps its own folder in the bucket
+(`production/`, `staging/`), holding `files/` (the data folder) and `database/` (the latest copy plus one a day for
+two weeks; the Gutenberg catalogue is left out, since it's fetched again by itself).
+
+**Bringing a backup back:** with the app stopped and the same four variables set,
+
+```bash
+node scripts/restore-backup.mjs /data                      # this copy's latest backup
+node scripts/restore-backup.mjs --date 2026-10-21 /data    # the database as it was that day
+node scripts/restore-backup.mjs --from production /data    # e.g. fill the test copy with the live library
+```
+
+It won't write over an existing library unless you add `--force`.
 
 ---
 

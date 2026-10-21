@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { isTestCopy } from "@/lib/server/config";
+import { ScreenReadout } from "./ScreenReadout";
 
 /** A teal frame and a label on every screen of the test copy, so it's never mistaken for the family's library. */
 export async function TestCopyBanner() {
@@ -8,9 +9,7 @@ export async function TestCopyBanner() {
   return (
     <>
       <div className="test-frame" aria-hidden="true" />
-      <div className="test-chip" role="note">
-        🧪 Test copy
-      </div>
+      <ScreenReadout />
     </>
   );
 }

@@ -153,9 +153,23 @@ textarea {
   border-radius: 999px;
   background: #2bb3a3;
   color: #04201d;
-  font-size: 0.85rem;
-  font-weight: 600;
-  pointer-events: none;
+  border: 0;
+  font: 600 0.85rem var(--font-body);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+/* Tap the label: the screen's measurements, near the top where they stay in view. */
+.screen-readout {
+  position: fixed;
+  z-index: 201;
+  top: calc(var(--safe-top) + 74px);
+  left: 12px;
+  right: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(4, 32, 29, 0.92);
+  color: #b9f3ea;
+  font: 0.78rem/1.45 ui-monospace, Menlo, monospace;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 @media (max-width: 760px) {

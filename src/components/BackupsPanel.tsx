@@ -24,7 +24,8 @@ export function BackupsPanel({ initial }: { initial: BackupStatus }) {
       api.get<BackupStatus>("/api/backups").then(setStatus, () => undefined);
     }, 3000);
     return () => clearInterval(t);
-  }, [status.running, api]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.running]);
 
   const backUpNow = async () => {
     setError(null);

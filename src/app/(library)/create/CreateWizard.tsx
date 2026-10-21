@@ -6,6 +6,7 @@ import { useApi } from "@/components/Grownup";
 import { ChimePicker, PhotoPicker, SoundsPicker, VoicePicker, soundsOf, useVoices } from "@/components/Pickers";
 import { Cover } from "@/components/Books";
 import { Steps, toTop } from "@/components/Steps";
+import { CreditNote } from "@/components/Credits";
 import type { PickedPhoto } from "@/lib/client/images";
 import { AGES, LENGTHS, MOODS, defaultSettings, estimateMinutes } from "@/lib/shared/options";
 import type { AgeBand, Book, LengthPreset, Mood, Profile, StorySettings } from "@/lib/shared/types";
@@ -438,9 +439,7 @@ export function CreateWizard({
                 </span>
               </span>
             </label>
-            <p className="faint small center">
-              Uses roughly {words.chars.toLocaleString()} voice characters on your ElevenLabs plan.
-            </p>
+            <CreditNote needed={words.chars} />
             {error && <p className="notice notice-error">{error}</p>}
             <div className="center">
               <button className="btn btn-lg" onClick={conjure} disabled={Boolean(busy)}>

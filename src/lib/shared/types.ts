@@ -255,6 +255,18 @@ export interface FamilyVoice {
   createdAt: number;
 }
 
+/** The family's ElevenLabs voice credit this month (one credit is about one letter read aloud). */
+export interface VoiceCredits {
+  left: number;
+  used: number;
+  limit: number;
+  /** When the month's credit tops up again. */
+  resetsAt: number | null;
+  plan: string;
+  /** Demo mode's pretend numbers. */
+  demo?: boolean;
+}
+
 export interface AppStatus {
   demoMode: boolean;
   storyteller: boolean;

@@ -89,6 +89,10 @@ before(async () => {
         res.writeHead(200, { "content-type": "application/gzip" });
         return res.end(gzipSync(CATALOGUE_CSV));
       }
+      if (req.url!.startsWith("/v1/user/subscription")) {
+        res.writeHead(200, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ tier: "creator", character_count: 12000, character_limit: 100000, next_character_count_reset_unix: 1790000000 }));
+      }
       if (req.url!.startsWith("/v1/sound-generation")) {
         res.writeHead(200, { "content-type": "audio/pcm" });
         return res.end(Buffer.from(pcmBase64(1.5), "base64"));
@@ -649,4 +653,15 @@ test("every story card says who reads it, as the family knows that voice", async
   assert.deepEqual(cards.get(read)!.narrator, { name: persona.name, emoji: persona.emoji });
   assert.deepEqual(cards.get(lost)!.narrator, { name: "A storyteller", emoji: "🗣️" }, "a voice that's gone still reads as someone");
   assert.equal(cards.get(brewing)!.narrator, null, "nobody reads a story that isn't written yet");
+});
+
+test("the voice credit left this month is read from ElevenLabs, and asked for at most once a minute", async () => {
+  const { voiceCredits, forgetVoiceCredits } = await import("@/lib/server/credits");
+  forgetVoiceCredits();
+  const asks = () => captured.filter((c) => c.url === "/v1/user/subscription");
+  const before = asks().length;
+  assert.deepEqual(await voiceCredits(), { used: 12000, limit: 100000, left: 88000, resetsAt: 1790000000000, plan: "creator" });
+  await voiceCredits();
+  assert.equal(asks().length, before + 1, "the second look is answered here");
+  assert.equal(asks()[0].headers["xi-api-key"], "test-eleven");
 });

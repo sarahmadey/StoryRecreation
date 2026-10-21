@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Brewing } from "@/components/Brewing";
 import { toTop } from "@/components/Steps";
+import { CreditNote } from "@/components/Credits";
 import { ChimePicker, SoundsPicker, VoicePicker, VoiceSelect, soundsOf, useVoices, type SoundsChoice } from "@/components/Pickers";
 import { VoiceDesigner } from "@/components/VoiceDesigner";
 import { imageForPage } from "@/lib/shared/pages";
@@ -385,9 +386,10 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
           {editing && (
             <div className="stack center">
               <p className="faint small">
-                Tip: words in [brackets] tell the voices how to say a line, like [whispers] or [giggles]. About{" "}
-                {chars.toLocaleString()} voice characters. Only pages you change are re-recorded.
+                Tip: words in [brackets] tell the voices how to say a line, like [whispers] or [giggles].
+                {story.audioUrl ? " Only pages you change are re-recorded, so it may well use less." : ""}
               </p>
+              <CreditNote needed={chars} />
               <div className="row" style={{ justifyContent: "center" }}>
                 {dirty && (
                   <button className="btn btn-ghost" onClick={() => run(saveDraft)} disabled={busy}>
@@ -435,9 +437,9 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
             </div>
             <VoicePicker voices={voices} value={newNarrator} onChange={(v) => v && setNewNarrator(v)} allowAuto={false} />
             <p className="small" style={{ margin: 0, color: "var(--ink-soft)" }}>
-              The words stay just as they are. The story is recorded again in the new voice, which uses about {chars.toLocaleString()}{" "}
-              voice characters of ElevenLabs credit.
+              The words stay just as they are. The story is recorded again in the new voice.
             </p>
+            <CreditNote needed={chars} className="small muted" />
             <div className="row" style={{ justifyContent: "flex-end" }}>
               <button className="btn btn-ghost" onClick={() => setNewNarrator(null)}>
                 Keep {voiceName(narratorVoice)}

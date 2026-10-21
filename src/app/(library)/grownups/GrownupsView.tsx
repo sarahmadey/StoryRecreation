@@ -7,6 +7,7 @@ import { Avatar, ReaderEditor } from "@/components/Readers";
 import { VoiceDesigner } from "@/components/VoiceDesigner";
 import { FamilyVoices } from "@/components/FamilyVoices";
 import { BackupsPanel } from "@/components/BackupsPanel";
+import { CreditMeter } from "@/components/Credits";
 import type { AppStatus, FamilyVoice, Keepsake, Profile } from "@/lib/shared/types";
 import type { BackupStatus } from "@/lib/server/offsite";
 
@@ -97,8 +98,13 @@ export function GrownupsView({
               <b>The voices</b>: {status.voices ? `connected (${status.voiceModel})` : status.demoMode ? "demo hum" : "not connected"}
               <div className="small muted">
                 ElevenLabs performs every character. Set <code>ELEVENLABS_API_KEY</code>. The Creator plan or higher is
-                recommended: a six-minute story uses about 5,000 characters.
+                recommended: a six-minute story uses about 5,000 voice credits.
               </div>
+              {(status.voices || status.demoMode) && (
+                <div style={{ marginTop: 10 }}>
+                  <CreditMeter />
+                </div>
+              )}
             </div>
           </div>
         </div>

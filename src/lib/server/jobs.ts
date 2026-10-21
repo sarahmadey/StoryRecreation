@@ -22,6 +22,7 @@ import { demoSoundCues, writeDemoScript } from "./demo-storyteller";
 import { performAmbience, performLines, performSoundEffect, PerformerError } from "./performer";
 import { encodeMp3, floatToPcm16, mixStory, pcm16ToFloat, type Clip, type PlacedEffect } from "./audio";
 import { loadClassic } from "./classics";
+import { forgetVoiceCredits } from "./credits";
 import { sectionText, stripTags } from "./text";
 import { personaFor } from "@/lib/shared/personas";
 import type { ScriptLine, ScriptPage, SoundCue, StoryScript } from "@/lib/shared/types";
@@ -371,6 +372,7 @@ async function finishMix(
   const { samples, timeline } = mixStory({ ...parts, chime: story.settings.chime });
   const mp3 = encodeMp3(samples);
   await fs.promises.writeFile(path.join(dir, "story.mp3"), mp3);
+  forgetVoiceCredits(); // the recording used some: the next look at the balance asks again
   updateStory(storyId, {
     status: "ready",
     progress: null,

@@ -974,6 +974,29 @@ button.back-link {
   line-height: 1.3;
   color: var(--text-faint);
 }
+/* A chapter that would need more voice credit than is left. */
+.over-budget {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* The month's voice credit, in the Grown-ups' corner. */
+.credit-meter {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(107, 63, 21, 0.18);
+  overflow: hidden;
+}
+.credit-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #b98a35, #e2b55c);
+}
+.credit-meter span.low {
+  background: linear-gradient(90deg, #8e2a3a, #c4475b);
+}
+
 /* How many books a "Narrow it down" chip leads to. */
 .chip-count {
   margin-left: 4px;

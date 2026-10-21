@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Cover, StoryCardView, hueFor } from "@/components/Books";
 import { Steps, toTop } from "@/components/Steps";
+import { CreditNote, CreditsLeft, useCredits } from "@/components/Credits";
 import { PhotoPicker, VoicePicker, useVoices } from "@/components/Pickers";
 import type { PickedPhoto } from "@/lib/client/images";
 import { DEFAULT_NARRATOR_ID } from "@/lib/shared/personas";
@@ -105,6 +106,7 @@ export function ReadToMe({
   const api = useApi();
   const router = useRouter();
   const voices = useVoices();
+  const credits = useCredits();
   const [reader, setReader] = useState<string>(DEFAULT_NARRATOR_ID);
   const [fullCast, setFullCast] = useState(false);
   const [tab, setTab] = useState<Tab>(preselectBook ? "own" : "classics");
@@ -606,13 +608,15 @@ export function ReadToMe({
                   ← All books
                 </button>
               </div>
+              <CreditsLeft className="small muted" />
               <div className="stack" style={{ ["--gap" as string]: "10px" }}>
                 {open.chapters.map((c) => (
                   <div key={c.index} className="cast-card spread" style={{ alignItems: "center" }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="cast-name">{c.title}</div>
                       <div className="small muted">
-                        About {minutes(c.words)} min · {c.characters.toLocaleString()} voice characters
+                        About {minutes(c.words)} min · about {c.characters.toLocaleString()} voice credits
+                        {credits && c.characters > credits.left && <b className="over-budget"> · more than you have left</b>}
                       </div>
                       <div className="small faint" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {c.opening}…
@@ -666,6 +670,7 @@ export function ReadToMe({
                 </span>
               </label>
               {!storytellerReady && <p className="notice small">Reading your own pages needs the storyteller (an Anthropic key).</p>}
+              <CreditsLeft className="small muted center" />
               <div className="center">
                 <button
                   className="btn btn-lg"
@@ -691,6 +696,7 @@ export function ReadToMe({
                 <span>The words</span>
                 <textarea className="textarea" style={{ minHeight: 220 }} value={words} onChange={(e) => setWords(e.target.value)} />
               </label>
+              {words.trim().length >= 10 && <CreditNote needed={words.trim().length} className="small muted center" />}
               <div className="center">
                 <button className="btn btn-lg" onClick={readWords} disabled={Boolean(busy) || words.trim().length < 10}>
                   🎧 Read it to me

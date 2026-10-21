@@ -40,6 +40,11 @@ export function CreateWizard({
 
   const initialSource: Source = preselect ? (preselect.kind === "wild" ? "wild" : preselect.kind === "idea" ? "idea" : "book") : "book";
   const [step, setStep] = useState(preselect ? 1 : 0);
+  // Each step starts at the top, like turning to a new page, not partway down where the last one ended.
+  const goTo = (next: number) => {
+    setStep(next);
+    window.scrollTo({ top: 0 });
+  };
   const [source, setSource] = useState<Source>(initialSource);
   const [bookId, setBookId] = useState<string | "new">(preselect?.id ?? (books.some((b) => b.pageCount > 0) ? "" : "new"));
   const [title, setTitle] = useState("");
@@ -454,14 +459,14 @@ export function CreateWizard({
 
         <div className="spread">
           {step > 0 ? (
-            <button className="btn btn-ghost" type="button" onClick={() => setStep(step - 1)} disabled={Boolean(busy)}>
+            <button className="btn btn-ghost" type="button" onClick={() => goTo(step - 1)} disabled={Boolean(busy)}>
               ← Back
             </button>
           ) : (
             <span />
           )}
           {step < 3 && (
-            <button className="btn" type="button" onClick={() => setStep(step + 1)} disabled={step === 0 && !sourceReady}>
+            <button className="btn" type="button" onClick={() => goTo(step + 1)} disabled={step === 0 && !sourceReady}>
               Next →
             </button>
           )}

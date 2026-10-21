@@ -927,17 +927,14 @@ const likeWords = (s: string) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
  * before grown-ups'; then lower Gutenberg numbers, because the best-known
  * classics were among the first to be added.
  */
-export function queryCatalogue({
-  search,
-  match,
-  limit,
-  offset,
-}: {
+interface CatalogueFilter {
   search?: { groups: string[][]; phrase: string };
   match?: readonly string[];
-  limit: number;
-  offset: number;
-}) {
+  /** One subject the books must also have ("dogs"), to narrow a long list down. */
+  refine?: string;
+}
+
+function catalogueWhere({ search, match, refine }: CatalogueFilter) {
   const where: string[] = [];
   const args: string[] = [];
   for (const group of search?.groups ?? []) {
@@ -948,7 +945,30 @@ export function queryCatalogue({
     where.push(`(${match.map(() => "topics LIKE ? ESCAPE '\\'").join(" OR ")})`);
     args.push(...match.map((m) => likeWords(m.toLowerCase())));
   }
-  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  if (refine) {
+    where.push("topics LIKE ? ESCAPE '\\'");
+    args.push(likeWords(refine.toLowerCase()));
+  }
+  return { clause: where.length ? `WHERE ${where.join(" AND ")}` : "", args };
+}
+
+/** The subjects of every book a search or kind finds, to offer ways to narrow it down. */
+export function catalogueTopicsOf(filter: CatalogueFilter): string[] {
+  const { clause, args } = catalogueWhere(filter);
+  return (db().prepare(`SELECT topics FROM catalogue_books ${clause}`).all(...args) as { topics: string }[]).map((r) => r.topics);
+}
+
+export function queryCatalogue({
+  search,
+  match,
+  refine,
+  limit,
+  offset,
+}: CatalogueFilter & {
+  limit: number;
+  offset: number;
+}) {
+  const { clause, args } = catalogueWhere({ search, match, refine });
   const total = (db().prepare(`SELECT COUNT(*) AS n FROM catalogue_books ${clause}`).get(...args) as { n: number }).n;
   const young = "(topics LIKE '%juvenile%' OR topics LIKE '%children%')";
   const order = search

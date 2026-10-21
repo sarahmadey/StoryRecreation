@@ -11,7 +11,7 @@ import { DEFAULT_NARRATOR_ID } from "@/lib/shared/personas";
 import { defaultSettings } from "@/lib/shared/options";
 import { gutenbergCover } from "@/lib/shared/gutenberg";
 import type { AppStatus, Book, Profile, StoryCard } from "@/lib/shared/types";
-import type { CataloguePage, Classic, TOPICS } from "@/lib/server/classics";
+import type { CataloguePage, Classic, Refinement, TOPICS } from "@/lib/server/classics";
 import type { FavoriteClassic } from "@/lib/server/db";
 
 type Tab = "classics" | "own" | "words";
@@ -125,6 +125,9 @@ export function ReadToMe({
   const [catalogue, setCatalogue] = useState<(CataloguePage & { page: number }) | null>(null);
   const [browsing, setBrowsing] = useState(false);
   const [browseError, setBrowseError] = useState<string | null>(null);
+  // Narrowing a long list down by a subject its books share ("Dogs · 84").
+  const [refine, setRefine] = useState<Refinement | null>(null);
+  const [refinements, setRefinements] = useState<Refinement[]>([]);
   const browseSeq = useRef(0);
   const [rows, setRows] = useState(FIRST_ROWS);
   const [cols, setCols] = useState(3);
@@ -199,7 +202,7 @@ export function ReadToMe({
   }, [preselectClassic]);
 
   /** A page of the whole library, by topic or by search. A later request always wins over an earlier one. */
-  const browse = async (by: { topic?: string; q?: string }, page = 1) => {
+  const browse = async (by: { topic?: string; q?: string; refine?: string }, page = 1) => {
     const seq = ++browseSeq.current;
     setBrowsing(true);
     setBrowseError(null);
@@ -211,8 +214,10 @@ export function ReadToMe({
       const params = new URLSearchParams({ page: String(page) });
       if (by.q) params.set("q", by.q);
       else if (by.topic) params.set("topic", by.topic);
+      if (by.refine) params.set("refine", by.refine);
       const res = await api.get<CataloguePage>(`/api/classics?${params}`);
       if (seq !== browseSeq.current) return;
+      if (res.refinements) setRefinements(res.refinements);
       setCatalogue((cur) => ({ results: page > 1 && cur ? [...cur.results, ...res.results] : res.results, more: res.more, total: res.total, page }));
     } catch (err) {
       if (seq === browseSeq.current) setBrowseError(err instanceof Error ? err.message : "The library couldn't be reached.");
@@ -235,11 +240,19 @@ export function ReadToMe({
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [gridEl]);
+  // What's being looked at: a search or a kind, and what it's narrowed to.
+  const lookingAt = (narrowed = refine) => ({ ...(searched ? { q: searched } : { topic }), refine: narrowed?.id });
+  const startOver = () => {
+    setRefine(null);
+    setRefinements([]);
+  };
+
   const chooseTopic = (id: string) => {
     setTopic(id);
     setRows(FIRST_ROWS);
     setSearched(null);
     setQuery("");
+    startOver();
     if (id !== "favorites") void browse({ topic: id });
   };
 
@@ -248,13 +261,20 @@ export function ReadToMe({
     const q = query.trim();
     if (!q) return;
     setSearched(q);
+    startOver();
     void browse({ q });
   };
 
   const clearSearch = () => {
     setSearched(null);
     setQuery("");
+    startOver();
     if (topic !== "favorites") void browse({ topic });
+  };
+
+  const narrow = (r: Refinement | null) => {
+    setRefine(r);
+    void browse(lookingAt(r));
   };
 
   // Starred books, for the whole family. Each keeps its title and cover so it shows without the library.
@@ -279,9 +299,12 @@ export function ReadToMe({
   const kinds = [{ id: "favorites", label: "Favorites", emoji: "⭐" }, ...topics];
   const showingStarred = topic === "favorites" && !searched;
   const sought = searched?.toLowerCase();
-  const picks = classics.filter((c) =>
-    sought ? `${c.title} ${c.author}`.toLowerCase().includes(sought) : topic === "loved" || (c.kinds as string[]).includes(topic),
-  );
+  // Narrowed by a subject, it's the library's own list (Storyhollow's picks have no subjects of their own).
+  const picks = refine
+    ? []
+    : classics.filter((c) =>
+        sought ? `${c.title} ${c.author}`.toLowerCase().includes(sought) : topic === "loved" || (c.kinds as string[]).includes(topic),
+      );
   const picked = new Set(picks.map((c) => c.gutenbergId));
   const results: FavoriteClassic[] = showingStarred
     ? starredBooks
@@ -298,7 +321,7 @@ export function ReadToMe({
     const next = rows + MORE_ROWS;
     setRows(next);
     // Fetch the next page from the library before running out of books to show.
-    if (!showingStarred && catalogue?.more && next * cols > results.length) void browse(searched ? { q: searched } : { topic }, catalogue.page + 1);
+    if (!showingStarred && catalogue?.more && next * cols > results.length) void browse(lookingAt(), catalogue.page + 1);
   };
   const topicLabel = kinds.find((t) => t.id === topic)?.label ?? "browsing";
   const tileFor = (book: FavoriteClassic, className?: string) => {
@@ -489,12 +512,17 @@ export function ReadToMe({
 
               <section className="stack" style={{ ["--gap" as string]: "14px" }} aria-label="Books">
                 <div className="center">
-                  <h2 style={{ margin: 0 }}>{showingStarred ? "Your favorites" : searched ? `Books matching “${searched}”` : topicLabel}</h2>
+                  <h2 style={{ margin: 0 }}>
+                    {showingStarred ? "Your favorites" : searched ? `Books matching “${searched}”` : topicLabel}
+                    {refine ? ` · ${refine.label}` : ""}
+                  </h2>
                   <p className="muted small" style={{ margin: "4px 0 0" }}>
                     {showingStarred
                       ? "The books anyone in the family has starred."
                       : catalogue
-                        ? `${total.toLocaleString()} ${total === 1 ? "book" : "books"} · Storyhollow's picks first (with ages), then the rest of the library.`
+                        ? refine
+                          ? `${total.toLocaleString()} ${total === 1 ? "book" : "books"}`
+                          : `${total.toLocaleString()} ${total === 1 ? "book" : "books"} · Storyhollow's picks first (with ages), then the rest of the library.`
                         : "Storyhollow's picks first (with ages), then the rest of the library."}
                     {searched && (
                       <>
@@ -506,6 +534,21 @@ export function ReadToMe({
                     )}
                   </p>
                 </div>
+                {!showingStarred && refinements.length > 0 && (
+                  <div>
+                    <span className="find-label">Narrow it down</span>
+                    <div className="topic-chips">
+                      <button type="button" className="dark-chip" aria-pressed={!refine} onClick={() => narrow(null)}>
+                        All
+                      </button>
+                      {refinements.map((r) => (
+                        <button key={r.id} type="button" className="dark-chip" aria-pressed={refine?.id === r.id} onClick={() => narrow(r)}>
+                          {r.label} <span className="chip-count">{r.count.toLocaleString()}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {browseError && (
                   <div className="notice notice-error center">
                     <p style={{ margin: 0 }}>{browseError}</p>
@@ -513,7 +556,7 @@ export function ReadToMe({
                       type="button"
                       className="btn btn-sm"
                       style={{ marginTop: 10 }}
-                      onClick={() => browse(searched ? { q: searched } : { topic }, (catalogue?.page ?? 0) + 1)}
+                      onClick={() => browse(lookingAt(), (catalogue?.page ?? 0) + 1)}
                     >
                       Try again
                     </button>

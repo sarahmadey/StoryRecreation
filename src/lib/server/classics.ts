@@ -1,6 +1,6 @@
 import { gunzipSync } from "node:zlib";
 import { config } from "./config";
-import { cacheClassic, catalogueBook, catalogueLoadedAt, getCachedClassic, queryCatalogue, replaceCatalogue, type CatalogueRow } from "./db";
+import { cacheClassic, catalogueBook, catalogueLoadedAt, catalogueTopicsOf, getCachedClassic, queryCatalogue, replaceCatalogue, type CatalogueRow } from "./db";
 import { chapterize, cleanGutenberg, type Chapter } from "./text";
 import { gutenbergCover } from "@/lib/shared/gutenberg";
 
@@ -110,6 +110,15 @@ export interface CataloguePage {
   more: boolean;
   /** How many books match in all. */
   total: number;
+  /** Ways to narrow these books down ("Dogs · 84"), on the first page of a kind or a search. */
+  refinements?: Refinement[];
+}
+
+/** One subject many of the books share, to narrow a long list down by. */
+export interface Refinement {
+  id: string;
+  label: string;
+  count: number;
 }
 
 /** "Peter Pan; or, The Boy Who Wouldn't Grow Up" reads better on a little cover as "Peter Pan". */
@@ -246,18 +255,95 @@ async function ensureCatalogue(): Promise<void> {
   else if (Date.now() - loadedAt > CATALOGUE_FRESH) void refreshOnce().catch((err) => console.warn("Catalogue refresh failed:", err));
 }
 
-/** One page of the library: books matching a search (title, author or subject), or a kind of story. */
-export async function browseCatalogue({ q, topic, page = 1 }: { q?: string; topic?: TopicId; page?: number }): Promise<CataloguePage> {
+/** One page of the library: books matching a search (title, author or subject), or a kind of story, optionally narrowed by one subject. */
+export async function browseCatalogue({
+  q,
+  topic,
+  refine,
+  page = 1,
+}: {
+  q?: string;
+  topic?: TopicId;
+  refine?: string;
+  page?: number;
+}): Promise<CataloguePage> {
   await ensureCatalogue();
   const offset = (Math.max(1, Math.floor(page)) - 1) * PAGE_SIZE;
   const search = q?.trim() ? searchGroups(q) : undefined;
   const match = search ? undefined : (TOPICS.find((t) => t.id === topic) ?? TOPICS[0]).match;
-  const { rows, total } = queryCatalogue({ search, match, limit: PAGE_SIZE, offset });
+  const { rows, total } = queryCatalogue({ search, match, refine: refine?.trim() || undefined, limit: PAGE_SIZE, offset });
   return {
     results: rows.map((r) => ({ gutenbergId: r.id, title: r.title, author: r.author, cover: gutenbergCover(r.id) })),
     more: offset + rows.length < total,
     total,
+    ...(offset === 0 && !refine ? { refinements: refinementsFor(search ? `q:${search.phrase.toLowerCase()}` : `t:${topic}`, search, match) } : {}),
   };
+}
+
+// Subjects too general to narrow anything down in a library of children's books.
+const GENERAL_SUBJECTS = /juvenile|children|young adult|^fiction$|^stories$|^short stories$|^literature$|^poetry$|^english|^american|^readers$/;
+// How Library of Congress subjects read on a chip.
+const SUBJECT_LABELS: Record<string, string> = {
+  "adventure and adventurers": "Adventure",
+  "conduct of life": "Good behaviour",
+  "brothers and sisters": "Brothers & sisters",
+  "voyages and travels": "Travel",
+  "human-animal relationships": "People & animals",
+  "humorous stories": "Funny stories",
+  "mystery and detective stories": "Mysteries",
+  "domestic animals": "Farm animals",
+  "fantasy literature": "Fantasy",
+  "fantasy fiction": "Fantasy",
+  "kings, queens, rulers, etc": "Kings & queens",
+  "princes": "Princes",
+  "princesses": "Princesses",
+  "schools": "School",
+  "school stories": "School",
+  "united states": "America",
+  "great britain": "Britain",
+  "sea stories": "The sea",
+  "stories in rhyme": "Rhymes",
+  "nonsense verses": "Nonsense rhymes",
+  "christmas stories": "Christmas",
+};
+const refinementCache = new Map<string, { at: number | null; list: Refinement[] }>();
+
+/** The subjects most shared by the books a kind or search finds, as ways to narrow them down. Cached until the library changes. */
+function refinementsFor(key: string, search: ReturnType<typeof searchGroups> | undefined, match: readonly string[] | undefined): Refinement[] {
+  const at = catalogueLoadedAt();
+  const cached = refinementCache.get(key);
+  if (cached && cached.at === at) return cached.list;
+  const list = subjectRefinements(catalogueTopicsOf({ search, match }), match);
+  if (refinementCache.size > 200) refinementCache.clear();
+  refinementCache.set(key, { at, list });
+  return list;
+}
+
+/** The ten subjects most shared by these books (each "subject; subject -- detail; …"), leaving out the kind's own and the too general. */
+export function subjectRefinements(topics: string[], match?: readonly string[]): Refinement[] {
+  // The kind's own subjects ("animals" for Animal stories) would narrow nothing.
+  const own = new Set((match ?? []).map((m) => m.split(" -- ")[0].trim()));
+  const counts = new Map<string, number>();
+  for (const t of topics) {
+    const heads = new Set<string>();
+    for (const part of t.split(";")) {
+      const head = part.split(" -- ")[0].replace(/\(.*?\)/g, "").replace(/[.,\s]+$/, "").trim();
+      if (head.length < 3 || head.length > 32 || head.includes(":") || head.includes("bookshelf") || GENERAL_SUBJECTS.test(head) || own.has(head)) continue;
+      heads.add(head);
+    }
+    for (const h of heads) counts.set(h, (counts.get(h) ?? 0) + 1);
+  }
+  return [...counts]
+    .filter(([, n]) => n >= 4 && n < topics.length * 0.9)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 10)
+    .map(([h]) => ({
+      id: h,
+      label: SUBJECT_LABELS[h] ?? h.charAt(0).toUpperCase() + h.slice(1),
+      // counted just as narrowing finds them (the words anywhere in a book's subjects), so the number on the chip is the number shown
+      count: topics.filter((t) => t.includes(h)).length,
+    }))
+    .sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
 }
 
 /** Get the catalogue ready in the background, so browsing is quick when a family gets there. */

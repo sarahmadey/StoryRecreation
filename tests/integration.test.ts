@@ -577,6 +577,27 @@ test("the whole library comes from Gutenberg's own catalogue, kept here and brow
   assert.deepEqual(await titles("halloween juvenile"), ["The Pumpkin Party"], "every word must be found");
   assert.deepEqual((await browseCatalogue({ q: "100%_" })).results, [], "search text is never read as a pattern");
   assert.equal(catalogueDownloads, 1, "and every look after that is answered here");
+
+  // a long list can be narrowed down by a subject its books share
+  const rabbits = await browseCatalogue({ topic: "animals", refine: "rabbits" });
+  assert.deepEqual(rabbits.results.map((r) => r.title), ["The Tale of Peter Rabbit"]);
+  assert.equal(rabbits.refinements, undefined, "the ways to narrow down come with the whole list, not a narrowed one");
+  assert.ok(Array.isArray(animals.refinements));
+});
+
+test("a long list offers its most shared subjects to narrow it down, in words a family would use", async () => {
+  const { subjectRefinements } = await import("@/lib/server/classics");
+  const book = (s: string) => `${s}; category: children & young adult reading`;
+  const topics = [
+    ...Array.from({ length: 6 }, () => book("dogs -- juvenile fiction; animals -- juvenile fiction")),
+    ...Array.from({ length: 4 }, () => book("horses -- juvenile fiction; animals -- juvenile fiction; adventure and adventurers -- juvenile fiction")),
+    book("cats -- juvenile fiction; animals -- juvenile fiction"),
+  ];
+  assert.deepEqual(subjectRefinements(topics, ["animals -- juvenile"]), [
+    { id: "dogs", label: "Dogs", count: 6 },
+    { id: "adventure and adventurers", label: "Adventure", count: 4 },
+    { id: "horses", label: "Horses", count: 4 },
+  ]);
 });
 
 test("favorite storytellers and books are kept for the whole family", async () => {

@@ -11,7 +11,8 @@ export const GET = route(async (req: Request) => {
   if (!q && !topic) return Response.json({ classics: CLASSICS, topics: TOPICS });
   if (topic && !TOPICS.some((t) => t.id === topic)) throw new HttpError(400, "Unknown topic.");
   try {
-    return Response.json(await browseCatalogue({ q, topic: (topic as TopicId) ?? undefined, page }));
+    const refine = url.searchParams.get("refine")?.trim().slice(0, 60) || undefined;
+    return Response.json(await browseCatalogue({ q, topic: (topic as TopicId) ?? undefined, refine, page }));
   } catch (err) {
     console.error(err);
     throw new HttpError(502, err instanceof ClassicsError ? err.message : "The Gutenberg library couldn't be reached.");

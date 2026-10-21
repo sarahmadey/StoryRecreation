@@ -19,10 +19,10 @@ function measure(): string[] {
 }
 
 /**
- * The test copy's label. Tapping it shows how tall the phone says the screen is, live, so a
- * screenshot of a layout problem carries the numbers needed to fix it.
+ * The test copy's label. Tapping it shows which update is running, and how tall the phone says the
+ * screen is, live, so a screenshot of a layout problem carries the numbers needed to fix it.
  */
-export function ScreenReadout() {
+export function ScreenReadout({ version }: { version: string | null }) {
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<string[]>([]);
 
@@ -58,6 +58,7 @@ export function ScreenReadout() {
       </button>
       {open && (
         <div className="screen-readout" role="status" onClick={toggle}>
+          <div>Running: {version ?? "unknown"}</div>
           {lines.map((l) => (
             <div key={l.slice(0, 12)}>{l}</div>
           ))}

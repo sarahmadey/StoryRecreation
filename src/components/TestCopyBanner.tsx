@@ -9,7 +9,8 @@ export async function TestCopyBanner() {
   return (
     <>
       <div className="test-frame" aria-hidden="true" />
-      <ScreenReadout />
+      {/* Railway says which update it's running, so it's easy to tell whether the latest one has arrived. */}
+      <ScreenReadout version={process.env.RAILWAY_GIT_COMMIT_MESSAGE?.split("\n")[0] ?? null} />
     </>
   );
 }

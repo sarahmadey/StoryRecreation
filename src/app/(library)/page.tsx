@@ -49,21 +49,21 @@ export default async function HallPage() {
           <QuillArt />
           <div className="doorway-text">
             <h2>Create a New Story</h2>
-            <p>From a book&apos;s pictures, something you saw, or just an idea.</p>
+            <p>From the pictures in a book, something you saw today, or just an idea.</p>
           </div>
         </Link>
         <Link href="/read" className="doorway">
           <ReadArt />
           <div className="doorway-text">
             <h2>Read to Me</h2>
-            <p>A storyteller reads a favorite book aloud.</p>
+            <p>Choose a storyteller to read a favorite book aloud.</p>
           </div>
         </Link>
         <Link href="/library" className="doorway">
           <ShelfArt />
           <div className="doorway-text">
             <h2>The Library</h2>
-            <p>Every book and story you&apos;ve made, on the shelves.</p>
+            <p>Every book and story you've ever made, all on the shelves.</p>
           </div>
         </Link>
       </div>

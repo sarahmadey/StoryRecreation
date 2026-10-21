@@ -24,6 +24,10 @@ const AGES_BANDS = [
   { id: "older", label: "8 and up", fits: (min: number) => min >= 8 },
 ] as const;
 
+/** The whole library opens a couple of rows deep, and grows a few rows at a time. */
+const FIRST_ROWS = 2;
+const MORE_ROWS = 3;
+
 /** A book to choose: its real Gutenberg cover (or a leather one), its title, and a star to keep it handy. */
 function BookTile({
   book,
@@ -121,6 +125,9 @@ export function ReadToMe({
   const [browsing, setBrowsing] = useState(false);
   const [browseError, setBrowseError] = useState<string | null>(null);
   const browseSeq = useRef(0);
+  const [rows, setRows] = useState(FIRST_ROWS);
+  const [cols, setCols] = useState(3);
+  const gridRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
 
   // own book
@@ -179,7 +186,10 @@ export function ReadToMe({
     const seq = ++browseSeq.current;
     setBrowsing(true);
     setBrowseError(null);
-    if (page === 1) setCatalogue(null);
+    if (page === 1) {
+      setCatalogue(null);
+      setRows(FIRST_ROWS);
+    }
     try {
       const params = new URLSearchParams({ page: String(page) });
       if (by.q) params.set("q", by.q);
@@ -199,6 +209,26 @@ export function ReadToMe({
     if (tab === "classics" && !catalogue && !browsing && !browseError) void browse({ topic });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // How many books fit across, so "two rows" is two rows on a phone and on a big screen alike.
+  const hasCatalogue = Boolean(catalogue?.results.length);
+  useEffect(() => {
+    const measure = () => {
+      const el = gridRef.current;
+      if (el) setCols(Math.max(1, getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [hasCatalogue]);
+  const shown = catalogue ? catalogue.results.slice(0, rows * cols) : [];
+  const showMore = () => {
+    if (!catalogue) return;
+    const next = rows + MORE_ROWS;
+    setRows(next);
+    // Fetch the next page from the library before running out of books to show.
+    if (next * cols > catalogue.results.length && catalogue.more) void browse(searched ? { q: searched } : { topic }, catalogue.page + 1);
+  };
 
   const chooseTopic = (id: string) => {
     setTopic(id);
@@ -468,8 +498,8 @@ export function ReadToMe({
                   </div>
                 )}
                 {catalogue && catalogue.results.length > 0 && (
-                  <div className="catalogue-grid">
-                    {catalogue.results.map((hit) =>
+                  <div className="catalogue-grid" ref={gridRef}>
+                    {shown.map((hit) =>
                       tileFor({ gutenbergId: hit.gutenbergId, title: hit.title, author: hit.author, cover: hit.cover, emoji: null }, "catalogue-book"),
                     )}
                   </div>
@@ -477,10 +507,14 @@ export function ReadToMe({
                 {catalogue && catalogue.results.length === 0 && !browsing && (
                   <p className="muted center">Nothing found. Try another title, or another kind of story.</p>
                 )}
-                {browsing && <p className="notice center">✨ Opening the card catalogue… the first look can take a few seconds.</p>}
-                {catalogue?.more && !browsing && (
+                {browsing && (
+                  <p className="notice center">
+                    {catalogue ? "✨ Fetching more books…" : "✨ Opening the card catalogue… the first look can take a few seconds."}
+                  </p>
+                )}
+                {catalogue && (shown.length < catalogue.results.length || catalogue.more) && !browsing && (
                   <div className="center">
-                    <button type="button" className="btn btn-ghost" onClick={() => browse(searched ? { q: searched } : { topic }, catalogue.page + 1)}>
+                    <button type="button" className="btn btn-ghost" onClick={showMore}>
                       Show more books
                     </button>
                   </div>

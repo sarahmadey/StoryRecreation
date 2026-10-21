@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Brewing } from "@/components/Brewing";
+import { toTop } from "@/components/Steps";
 import { ChimePicker, SoundsPicker, VoicePicker, VoiceSelect, soundsOf, useVoices, type SoundsChoice } from "@/components/Pickers";
 import { VoiceDesigner } from "@/components/VoiceDesigner";
 import { imageForPage } from "@/lib/shared/pages";
@@ -44,6 +45,13 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
     }
     return res.story;
   }, [api, story.id, dirty, router]);
+
+  // Starting work (recording, rewriting, a new reader) and finishing it both change what's at the top of the page: go there.
+  const wasWorking = useRef(working);
+  useEffect(() => {
+    if (working !== wasWorking.current) toTop();
+    wasWorking.current = working;
+  }, [working]);
 
   useEffect(() => {
     if (!working) return;

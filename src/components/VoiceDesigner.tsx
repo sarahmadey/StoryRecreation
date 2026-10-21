@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApi } from "./Grownup";
 import { previewVoice } from "@/lib/client/sound";
 
@@ -27,6 +27,15 @@ export function VoiceDesigner({
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The three voices, and then the button to keep one, appear further down: bring them into view.
+  const previewsRef = useRef<HTMLDivElement>(null);
+  const keepRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (previews) previewsRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [previews]);
+  useEffect(() => {
+    if (chosen) keepRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [chosen]);
 
   const conjure = async () => {
     setBusy("Conjuring three voices…");
@@ -96,7 +105,7 @@ export function VoiceDesigner({
           </button>
         </div>
         {previews && (
-          <div className="voice-grid" role="radiogroup" aria-label="Choose a voice">
+          <div className="voice-grid" role="radiogroup" aria-label="Choose a voice" ref={previewsRef}>
             {previews.map((p, i) => (
               <div
                 key={p.generatedVoiceId}
@@ -118,7 +127,7 @@ export function VoiceDesigner({
         )}
         {error && <p className="notice notice-error">{error}</p>}
         {chosen && (
-          <div className="center">
+          <div className="center" ref={keepRef}>
             <button className="btn btn-velvet" onClick={save} disabled={Boolean(busy)}>
               {busy ?? "Keep this voice"}
             </button>

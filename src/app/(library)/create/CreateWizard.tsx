@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { ChimePicker, PhotoPicker, SoundsPicker, VoicePicker, soundsOf, useVoices } from "@/components/Pickers";
 import { Cover } from "@/components/Books";
+import { Steps, toTop } from "@/components/Steps";
 import type { PickedPhoto } from "@/lib/client/images";
 import { AGES, LENGTHS, MOODS, defaultSettings, estimateMinutes } from "@/lib/shared/options";
 import type { AgeBand, Book, LengthPreset, Mood, Profile, StorySettings } from "@/lib/shared/types";
@@ -40,10 +41,9 @@ export function CreateWizard({
 
   const initialSource: Source = preselect ? (preselect.kind === "wild" ? "wild" : preselect.kind === "idea" ? "idea" : "book") : "book";
   const [step, setStep] = useState(preselect ? 1 : 0);
-  // Each step starts at the top, like turning to a new page, not partway down where the last one ended.
   const goTo = (next: number) => {
     setStep(next);
-    window.scrollTo({ top: 0 });
+    toTop();
   };
   const [source, setSource] = useState<Source>(initialSource);
   const [bookId, setBookId] = useState<string | "new">(preselect?.id ?? (books.some((b) => b.pageCount > 0) ? "" : "new"));
@@ -132,14 +132,7 @@ export function CreateWizard({
         <div className="eyebrow">Create a New Story</div>
         <h1>{["What shall we make a story for?", "Shape the story", "Voices & sounds", "Ready to conjure"][step]}</h1>
       </div>
-      <nav className="steps" aria-label="Steps">
-        {STEPS.map((s, i) => (
-          <span key={s} className={`step ${i < step ? "done" : ""}`} aria-current={i === step ? "step" : undefined}>
-            <i>{i < step ? "✓" : i + 1}</i>
-            {s}
-          </span>
-        ))}
-      </nav>
+      <Steps labels={STEPS} step={step} onGo={goTo} />
 
       <div className="parchment stack" style={{ ["--gap" as string]: "26px" }}>
         {step === 0 && (

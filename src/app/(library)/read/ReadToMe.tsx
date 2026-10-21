@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Cover, StoryCardView, hueFor } from "@/components/Books";
 import { ScrollShelf } from "@/components/Shelf";
+import { Steps, toTop } from "@/components/Steps";
 import { PhotoPicker, VoicePicker, useVoices } from "@/components/Pickers";
 import type { PickedPhoto } from "@/lib/client/images";
 import { DEFAULT_NARRATOR_ID } from "@/lib/shared/personas";
@@ -112,6 +113,12 @@ export function ReadToMe({
   const [reader, setReader] = useState<string>(DEFAULT_NARRATOR_ID);
   const [fullCast, setFullCast] = useState(false);
   const [tab, setTab] = useState<Tab>(preselectBook ? "own" : "classics");
+  // First the storyteller, then the book. Arriving from a book's page, the book is already chosen.
+  const [step, setStep] = useState(preselectBook || preselectClassic ? 1 : 0);
+  const goTo = (next: number) => {
+    setStep(next);
+    toTop();
+  };
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -127,8 +134,9 @@ export function ReadToMe({
   const browseSeq = useRef(0);
   const [rows, setRows] = useState(FIRST_ROWS);
   const [cols, setCols] = useState(3);
-  const gridRef = useRef<HTMLDivElement>(null);
-  const tabsRef = useRef<HTMLDivElement>(null);
+  const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
+  const shelfScroll = useRef(0);
+  const openRef = useRef<HTMLDivElement>(null);
 
   // own book
   const [bookId, setBookId] = useState<string>(preselectBook ?? ownBooks[0]?.id ?? "new");
@@ -151,6 +159,10 @@ export function ReadToMe({
       // ignore
     }
   }, []);
+  const readerVoice = voices?.find((v) => v.voiceId === reader);
+  const readerName = readerVoice
+    ? `${readerVoice.persona?.emoji ?? (readerVoice.source === "family" ? "💛" : readerVoice.source === "designed" ? "🪄" : "🗣️")} ${readerVoice.persona?.name ?? readerVoice.name}`
+    : "your storyteller";
   const chooseReader = (id: string | null) => {
     const v = id ?? DEFAULT_NARRATOR_ID;
     setReader(v);
@@ -164,8 +176,9 @@ export function ReadToMe({
   const openClassic = async (gid: number, fallbackTitle: string, emoji: string) => {
     setBusy(`Fetching ${fallbackTitle} from the archives…`);
     setError(null);
-    // A book tapped far down the page opens up here, by the tabs: bring the family along.
-    tabsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // The book opens at the top of the page; "All books" brings the family back to where they were.
+    shelfScroll.current = window.scrollY;
+    toTop();
     try {
       const res = await api.get<{ title: string; author: string | null; chapters: ChapterInfo[] }>(`/api/classics/${gid}`);
       setOpen({ gid, title: res.title, author: res.author, emoji, chapters: res.chapters });
@@ -174,6 +187,16 @@ export function ReadToMe({
     } finally {
       setBusy(null);
     }
+  };
+
+  // An opened book lands at the top of the screen, its chapters in view.
+  useEffect(() => {
+    if (open) openRef.current?.scrollIntoView({ block: "start" });
+  }, [open]);
+
+  const closeClassic = () => {
+    setOpen(null);
+    requestAnimationFrame(() => window.scrollTo({ top: shelfScroll.current }));
   };
 
   useEffect(() => {
@@ -211,16 +234,13 @@ export function ReadToMe({
   }, [tab]);
 
   // How many books fit across, so "two rows" is two rows on a phone and on a big screen alike.
-  const hasCatalogue = Boolean(catalogue?.results.length);
   useEffect(() => {
-    const measure = () => {
-      const el = gridRef.current;
-      if (el) setCols(Math.max(1, getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length));
-    };
+    if (!gridEl) return;
+    const measure = () => setCols(Math.max(1, getComputedStyle(gridEl).gridTemplateColumns.split(" ").filter(Boolean).length));
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [hasCatalogue]);
+  }, [gridEl]);
   const shown = catalogue ? catalogue.results.slice(0, rows * cols) : [];
   const showMore = () => {
     if (!catalogue) return;
@@ -366,276 +386,300 @@ export function ReadToMe({
 
   return (
     <div className="stack" style={{ ["--gap" as string]: "26px" }}>
+      {step === 1 && (
+        <button type="button" className="back-link" onClick={() => goTo(0)} style={{ marginBottom: -12 }}>
+          ‹ Back to the storyteller
+        </button>
+      )}
       <div className="center">
         <div className="eyebrow">Read to Me</div>
-        <h1>Who shall read to you?</h1>
-        <p className="muted">Pick a storyteller, then pick a book.</p>
+        <h1>{step === 0 ? "Who shall read to you?" : "What shall we read?"}</h1>
       </div>
+      <Steps labels={["The storyteller", "The book"]} step={step} onGo={goTo} />
 
-      <div className="parchment stack">
-        <VoicePicker voices={voices} value={reader} onChange={chooseReader} allowAuto={false} />
-        <label className="toggle">
-          <input type="checkbox" checked={fullCast} onChange={(e) => setFullCast(e.target.checked)} disabled={!storytellerReady} />
-          <span>
-            <b>Character voices</b>
-            <span className="muted small">
-              {storytellerReady
-                ? "Your storyteller reads the narration, and every character who speaks gets a voice of their own."
-                : "Needs the storyteller (an Anthropic key) to work out who's talking."}
+      {step === 0 && (
+        <div className="parchment stack">
+          <VoicePicker voices={voices} value={reader} onChange={chooseReader} allowAuto={false} />
+          <label className="toggle">
+            <input type="checkbox" checked={fullCast} onChange={(e) => setFullCast(e.target.checked)} disabled={!storytellerReady} />
+            <span>
+              <b>Character voices</b>
+              <span className="muted small">
+                {storytellerReady
+                  ? "Your storyteller reads the narration, and every character who speaks gets a voice of their own."
+                  : "Needs the storyteller (an Anthropic key) to work out who's talking."}
+              </span>
             </span>
-          </span>
-        </label>
-      </div>
+          </label>
+          <div className="spread">
+            <span />
+            <button className="btn" type="button" onClick={() => goTo(1)}>
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
 
-      <div className="chips read-tabs" role="tablist" style={{ justifyContent: "center", scrollMarginTop: 96 }} ref={tabsRef}>
-        {(
-          [
-            ["classics", "📜", "The Classic Treasury"],
-            ["own", "📕", "A book we own"],
-            ["words", "✉️", "Our own words"],
-          ] as const
-        ).map(([t, emoji, label]) => (
-          <button key={t} role="tab" aria-selected={tab === t} className="dark-chip" aria-pressed={tab === t} onClick={() => setTab(t)}>
-            <span className="tab-emoji" aria-hidden="true">
-              {emoji}
-            </span>
-            <span>{label}</span>
-          </button>
-        ))}
-      </div>
-
-      {error && <p className="notice notice-error center">{error}</p>}
-      {busy && <p className="notice center">✨ {busy}</p>}
-
-      {tab === "classics" && !open && (
+      {step === 1 && (
         <>
-          <section className="find-panel stack" style={{ ["--gap" as string]: "14px" }} aria-label="Find a book">
-            <div>
-              <form className="find-search" onSubmit={search} role="search">
-                <input
-                  className="input"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Title, author, subject"
-                  aria-label="Search by title, author or subject"
-                  enterKeyHint="search"
-                />
-                <button className="btn btn-sm" aria-label="Search">
-                  🔍
-                </button>
-              </form>
-              {!searched && <p className="find-hint">Try “Halloween”, “pirates” or “Easter”.</p>}
-            </div>
-            <div>
-              <span className="find-label">Kind of story</span>
-              <div className="topic-chips">
-                {kinds.map((t) => (
-                  <button key={t.id} type="button" className="dark-chip" aria-pressed={!searched && topic === t.id} onClick={() => chooseTopic(t.id)}>
-                    {t.emoji} {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="find-label">Age</span>
-              <div className="topic-chips">
-                {AGES_BANDS.map((b) => (
-                  <button key={b.id} type="button" className="dark-chip" aria-pressed={ages === b.id} onClick={() => setAges(b.id)}>
-                    {b.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {searched && (
-              <p className="center muted" style={{ margin: 0 }}>
-                Books matching “{searched}” ·{" "}
-                <button type="button" className="btn btn-quiet btn-sm" onClick={clearSearch}>
-                  ✕ Back to {topicLabel}
-                </button>
-              </p>
-            )}
-          </section>
+          <p className="center muted" style={{ margin: 0 }}>
+            Read by <b>{readerName}</b>
+            {fullCast ? ", with a voice for every character" : ""} ·{" "}
+            <button type="button" className="btn btn-quiet btn-sm" onClick={() => goTo(0)}>
+              Change
+            </button>
+          </p>
+          <div className="chips read-tabs" role="tablist" style={{ justifyContent: "center" }}>
+            {(
+              [
+                ["classics", "📜", "The Classic Treasury"],
+                ["own", "📕", "A book we own"],
+                ["words", "✉️", "Our own words"],
+              ] as const
+            ).map(([t, emoji, label]) => (
+              <button key={t} role="tab" aria-selected={tab === t} className="dark-chip" aria-pressed={tab === t} onClick={() => setTab(t)}>
+                <span className="tab-emoji" aria-hidden="true">
+                  {emoji}
+                </span>
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
 
-          {showingStarred ? (
-            starredShown.length > 0 ? (
-              <div className="bookcase">
-                <ScrollShelf label="Your favorites" count={starredShown.length}>
-                  {starredShown.map((b) => tileFor(b))}
-                </ScrollShelf>
-              </div>
-            ) : (
-              <p className="muted center">Tap the ☆ on any book to keep it here, for everyone in the family.</p>
-            )
-          ) : (
+          {error && <p className="notice notice-error center">{error}</p>}
+          {busy && <p className="notice center">✨ {busy}</p>}
+
+          {tab === "classics" && !open && (
             <>
-              {picks.length > 0 && (
-                <div className="bookcase">
-                  <ScrollShelf label="Storyhollow picks" count={picks.length}>
-                    {picks.map((c) => tileFor(pick(c)))}
-                  </ScrollShelf>
-                </div>
-              )}
-
-              <section className="stack" style={{ ["--gap" as string]: "14px" }}>
-                <div className="center">
-                  <h2 style={{ margin: 0 }}>{searched ? "From the whole library" : `${topicLabel} from the whole library`}</h2>
-                  <p className="muted small" style={{ margin: "4px 0 0" }}>
-                    Free books from Project Gutenberg, best-known classics first.
-                    {ages !== "all" ? " These aren't sorted by age, so do look at the covers." : ""}
-                  </p>
-                </div>
-                {browseError && (
-                  <div className="notice notice-error center">
-                    <p style={{ margin: 0 }}>{browseError}</p>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      style={{ marginTop: 10 }}
-                      onClick={() => browse(searched ? { q: searched } : { topic }, (catalogue?.page ?? 0) + 1)}
-                    >
-                      Try again
+              <section className="find-panel stack" style={{ ["--gap" as string]: "14px" }} aria-label="Find a book">
+                <div>
+                  <form className="find-search" onSubmit={search} role="search">
+                    <input
+                      className="input"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Title, author, subject"
+                      aria-label="Search by title, author or subject"
+                      enterKeyHint="search"
+                    />
+                    <button className="btn btn-sm" aria-label="Search">
+                      🔍
                     </button>
+                  </form>
+                  {!searched && <p className="find-hint">Try “Halloween”, “pirates” or “Easter”.</p>}
+                </div>
+                <div>
+                  <span className="find-label">Kind of story</span>
+                  <div className="topic-chips">
+                    {kinds.map((t) => (
+                      <button key={t.id} type="button" className="dark-chip" aria-pressed={!searched && topic === t.id} onClick={() => chooseTopic(t.id)}>
+                        {t.emoji} {t.label}
+                      </button>
+                    ))}
                   </div>
-                )}
-                {catalogue && catalogue.results.length > 0 && (
-                  <div className="catalogue-grid" ref={gridRef}>
-                    {shown.map((hit) =>
-                      tileFor({ gutenbergId: hit.gutenbergId, title: hit.title, author: hit.author, cover: hit.cover, emoji: null }, "catalogue-book"),
-                    )}
+                </div>
+                <div>
+                  <span className="find-label">Age</span>
+                  <div className="topic-chips">
+                    {AGES_BANDS.map((b) => (
+                      <button key={b.id} type="button" className="dark-chip" aria-pressed={ages === b.id} onClick={() => setAges(b.id)}>
+                        {b.label}
+                      </button>
+                    ))}
                   </div>
-                )}
-                {catalogue && catalogue.results.length === 0 && !browsing && (
-                  <p className="muted center">Nothing found. Try another title, or another kind of story.</p>
-                )}
-                {browsing && (
-                  <p className="notice center">
-                    {catalogue ? "✨ Fetching more books…" : "✨ Opening the card catalogue… the first look can take a few seconds."}
-                  </p>
-                )}
-                {catalogue && (shown.length < catalogue.results.length || catalogue.more) && !browsing && (
-                  <div className="center">
-                    <button type="button" className="btn btn-ghost" onClick={showMore}>
-                      Show more books
+                </div>
+                {searched && (
+                  <p className="center muted" style={{ margin: 0 }}>
+                    Books matching “{searched}” ·{" "}
+                    <button type="button" className="btn btn-quiet btn-sm" onClick={clearSearch}>
+                      ✕ Back to {topicLabel}
                     </button>
-                  </div>
+                  </p>
                 )}
               </section>
+
+              {showingStarred ? (
+                starredShown.length > 0 ? (
+                  <div className="bookcase">
+                    <ScrollShelf label="Your favorites" count={starredShown.length}>
+                      {starredShown.map((b) => tileFor(b))}
+                    </ScrollShelf>
+                  </div>
+                ) : (
+                  <p className="muted center">Tap the ☆ on any book to keep it here, for everyone in the family.</p>
+                )
+              ) : (
+                <>
+                  {picks.length > 0 && (
+                    <div className="bookcase">
+                      <ScrollShelf label="Storyhollow picks" count={picks.length}>
+                        {picks.map((c) => tileFor(pick(c)))}
+                      </ScrollShelf>
+                    </div>
+                  )}
+
+                  <section className="stack" style={{ ["--gap" as string]: "14px" }}>
+                    <div className="center">
+                      <h2 style={{ margin: 0 }}>{searched ? "From the whole library" : `${topicLabel} from the whole library`}</h2>
+                      <p className="muted small" style={{ margin: "4px 0 0" }}>
+                        Free books from Project Gutenberg, best-known classics first.
+                        {ages !== "all" ? " These aren't sorted by age, so do look at the covers." : ""}
+                      </p>
+                    </div>
+                    {browseError && (
+                      <div className="notice notice-error center">
+                        <p style={{ margin: 0 }}>{browseError}</p>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{ marginTop: 10 }}
+                          onClick={() => browse(searched ? { q: searched } : { topic }, (catalogue?.page ?? 0) + 1)}
+                        >
+                          Try again
+                        </button>
+                      </div>
+                    )}
+                    {catalogue && catalogue.results.length > 0 && (
+                      <div className="catalogue-grid" ref={setGridEl}>
+                        {shown.map((hit) =>
+                          tileFor({ gutenbergId: hit.gutenbergId, title: hit.title, author: hit.author, cover: hit.cover, emoji: null }, "catalogue-book"),
+                        )}
+                      </div>
+                    )}
+                    {catalogue && catalogue.results.length === 0 && !browsing && (
+                      <p className="muted center">Nothing found. Try another title, or another kind of story.</p>
+                    )}
+                    {browsing && (
+                      <p className="notice center">
+                        {catalogue ? "✨ Fetching more books…" : "✨ Opening the card catalogue… the first look can take a few seconds."}
+                      </p>
+                    )}
+                    {catalogue && (shown.length < catalogue.results.length || catalogue.more) && !browsing && (
+                      <div className="center">
+                        <button type="button" className="btn btn-ghost" onClick={showMore}>
+                          Show more books
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
+
+              <p className="faint small center">
+                Newer picture books aren't in any free library, so photograph your own copy instead (“A book we own”).
+              </p>
             </>
           )}
 
-          <p className="faint small center">
-            Newer picture books aren't in any free library, so photograph your own copy instead (“A book we own”).
-          </p>
+          {tab === "classics" && open && (
+            <div className="parchment stack opened-book" ref={openRef}>
+              <div className="spread">
+                <div>
+                  <div className="eyebrow">{open.author}</div>
+                  <h2 style={{ margin: 0 }}>
+                    {open.emoji} {open.title}
+                  </h2>
+                </div>
+                <button className="btn btn-ghost btn-sm" onClick={closeClassic}>
+                  ← All books
+                </button>
+              </div>
+              <div className="stack" style={{ ["--gap" as string]: "10px" }}>
+                {open.chapters.map((c) => (
+                  <div key={c.index} className="cast-card spread" style={{ alignItems: "center" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="cast-name">{c.title}</div>
+                      <div className="small muted">
+                        About {minutes(c.words)} min · {c.characters.toLocaleString()} voice characters
+                      </div>
+                      <div className="small faint" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.opening}…
+                      </div>
+                    </div>
+                    <button className="btn btn-sm" onClick={() => readChapter(c)} disabled={Boolean(busy)}>
+                      🎧 {open.chapters.length === 1 ? "Read it to me" : "Read this"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {tab === "own" && (
+            <div className="parchment stack">
+              <p className="muted" style={{ margin: 0 }}>
+                Photograph the pages of a book you own, and your storyteller will read its real words aloud, with a chime to turn
+                each page. (For your family's own listening.)
+              </p>
+              <div className="choices" style={{ ["--min" as string]: "120px" }}>
+                {ownBooks.map((b) => (
+                  <button key={b.id} type="button" className="choice" aria-pressed={bookId === b.id} onClick={() => setBookId(b.id)} style={{ padding: 10 }}>
+                    <div className="story-thumb" style={{ width: 66, height: 88 }}>
+                      <Cover id={b.id} title={b.title} kind={b.kind} coverUrl={b.coverUrl} showTitle={false} />
+                    </div>
+                    <span className="choice-title" style={{ fontSize: "1rem" }}>
+                      {b.title}
+                    </span>
+                  </button>
+                ))}
+                <button type="button" className="choice" aria-pressed={bookId === "new"} onClick={() => setBookId("new")}>
+                  <span className="choice-emoji">📷</span>
+                  <span className="choice-title">Photograph a book</span>
+                </button>
+              </div>
+              {bookId === "new" && (
+                <>
+                  <label className="field">
+                    <span>Book title</span>
+                    <input className="input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="The Snail Who Wanted to Fly" />
+                  </label>
+                  <PhotoPicker photos={photos} onChange={setPhotos} />
+                </>
+              )}
+              <label className="toggle">
+                <input type="checkbox" checked={checkFirst} onChange={(e) => setCheckFirst(e.target.checked)} />
+                <span>
+                  <b>Let me check the words before recording</b>
+                  <span className="muted small">Handy for tricky fonts or handwriting.</span>
+                </span>
+              </label>
+              {!storytellerReady && <p className="notice small">Reading your own pages needs the storyteller (an Anthropic key).</p>}
+              <div className="center">
+                <button
+                  className="btn btn-lg"
+                  onClick={readOwnBook}
+                  disabled={Boolean(busy) || !storytellerReady || (bookId === "new" && photos.length === 0)}
+                >
+                  🎧 Read it to me
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tab === "words" && (
+            <div className="parchment stack">
+              <p className="muted" style={{ margin: 0 }}>
+                A poem, a letter from Grandma, a story your child dictated… paste it here and it will be read aloud.
+              </p>
+              <label className="field">
+                <span>Title</span>
+                <input className="input" value={wordsTitle} onChange={(e) => setWordsTitle(e.target.value)} placeholder="A Letter from Granny" />
+              </label>
+              <label className="field">
+                <span>The words</span>
+                <textarea className="textarea" style={{ minHeight: 220 }} value={words} onChange={(e) => setWords(e.target.value)} />
+              </label>
+              <div className="center">
+                <button className="btn btn-lg" onClick={readWords} disabled={Boolean(busy) || words.trim().length < 10}>
+                  🎧 Read it to me
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
-      {tab === "classics" && open && (
-        <div className="parchment stack">
-          <div className="spread">
-            <div>
-              <div className="eyebrow">{open.author}</div>
-              <h2 style={{ margin: 0 }}>
-                {open.emoji} {open.title}
-              </h2>
-            </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => setOpen(null)}>
-              ← All books
-            </button>
-          </div>
-          <div className="stack" style={{ ["--gap" as string]: "10px" }}>
-            {open.chapters.map((c) => (
-              <div key={c.index} className="cast-card spread" style={{ alignItems: "center" }}>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div className="cast-name">{c.title}</div>
-                  <div className="small muted">
-                    About {minutes(c.words)} min · {c.characters.toLocaleString()} voice characters
-                  </div>
-                  <div className="small faint" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {c.opening}…
-                  </div>
-                </div>
-                <button className="btn btn-sm" onClick={() => readChapter(c)} disabled={Boolean(busy)}>
-                  🎧 {open.chapters.length === 1 ? "Read it to me" : "Read this"}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {tab === "own" && (
-        <div className="parchment stack">
-          <p className="muted" style={{ margin: 0 }}>
-            Photograph the pages of a book you own, and your storyteller will read its real words aloud, with a chime to turn
-            each page. (For your family's own listening.)
-          </p>
-          <div className="choices" style={{ ["--min" as string]: "120px" }}>
-            {ownBooks.map((b) => (
-              <button key={b.id} type="button" className="choice" aria-pressed={bookId === b.id} onClick={() => setBookId(b.id)} style={{ padding: 10 }}>
-                <div className="story-thumb" style={{ width: 66, height: 88 }}>
-                  <Cover id={b.id} title={b.title} kind={b.kind} coverUrl={b.coverUrl} showTitle={false} />
-                </div>
-                <span className="choice-title" style={{ fontSize: "1rem" }}>
-                  {b.title}
-                </span>
-              </button>
-            ))}
-            <button type="button" className="choice" aria-pressed={bookId === "new"} onClick={() => setBookId("new")}>
-              <span className="choice-emoji">📷</span>
-              <span className="choice-title">Photograph a book</span>
-            </button>
-          </div>
-          {bookId === "new" && (
-            <>
-              <label className="field">
-                <span>Book title</span>
-                <input className="input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="The Snail Who Wanted to Fly" />
-              </label>
-              <PhotoPicker photos={photos} onChange={setPhotos} />
-            </>
-          )}
-          <label className="toggle">
-            <input type="checkbox" checked={checkFirst} onChange={(e) => setCheckFirst(e.target.checked)} />
-            <span>
-              <b>Let me check the words before recording</b>
-              <span className="muted small">Handy for tricky fonts or handwriting.</span>
-            </span>
-          </label>
-          {!storytellerReady && <p className="notice small">Reading your own pages needs the storyteller (an Anthropic key).</p>}
-          <div className="center">
-            <button
-              className="btn btn-lg"
-              onClick={readOwnBook}
-              disabled={Boolean(busy) || !storytellerReady || (bookId === "new" && photos.length === 0)}
-            >
-              🎧 Read it to me
-            </button>
-          </div>
-        </div>
-      )}
-
-      {tab === "words" && (
-        <div className="parchment stack">
-          <p className="muted" style={{ margin: 0 }}>
-            A poem, a letter from Grandma, a story your child dictated… paste it here and it will be read aloud.
-          </p>
-          <label className="field">
-            <span>Title</span>
-            <input className="input" value={wordsTitle} onChange={(e) => setWordsTitle(e.target.value)} placeholder="A Letter from Granny" />
-          </label>
-          <label className="field">
-            <span>The words</span>
-            <textarea className="textarea" style={{ minHeight: 220 }} value={words} onChange={(e) => setWords(e.target.value)} />
-          </label>
-          <div className="center">
-            <button className="btn btn-lg" onClick={readWords} disabled={Boolean(busy) || words.trim().length < 10}>
-              🎧 Read it to me
-            </button>
-          </div>
-        </div>
-      )}
-
-      {readAlouds.length > 0 && (
+      {step === 0 && readAlouds.length > 0 && (
         <section className="section">
           <div className="section-head">
             <h2>Read-alouds on your shelves</h2>

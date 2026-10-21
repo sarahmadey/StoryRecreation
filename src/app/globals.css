@@ -345,6 +345,13 @@ textarea {
 .back-link:hover {
   color: var(--gold-1);
 }
+button.back-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+  cursor: pointer;
+}
 
 .who {
   display: flex;
@@ -1524,6 +1531,16 @@ textarea {
   height: 1px;
   background: rgba(220, 174, 85, 0.35);
 }
+/* a step already done: tap to go back and change it */
+button.step {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+button.step:hover {
+  color: var(--gold-1);
+}
 
 /* ------------------------------------------------------------------ photos */
 
@@ -2451,6 +2468,11 @@ body.lights-out-active {
 .book-header .book:hover {
   transform: none;
 }
+/* Read to Me: an opened book scrolls to just under the header. */
+.opened-book {
+  scroll-margin-top: calc(var(--safe-top) + 84px);
+}
+
 /* A book's own stories, right under its title: the cards read left to right even where the header is centred. */
 .book-stories .story-list {
   text-align: left;

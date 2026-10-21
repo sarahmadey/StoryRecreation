@@ -8,6 +8,7 @@ import "./globals.css";
 import { GrownupProvider } from "@/components/Grownup";
 import { Motes } from "@/components/Art";
 import { TestCopyBanner } from "@/components/TestCopyBanner";
+import { KeyboardFix } from "@/components/KeyboardFix";
 import { appName } from "@/lib/server/config";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <GrownupProvider>
           <Motes />
           <TestCopyBanner />
+          <KeyboardFix />
           <div className="app">{children}</div>
         </GrownupProvider>
       </body>

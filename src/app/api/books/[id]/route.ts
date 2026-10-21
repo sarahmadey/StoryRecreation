@@ -1,13 +1,14 @@
 import { apiCtx, HttpError, readJson, requireGrownup, route } from "@/lib/server/auth";
 import { deleteBook, getBook, listPages, listStoryCards, updateBook } from "@/lib/server/db";
 import { removeDir, resolveHouseholdPath } from "@/lib/server/files";
+import { storyCards } from "@/lib/server/voices";
 
 export const GET = route(async (_req: Request, ctx: RouteContext<"/api/books/[id]">) => {
   const c = await apiCtx();
   const { id } = await ctx.params;
   const book = getBook(c.household.id, id);
   if (!book) throw new HttpError(404, "That book isn't on the shelf.");
-  return Response.json({ book, pages: listPages(id), stories: listStoryCards(c.household.id, { bookId: id }) });
+  return Response.json({ book, pages: listPages(id), stories: await storyCards(c.household.id, { bookId: id }) });
 });
 
 export const PATCH = route(async (req: Request, ctx: RouteContext<"/api/books/[id]">) => {

@@ -207,6 +207,16 @@ export interface StoryCard {
   playCount: number;
   lastPlayedAt: number | null;
   createdAt: number;
+  /** The voice reading the narration, once the story has been written. */
+  narratorVoiceId: string | null;
+  /** How the family knows that voice, filled in where cards are shown. */
+  narrator?: VoiceLabel | null;
+}
+
+/** A voice as the family knows it: "Professor Hoot" 🦉, "Gram T" 💛. */
+export interface VoiceLabel {
+  name: string;
+  emoji: string;
 }
 
 export interface VoiceOption {

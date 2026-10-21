@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Brewing } from "@/components/Brewing";
-import { ChimePicker, SoundsPicker, VoiceSelect, soundsOf, useVoices, type SoundsChoice } from "@/components/Pickers";
+import { ChimePicker, SoundsPicker, VoicePicker, VoiceSelect, soundsOf, useVoices, type SoundsChoice } from "@/components/Pickers";
 import { VoiceDesigner } from "@/components/VoiceDesigner";
 import { imageForPage } from "@/lib/shared/pages";
 import { formatDuration } from "@/lib/shared/options";
@@ -21,6 +21,7 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [designing, setDesigning] = useState<{ castId: string } | null>(null);
+  const [newNarrator, setNewNarrator] = useState<string | null>(null);
   const [chime, setChime] = useState<ChimeSettings>(initial.settings.chime);
   const [sounds, setSounds] = useState<SoundsChoice>(soundsOf(initial.settings));
   const soundsChanged = sounds !== soundsOf(story.settings) || JSON.stringify(chime) !== JSON.stringify(story.settings.chime);
@@ -103,6 +104,25 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
       setStory(res.story);
     });
 
+  // A new storyteller reads the same words: the story is recorded again in their voice.
+  const changeNarrator = (voiceId: string) =>
+    run(async () => {
+      if (!script) return;
+      const next = structuredClone(script);
+      const narrator = next.cast.find((c) => c.id === "narrator");
+      if (!narrator) return;
+      narrator.voiceId = voiceId;
+      // Read-alouds are described as "Read aloud by …", so that line follows the new reader.
+      const v = voices.find((x) => x.voiceId === voiceId);
+      if (v && /^Read aloud by .*\.$/.test(next.synopsis)) next.synopsis = `Read aloud by ${v.persona?.name ?? v.name}.`;
+      await api.patch(`/api/stories/${story.id}`, { title: next.title, script: next });
+      await api.post(`/api/stories/${story.id}/record`);
+      setScript(next);
+      setDirty(false);
+      setNewNarrator(null);
+      await refresh();
+    });
+
   const remove = () =>
     run(async () => {
       if (!confirm("Delete this story for good?")) return;
@@ -130,11 +150,11 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
   if (story.status === "recording") {
     return (
       <Brewing
-        title={story.audioUrl ? "Re-binding the story" : "The voices are recording"}
+        title={story.audioUrl ? "Updating the story" : "The voices are recording"}
         progress={story.progress}
         note={
           story.audioUrl
-            ? "The voices you love are kept just as they are. This takes a minute."
+            ? "This takes a minute or two. You can leave this page; the story will be waiting on the shelf."
             : "Each character is stepping up to the microphone. This takes a minute or two."
         }
       />
@@ -143,6 +163,11 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
 
   const chars = script ? script.pages.reduce((n, p) => n + p.lines.reduce((m, l) => m + l.text.length, 0), 0) : 0;
   const castName = (id: string) => script?.cast.find((c) => c.id === id)?.name ?? id;
+  const voiceName = (voiceId: string | undefined) => {
+    const v = voices.find((x) => x.voiceId === voiceId);
+    return v ? `${v.persona?.emoji ?? (v.source === "family" ? "💛" : v.source === "designed" ? "🪄" : "🗣️")} ${v.persona?.name ?? v.name}` : "A storyteller";
+  };
+  const narratorVoice = script?.cast.find((c) => c.id === "narrator")?.voiceId;
 
   return (
     <div className="stack" style={{ ["--gap" as string]: "22px" }}>
@@ -174,6 +199,16 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
               ▶ Listen now
             </Link>
           </div>
+          {narratorVoice && loadedVoices && (
+            <div className="narrator-row">
+              <span>
+                Read by <b>{voiceName(narratorVoice)}</b>
+              </span>
+              <button className="btn btn-ghost btn-sm" onClick={() => setNewNarrator(narratorVoice)} disabled={busy || !loadedVoices}>
+                Change
+              </button>
+            </div>
+          )}
           <p className="faint small">
             {formatDuration(story.duration)} ·{" "}
             <a href={`${story.audioUrl.split("?")[0]}?download=${encodeURIComponent((script?.title ?? "story") + ".mp3")}`}>
@@ -374,6 +409,37 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
             Delete this story
           </button>
         </p>
+      )}
+
+      {newNarrator !== null && script && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="narrator-title">
+          <div className="modal parchment stack" style={{ width: "min(620px, 100%)" }}>
+            <div className="spread">
+              <div>
+                <div className="eyebrow">{script.title}</div>
+                <h2 id="narrator-title" style={{ margin: 0 }}>
+                  🎙️ Who should read it?
+                </h2>
+              </div>
+              <button className="icon-btn" onClick={() => setNewNarrator(null)} aria-label="Close" style={{ color: "#3a2616", background: "rgba(255,255,255,.4)" }}>
+                ✕
+              </button>
+            </div>
+            <VoicePicker voices={voices} value={newNarrator} onChange={(v) => v && setNewNarrator(v)} allowAuto={false} />
+            <p className="small" style={{ margin: 0, color: "var(--ink-soft)" }}>
+              The words stay just as they are. The story is recorded again in the new voice, which uses about {chars.toLocaleString()}{" "}
+              voice characters of ElevenLabs credit.
+            </p>
+            <div className="row" style={{ justifyContent: "flex-end" }}>
+              <button className="btn btn-ghost" onClick={() => setNewNarrator(null)}>
+                Keep {voiceName(narratorVoice)}
+              </button>
+              <button className="btn btn-velvet" onClick={() => changeNarrator(newNarrator)} disabled={busy || newNarrator === narratorVoice}>
+                {busy ? "Starting…" : `🎙️ Re-record with ${voiceName(newNarrator)}`}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {designing && script && (

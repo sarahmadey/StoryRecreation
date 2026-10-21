@@ -6,7 +6,7 @@ import { Cover } from "@/components/Books";
 import { useApi } from "@/components/Grownup";
 import { imageForPage } from "@/lib/shared/pages";
 import { formatClock } from "@/lib/shared/options";
-import type { Book, BookPage, Story, TimelinePage } from "@/lib/shared/types";
+import type { Book, BookPage, Story, TimelinePage, VoiceLabel } from "@/lib/shared/types";
 
 // The player follows one continuous audio file (narration, chimes and pauses
 // all baked in) using the page timeline, so it works on a lock screen or a
@@ -104,7 +104,7 @@ function pageAt(pages: TimelinePage[], t: number): number {
   return ans;
 }
 
-export function Player({ story, book, photos }: { story: Story; book: Book; photos: BookPage[] }) {
+export function Player({ story, book, photos, narrator }: { story: Story; book: Book; photos: BookPage[]; narrator: VoiceLabel | null }) {
   const api = useApi();
   const timeline = story.timeline!;
   const pages = timeline.pages;
@@ -338,7 +338,10 @@ export function Player({ story, book, photos }: { story: Story; book: Book; phot
           <Icon name="close" size={20} />
         </Link>
         <div className="player-title">
-          <div className="eyebrow">{book.title}</div>
+          <div className="eyebrow">
+            {book.title}
+            {narrator ? ` · read by ${narrator.name}` : ""}
+          </div>
           <h1>{story.title}</h1>
         </div>
         <button className="icon-btn" onClick={toggleFavorite} aria-pressed={favorite} aria-label={favorite ? "Unfavorite" : "Make a favorite"}>

@@ -1,12 +1,13 @@
 import { apiCtx, HttpError, readJson, requireGrownup, route } from "@/lib/server/auth";
-import { createStory, getBook, getProfile, listStoryCards } from "@/lib/server/db";
+import { createStory, getBook, getProfile } from "@/lib/server/db";
+import { storyCards } from "@/lib/server/voices";
 import { canWriteStories } from "@/lib/server/config";
 import { sanitizeSettings } from "@/lib/server/settings";
 import { startWriting } from "@/lib/server/jobs";
 
 export const GET = route(async () => {
   const ctx = await apiCtx();
-  return Response.json({ stories: listStoryCards(ctx.household.id) });
+  return Response.json({ stories: await storyCards(ctx.household.id) });
 });
 
 /** Start a new story (or a read-aloud) for a book on the shelf. */

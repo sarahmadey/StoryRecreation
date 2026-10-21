@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { pageCtx } from "@/lib/server/auth";
-import { listProfiles, listStoryCards } from "@/lib/server/db";
+import { listProfiles } from "@/lib/server/db";
+import { storyCards } from "@/lib/server/voices";
 import { appStatus } from "@/lib/server/config";
 import { ProfilePicker } from "@/components/Readers";
 import { Greeting } from "@/components/Greeting";
@@ -19,7 +20,7 @@ export default async function HallPage() {
     );
   }
 
-  const stories = listStoryCards(ctx.household.id);
+  const stories = await storyCards(ctx.household.id);
   const mine = stories.filter((s) => s.profileId === ctx.profile!.id);
   const ready = stories.filter((s) => s.status === "ready");
   const recent = ready
@@ -28,7 +29,9 @@ export default async function HallPage() {
     .slice(0, 4);
   const favorites = ready.filter((s) => s.favorite).slice(0, 8);
   const inProgress = stories.filter((s) => s.status !== "ready").slice(0, 4);
-  const newest = ready.slice(0, 6);
+  // Newest skips stories already listed above, so the Hall doesn't repeat itself.
+  const shown = new Set([...recent, ...favorites].map((s) => s.id));
+  const newest = ready.filter((s) => !shown.has(s.id)).slice(0, 6);
   const emojiOf = new Map(profiles.map((p) => [p.id, p.avatar]));
 
   return (

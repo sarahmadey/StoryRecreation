@@ -1,8 +1,8 @@
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { config } from "./config";
-import { listDesignedVoices, listFamilyVoices } from "./db";
+import { listDesignedVoices, listFamilyVoices, listStoryCards } from "./db";
 import { PERSONAS, personaFor, personaVoiceOptions } from "@/lib/shared/personas";
-import type { VoiceOption } from "@/lib/shared/types";
+import type { StoryCard, VoiceLabel, VoiceOption } from "@/lib/shared/types";
 
 const globalForEleven = globalThis as unknown as {
   __eleven?: ElevenLabsClient;
@@ -120,4 +120,24 @@ export function describeVoiceForCasting(v: VoiceOption): string {
   return `- ${v.voiceId}: ${label}. ${traits}${traits && v.description ? ". " : ""}${v.description}${
     v.source === "designed" ? " [custom character voice]" : v.source === "family" ? " [a family member's own voice: the storyteller only, never a character]" : ""
   }`;
+}
+
+/** The face a voice shows: its storybook persona, or a family heart, a designer's wand, or a plain speaker. */
+export function labelFor(v: VoiceOption): VoiceLabel {
+  return { name: v.persona?.name ?? v.name, emoji: v.persona?.emoji ?? (v.source === "family" ? "💛" : v.source === "designed" ? "🪄" : "🗣️") };
+}
+
+/** Each voice as this family knows it, by voice id. */
+export async function voiceLabels(householdId: string): Promise<Map<string, VoiceLabel>> {
+  return new Map((await voiceCatalog(householdId)).map((v) => [v.voiceId, labelFor(v)]));
+}
+
+/** Story cards with who reads each one. */
+export async function storyCards(householdId: string, opts: { bookId?: string } = {}): Promise<StoryCard[]> {
+  const cards = listStoryCards(householdId, opts);
+  const labels = await voiceLabels(householdId);
+  return cards.map((c) => ({
+    ...c,
+    narrator: c.narratorVoiceId ? (labels.get(c.narratorVoiceId) ?? { name: "A storyteller", emoji: "🗣️" }) : null,
+  }));
 }

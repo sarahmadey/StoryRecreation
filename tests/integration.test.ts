@@ -603,3 +603,29 @@ test("favorite storytellers and books are kept for the whole family", async () =
   db.setFavoriteClassic(hh, { gutenbergId: 271, title: "Black Beauty", author: null, cover: null, emoji: null }, false);
   assert.deepEqual(db.listFavoriteClassics(hh).map((b) => b.gutenbergId), [14838]);
 });
+
+test("every story card says who reads it, as the family knows that voice", async () => {
+  const db = await import("@/lib/server/db");
+  const { storyCards, forgetVoiceCache } = await import("@/lib/server/voices");
+  const { defaultSettings } = await import("@/lib/shared/options");
+  const { personaFor } = await import("@/lib/shared/personas");
+  const hh = db.createHousehold("The Readers", "readers@example.com", "x");
+  const book = db.createBook(hh, { title: "The Tale of Peter Rabbit", kind: "classic" });
+  const read = db.createStory(hh, { bookId: book, profileId: null, mode: "read", title: "Part 1", settings: defaultSettings(), status: "ready" });
+  const cast = (voiceId: string) => [
+    { id: "narrator", name: "Narrator", description: "", voiceBrief: "", voiceId },
+    { id: "peter", name: "Peter", description: "", voiceBrief: "", voiceId: OWL_VOICE },
+  ];
+  db.updateStory(read, { script: { title: "Part 1", synopsis: "", ambience: "", cast: cast(PERSONA_VOICE), pages: [] } });
+  const lost = db.createStory(hh, { bookId: book, profileId: null, mode: "read", title: "Part 2", settings: defaultSettings(), status: "ready" });
+  db.updateStory(lost, { script: { title: "Part 2", synopsis: "", ambience: "", cast: cast("aVoiceSinceDeleted"), pages: [] } });
+  const brewing = db.createStory(hh, { bookId: book, profileId: null, mode: "read", title: "Part 3", settings: defaultSettings(), status: "writing" });
+
+  forgetVoiceCache();
+  const cards = new Map((await storyCards(hh)).map((c) => [c.id, c]));
+  const persona = personaFor(PERSONA_VOICE)!;
+  assert.equal(cards.get(read)!.narratorVoiceId, PERSONA_VOICE, "the narrator, not the first character");
+  assert.deepEqual(cards.get(read)!.narrator, { name: persona.name, emoji: persona.emoji });
+  assert.deepEqual(cards.get(lost)!.narrator, { name: "A storyteller", emoji: "🗣️" }, "a voice that's gone still reads as someone");
+  assert.equal(cards.get(brewing)!.narrator, null, "nobody reads a story that isn't written yet");
+});

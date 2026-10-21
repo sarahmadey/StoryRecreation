@@ -1215,6 +1215,16 @@ textarea {
 .story-card-wrap {
   position: relative;
 }
+.story-narrator {
+  color: var(--gold-2);
+}
+.narrator-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .story-card-wrap .story-meta {
   padding-right: 46px;
 }

@@ -88,9 +88,20 @@ export function StoryCardView({ story, profileEmoji }: { story: StoryCard; profi
           {story.favorite && <span aria-label="Favorite">⭐ </span>}
           {story.title}
         </div>
+        {story.narrator && (
+          <div className="story-sub story-narrator">
+            {story.narrator.emoji} {story.narrator.name}
+          </div>
+        )}
         <div className="story-sub">
-          {story.mode === "read" ? "Read aloud · " : ""}
-          {ready ? formatDuration(story.duration) : null}
+          {[
+            // which book it's from, unless the title already says ("Part 1" on its own says nothing)
+            story.title.toLowerCase().includes(story.bookTitle.toLowerCase()) ? null : story.bookTitle,
+            story.mode === "read" ? "read aloud" : null,
+            ready ? formatDuration(story.duration) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
           {status && <span className={status.className}>{status.label}</span>}
           {profileEmoji && <span> · {profileEmoji}</span>}
         </div>

@@ -1,5 +1,6 @@
 import { pageCtx } from "@/lib/server/auth";
-import { listBooks, listProfiles, listStoryCards } from "@/lib/server/db";
+import { listBooks, listProfiles } from "@/lib/server/db";
+import { storyCards } from "@/lib/server/voices";
 import { LibraryView } from "./LibraryView";
 
 export const metadata = { title: "The Library" };
@@ -10,7 +11,7 @@ export default async function LibraryPage() {
     <main className="page">
       <LibraryView
         books={listBooks(ctx.household.id)}
-        stories={listStoryCards(ctx.household.id)}
+        stories={await storyCards(ctx.household.id)}
         profiles={listProfiles(ctx.household.id)}
         currentProfileId={ctx.profile?.id ?? null}
       />

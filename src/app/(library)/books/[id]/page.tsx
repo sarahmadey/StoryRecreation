@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { pageCtx } from "@/lib/server/auth";
-import { getBook, lastSettingsForBook, listPages, listProfiles, listShelves, listStoryCards } from "@/lib/server/db";
+import { getBook, lastSettingsForBook, listPages, listProfiles, listShelves } from "@/lib/server/db";
+import { storyCards } from "@/lib/server/voices";
 import { canRecordStories, canWriteStories } from "@/lib/server/config";
 import { BookView } from "./BookView";
 
@@ -14,7 +15,7 @@ export default async function BookPage(props: PageProps<"/books/[id]">) {
       <BookView
         book={book}
         pages={listPages(id)}
-        stories={listStoryCards(ctx.household.id, { bookId: id })}
+        stories={await storyCards(ctx.household.id, { bookId: id })}
         profiles={listProfiles(ctx.household.id)}
         shelves={listShelves(ctx.household.id)}
         lastCreate={lastSettingsForBook(id, "create")}

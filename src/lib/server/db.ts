@@ -592,7 +592,9 @@ export function getStoryAudioPath(id: string): string | null {
 
 const CARD_SELECT = `
   SELECT s.id, s.book_id, s.profile_id, s.mode, s.title, s.synopsis, s.status, s.duration, s.favorite,
-         s.play_count, s.last_played_at, s.created_at, b.title AS book_title, b.kind AS book_kind, b.cover_path
+         s.play_count, s.last_played_at, s.created_at, b.title AS book_title, b.kind AS book_kind, b.cover_path,
+         (SELECT json_extract(c.value, '$.voiceId') FROM json_each(s.script, '$.cast') c
+          WHERE json_extract(c.value, '$.id') = 'narrator') AS narrator_voice_id
   FROM stories s JOIN books b ON b.id = s.book_id`;
 
 function toCard(r: Row): StoryCard {
@@ -612,6 +614,7 @@ function toCard(r: Row): StoryCard {
     playCount: Number(r.play_count ?? 0),
     lastPlayedAt: (r.last_played_at as number | null) ?? null,
     createdAt: r.created_at as number,
+    narratorVoiceId: (r.narrator_voice_id as string | null) ?? null,
   };
 }
 

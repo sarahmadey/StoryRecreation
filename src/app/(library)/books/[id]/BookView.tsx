@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Cover, StoryCardView } from "@/components/Books";
-import { BOOK_KINDS, DEFAULT_SHELVES, defaultSettings, formatDuration } from "@/lib/shared/options";
+import { BOOK_KINDS, DEFAULT_SHELVES, defaultSettings } from "@/lib/shared/options";
 import type { Book, BookPage, Profile, StoryCard, StorySettings } from "@/lib/shared/types";
 
 export function BookView({
@@ -38,10 +38,9 @@ export function BookView({
   const physical = book.kind === "shadow_book" || book.kind === "picture_book";
   const canCreate = book.kind !== "classic" && book.kind !== "own_text";
   const emojiOf = new Map(profiles.map((p) => [p.id, p.avatar]));
-  // A book in the library is usually opened to hear it again: whichever story was made or played last.
-  const lastTouched = (s: StoryCard) => Math.max(s.lastPlayedAt ?? 0, s.createdAt);
-  const toPlay = stories.filter((s) => s.status === "ready").sort((a, b) => lastTouched(b) - lastTouched(a))[0];
-  const makeClass = toPlay ? "btn btn-ghost" : "btn btn-lg";
+  // A book in the library is usually opened to hear it again, so its stories come first and making a new one second.
+  const hasStories = stories.length > 0;
+  const makeClass = hasStories ? "btn btn-ghost" : "btn btn-lg";
 
   const quickStory = async () => {
     setBusy(true);
@@ -125,38 +124,23 @@ export function BookView({
               <h1 style={{ marginBottom: 4 }}>{book.title}</h1>
             )}
             {book.author && <p className="muted">by {book.author}</p>}
-            <p className="faint small">
-              {pages.length ? `${pages.length} page photos · ` : ""}
-              {stories.length} {stories.length === 1 ? "story" : "stories"}
-            </p>
+            {pages.length > 0 && <p className="faint small">{pages.length} page photos</p>}
           </div>
 
           {error && <p className="notice notice-error">{error}</p>}
 
-          {toPlay && (
-            <div className="stack" style={{ ["--gap" as string]: "6px" }}>
-              <div className="row">
-                <Link className="btn btn-lg" href={`/play/${toPlay.id}`}>
-                  ▶ Play {toPlay.title}
-                </Link>
+          {hasStories && (
+            <div className="book-stories">
+              <div className="find-label">{stories.length === 1 ? "Your story" : `Your ${stories.length} stories`}</div>
+              <div className="story-list">
+                {stories.map((s) => (
+                  <StoryCardView key={s.id} story={s} inBook profileEmoji={s.profileId ? emojiOf.get(s.profileId) : undefined} />
+                ))}
               </div>
-              <p className="faint small" style={{ margin: 0 }}>
-                {[toPlay.narrator ? `Read by ${toPlay.narrator.emoji} ${toPlay.narrator.name}` : null, formatDuration(toPlay.duration)]
-                  .filter(Boolean)
-                  .join(" · ")}
-                {stories.length > 1 && (
-                  <>
-                    {" · "}
-                    <a href="#stories" style={{ whiteSpace: "nowrap" }}>
-                      or pick another story
-                    </a>
-                  </>
-                )}
-              </p>
             </div>
           )}
 
-          {toPlay && (canCreate || physical || book.kind === "classic") && (
+          {hasStories && (canCreate || physical || book.kind === "classic") && (
             <div className="find-label" style={{ marginTop: 8 }}>
               Or make something new
             </div>
@@ -178,7 +162,7 @@ export function BookView({
               </Link>
             )}
             {book.kind === "classic" && (
-              <Link className={toPlay ? "btn btn-ghost" : "btn"} href={`/read?classic=${book.sourceRef}`}>
+              <Link className={hasStories ? "btn btn-ghost" : "btn"} href={`/read?classic=${book.sourceRef}`}>
                 🎧 Read another chapter
               </Link>
             )}
@@ -197,23 +181,6 @@ export function BookView({
         </div>
       </div>
 
-      <section className="section" id="stories">
-        <div className="section-head">
-          <h2>Stories for this book</h2>
-        </div>
-        {stories.length ? (
-          <div className="story-list">
-            {stories.map((s) => (
-              <StoryCardView key={s.id} story={s} profileEmoji={s.profileId ? emojiOf.get(s.profileId) : undefined} />
-            ))}
-          </div>
-        ) : (
-          <p className="empty">
-            <span className="big">📖</span>
-            No stories yet. Tonight could be the first!
-          </p>
-        )}
-      </section>
       {pages.length > 0 && (
         <section className="section">
           <div className="section-head">

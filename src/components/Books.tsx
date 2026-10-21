@@ -75,7 +75,8 @@ const STATUS: Record<string, { label: string; className: string } | undefined> =
   error: { label: "needs a grown-up", className: "badge badge-velvet" },
 };
 
-export function StoryCardView({ story, profileEmoji }: { story: StoryCard; profileEmoji?: string }) {
+/** inBook: shown on its own book's page, so the book's name isn't repeated. */
+export function StoryCardView({ story, profileEmoji, inBook }: { story: StoryCard; profileEmoji?: string; inBook?: boolean }) {
   const ready = story.status === "ready";
   const status = STATUS[story.status];
   const card = (
@@ -96,7 +97,7 @@ export function StoryCardView({ story, profileEmoji }: { story: StoryCard; profi
         <div className="story-sub">
           {[
             // which book it's from, unless the title already says ("Part 1" on its own says nothing)
-            story.title.toLowerCase().includes(story.bookTitle.toLowerCase()) ? null : story.bookTitle,
+            inBook || story.title.toLowerCase().includes(story.bookTitle.toLowerCase()) ? null : story.bookTitle,
             story.mode === "read" ? "read aloud" : null,
             ready ? formatDuration(story.duration) : null,
           ]

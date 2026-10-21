@@ -2451,9 +2451,9 @@ body.lights-out-active {
 .book-header .book:hover {
   transform: none;
 }
-/* "or pick another story" lands on the list, not under the header. */
-#stories {
-  scroll-margin-top: calc(var(--safe-top) + 96px);
+/* A book's own stories, right under its title: the cards read left to right even where the header is centred. */
+.book-stories .story-list {
+  text-align: left;
 }
 @media (max-width: 640px) {
   .book-header {
@@ -2462,9 +2462,12 @@ body.lights-out-active {
     text-align: center;
     gap: 18px;
   }
-  /* a smaller cover on phones, so Play is on screen without scrolling */
+  /* a smaller cover on phones, so the stories are on screen without scrolling */
   .book-header .book {
     --w: 150px;
+  }
+  .book-header > .stack {
+    width: 100%;
   }
   .book-header .row {
     justify-content: center;

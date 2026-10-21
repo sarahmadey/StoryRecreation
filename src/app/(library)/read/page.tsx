@@ -1,5 +1,5 @@
 import { pageCtx } from "@/lib/server/auth";
-import { listBooks, listFavoriteClassics, listProfiles } from "@/lib/server/db";
+import { catalogueSize, listBooks, listFavoriteClassics, listProfiles } from "@/lib/server/db";
 import { storyCards } from "@/lib/server/voices";
 import { appStatus } from "@/lib/server/config";
 import { CLASSICS, TOPICS, warmCatalogue } from "@/lib/server/classics";
@@ -24,6 +24,7 @@ export default async function ReadPage(props: PageProps<"/read">) {
         preselectBook={typeof sp.book === "string" ? sp.book : null}
         preselectClassic={typeof sp.classic === "string" ? Number(sp.classic) : null}
         favoriteClassics={listFavoriteClassics(ctx.household.id)}
+        librarySize={catalogueSize()}
       />
     </main>
   );

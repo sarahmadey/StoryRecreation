@@ -2,6 +2,7 @@ import { gunzipSync } from "node:zlib";
 import { config } from "./config";
 import { cacheClassic, catalogueBook, catalogueLoadedAt, getCachedClassic, queryCatalogue, replaceCatalogue, type CatalogueRow } from "./db";
 import { chapterize, cleanGutenberg, type Chapter } from "./text";
+import { gutenbergCover } from "@/lib/shared/gutenberg";
 
 // The Classic Treasury: public-domain children's books from Project
 // Gutenberg. The curated books are fetched straight from Gutenberg by number,
@@ -75,7 +76,6 @@ export type TopicId = (typeof TOPICS)[number]["id"];
 
 const GUTENBERG_TEXT = (id: number) => `https://www.gutenberg.org/cache/epub/${id}/pg${id}.txt`;
 const GUTENBERG_TEXT_ALT = (id: number) => `https://www.gutenberg.org/ebooks/${id}.txt.utf-8`;
-const GUTENBERG_COVER = (id: number) => `https://www.gutenberg.org/cache/epub/${id}/pg${id}.cover.medium.jpg`;
 
 export class ClassicsError extends Error {}
 
@@ -108,6 +108,8 @@ export interface CatalogueHit {
 export interface CataloguePage {
   results: CatalogueHit[];
   more: boolean;
+  /** How many books match in all. */
+  total: number;
 }
 
 /** "Peter Pan; or, The Boy Who Wouldn't Grow Up" reads better on a little cover as "Peter Pan". */
@@ -252,8 +254,9 @@ export async function browseCatalogue({ q, topic, page = 1 }: { q?: string; topi
   const match = search ? undefined : (TOPICS.find((t) => t.id === topic) ?? TOPICS[0]).match;
   const { rows, total } = queryCatalogue({ search, match, limit: PAGE_SIZE, offset });
   return {
-    results: rows.map((r) => ({ gutenbergId: r.id, title: r.title, author: r.author, cover: GUTENBERG_COVER(r.id) })),
+    results: rows.map((r) => ({ gutenbergId: r.id, title: r.title, author: r.author, cover: gutenbergCover(r.id) })),
     more: offset + rows.length < total,
+    total,
   };
 }
 

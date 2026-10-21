@@ -4,26 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Cover, StoryCardView, hueFor } from "@/components/Books";
-import { ScrollShelf } from "@/components/Shelf";
 import { Steps, toTop } from "@/components/Steps";
 import { PhotoPicker, VoicePicker, useVoices } from "@/components/Pickers";
 import type { PickedPhoto } from "@/lib/client/images";
 import { DEFAULT_NARRATOR_ID } from "@/lib/shared/personas";
 import { defaultSettings } from "@/lib/shared/options";
+import { gutenbergCover } from "@/lib/shared/gutenberg";
 import type { AppStatus, Book, Profile, StoryCard } from "@/lib/shared/types";
 import type { CataloguePage, Classic, TOPICS } from "@/lib/server/classics";
 import type { FavoriteClassic } from "@/lib/server/db";
 
 type Tab = "classics" | "own" | "words";
 type Topic = (typeof TOPICS)[number];
-
-/** The treasury by the age each book is pitched at ("Ages 4+"). */
-const AGES_BANDS = [
-  { id: "all", label: "All ages", fits: () => true },
-  { id: "little", label: "Little ones", fits: (min: number) => min <= 4 },
-  { id: "middle", label: "Ages 5–7", fits: (min: number) => min >= 5 && min <= 7 },
-  { id: "older", label: "8 and up", fits: (min: number) => min >= 8 },
-] as const;
 
 /** The whole library opens a couple of rows deep, and grows a few rows at a time. */
 const FIRST_ROWS = 2;
@@ -96,6 +88,7 @@ export function ReadToMe({
   preselectBook,
   preselectClassic,
   favoriteClassics,
+  librarySize,
 }: {
   classics: Classic[];
   topics: readonly Topic[];
@@ -106,6 +99,8 @@ export function ReadToMe({
   preselectBook: string | null;
   preselectClassic: number | null;
   favoriteClassics: FavoriteClassic[];
+  /** How many books the whole library holds (0 until it's first fetched). */
+  librarySize: number;
 }) {
   const api = useApi();
   const router = useRouter();
@@ -125,7 +120,6 @@ export function ReadToMe({
   // classics
   const [open, setOpen] = useState<{ gid: number; title: string; author: string | null; emoji: string; chapters: ChapterInfo[] } | null>(null);
   const [query, setQuery] = useState("");
-  const [ages, setAges] = useState<(typeof AGES_BANDS)[number]["id"]>("all");
   const [topic, setTopic] = useState<string>(topics[0]?.id ?? "loved");
   const [searched, setSearched] = useState<string | null>(null);
   const [catalogue, setCatalogue] = useState<(CataloguePage & { page: number }) | null>(null);
@@ -219,7 +213,7 @@ export function ReadToMe({
       else if (by.topic) params.set("topic", by.topic);
       const res = await api.get<CataloguePage>(`/api/classics?${params}`);
       if (seq !== browseSeq.current) return;
-      setCatalogue((cur) => ({ results: page > 1 && cur ? [...cur.results, ...res.results] : res.results, more: res.more, page }));
+      setCatalogue((cur) => ({ results: page > 1 && cur ? [...cur.results, ...res.results] : res.results, more: res.more, total: res.total, page }));
     } catch (err) {
       if (seq === browseSeq.current) setBrowseError(err instanceof Error ? err.message : "The library couldn't be reached.");
     } finally {
@@ -241,17 +235,9 @@ export function ReadToMe({
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [gridEl]);
-  const shown = catalogue ? catalogue.results.slice(0, rows * cols) : [];
-  const showMore = () => {
-    if (!catalogue) return;
-    const next = rows + MORE_ROWS;
-    setRows(next);
-    // Fetch the next page from the library before running out of books to show.
-    if (next * cols > catalogue.results.length && catalogue.more) void browse(searched ? { q: searched } : { topic }, catalogue.page + 1);
-  };
-
   const chooseTopic = (id: string) => {
     setTopic(id);
+    setRows(FIRST_ROWS);
     setSearched(null);
     setQuery("");
     if (id !== "favorites") void browse({ topic: id });
@@ -281,22 +267,39 @@ export function ReadToMe({
     apply(favorite);
     api.post("/api/favorites", { book, favorite }).catch(() => apply(!favorite));
   };
-  const pick = (c: Classic): FavoriteClassic => ({ gutenbergId: c.gutenbergId, title: c.title, author: c.author, cover: null, emoji: c.emoji });
+  const pick = (c: Classic): FavoriteClassic => ({
+    gutenbergId: c.gutenbergId,
+    title: c.title,
+    author: c.author,
+    cover: gutenbergCover(c.gutenbergId),
+    emoji: c.emoji,
+  });
 
-  // One set of choices for everything below: Storyhollow's picks follow the age, the kind and the search;
-  // the wider library follows the kind and the search (it isn't sorted by age).
+  // One search, one set of results: Storyhollow's own picks for this kind (or search) first, then the rest of the library.
   const kinds = [{ id: "favorites", label: "Favorites", emoji: "⭐" }, ...topics];
   const showingStarred = topic === "favorites" && !searched;
-  const fits = AGES_BANDS.find((b) => b.id === ages)!.fits;
-  const ageOf = (gid: number) => parseInt(classics.find((c) => c.gutenbergId === gid)?.ages ?? "", 10);
   const sought = searched?.toLowerCase();
-  const picks = classics.filter(
-    (c) =>
-      fits(parseInt(c.ages, 10) || 0) &&
-      (sought ? `${c.title} ${c.author}`.toLowerCase().includes(sought) : topic === "loved" || (c.kinds as string[]).includes(topic)),
+  const picks = classics.filter((c) =>
+    sought ? `${c.title} ${c.author}`.toLowerCase().includes(sought) : topic === "loved" || (c.kinds as string[]).includes(topic),
   );
-  // The family's stars: a treasury book follows the age; a library book has no age, so it always shows.
-  const starredShown = starredBooks.filter((b) => Number.isNaN(ageOf(b.gutenbergId)) || fits(ageOf(b.gutenbergId)));
+  const picked = new Set(picks.map((c) => c.gutenbergId));
+  const results: FavoriteClassic[] = showingStarred
+    ? starredBooks
+    : [
+        ...picks.map(pick),
+        ...(catalogue?.results ?? [])
+          .filter((hit) => !picked.has(hit.gutenbergId))
+          .map((hit) => ({ gutenbergId: hit.gutenbergId, title: hit.title, author: hit.author, cover: hit.cover, emoji: null })),
+      ];
+  const total = showingStarred ? starredBooks.length : Math.max(catalogue?.total ?? 0, results.length);
+  const shown = results.slice(0, rows * cols);
+  const canShowMore = shown.length < results.length || (!showingStarred && Boolean(catalogue?.more));
+  const showMore = () => {
+    const next = rows + MORE_ROWS;
+    setRows(next);
+    // Fetch the next page from the library before running out of books to show.
+    if (!showingStarred && catalogue?.more && next * cols > results.length) void browse(searched ? { q: searched } : { topic }, catalogue.page + 1);
+  };
   const topicLabel = kinds.find((t) => t.id === topic)?.label ?? "browsing";
   const tileFor = (book: FavoriteClassic, className?: string) => {
     const curated = classics.find((c) => c.gutenbergId === book.gutenbergId);
@@ -453,12 +456,16 @@ export function ReadToMe({
             <>
               <section className="find-panel stack" style={{ ["--gap" as string]: "14px" }} aria-label="Find a book">
                 <div>
+                  <p className="find-intro">
+                    📚 <b>{librarySize ? librarySize.toLocaleString() : "Tens of thousands of"} free books</b> from Project Gutenberg, the great
+                    free library of classics.
+                  </p>
                   <form className="find-search" onSubmit={search} role="search">
                     <input
                       className="input"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Title, author, subject"
+                      placeholder="Search by title, author or subject"
                       aria-label="Search by title, author or subject"
                       enterKeyHint="search"
                     />
@@ -466,10 +473,10 @@ export function ReadToMe({
                       🔍
                     </button>
                   </form>
-                  {!searched && <p className="find-hint">Try “Halloween”, “pirates” or “Easter”.</p>}
+                  <p className="find-hint">Try a title (“Peter Pan”), an author (“Beatrix Potter”) or a subject (“pirates”, “Halloween”, “dragons”).</p>
                 </div>
                 <div>
-                  <span className="find-label">Kind of story</span>
+                  <span className="find-label">Or browse a kind of story</span>
                   <div className="topic-chips">
                     {kinds.map((t) => (
                       <button key={t.id} type="button" className="dark-chip" aria-pressed={!searched && topic === t.id} onClick={() => chooseTopic(t.id)}>
@@ -478,92 +485,64 @@ export function ReadToMe({
                     ))}
                   </div>
                 </div>
-                <div>
-                  <span className="find-label">Age</span>
-                  <div className="topic-chips">
-                    {AGES_BANDS.map((b) => (
-                      <button key={b.id} type="button" className="dark-chip" aria-pressed={ages === b.id} onClick={() => setAges(b.id)}>
-                        {b.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {searched && (
-                  <p className="center muted" style={{ margin: 0 }}>
-                    Books matching “{searched}” ·{" "}
-                    <button type="button" className="btn btn-quiet btn-sm" onClick={clearSearch}>
-                      ✕ Back to {topicLabel}
-                    </button>
-                  </p>
-                )}
               </section>
 
-              {showingStarred ? (
-                starredShown.length > 0 ? (
-                  <div className="bookcase">
-                    <ScrollShelf label="Your favorites" count={starredShown.length}>
-                      {starredShown.map((b) => tileFor(b))}
-                    </ScrollShelf>
+              <section className="stack" style={{ ["--gap" as string]: "14px" }} aria-label="Books">
+                <div className="center">
+                  <h2 style={{ margin: 0 }}>{showingStarred ? "Your favorites" : searched ? `Books matching “${searched}”` : topicLabel}</h2>
+                  <p className="muted small" style={{ margin: "4px 0 0" }}>
+                    {showingStarred
+                      ? "The books anyone in the family has starred."
+                      : catalogue
+                        ? `${total.toLocaleString()} ${total === 1 ? "book" : "books"} · Storyhollow's picks first (with ages), then the rest of the library.`
+                        : "Storyhollow's picks first (with ages), then the rest of the library."}
+                    {searched && (
+                      <>
+                        {" "}
+                        <button type="button" className="btn btn-quiet btn-sm" onClick={clearSearch}>
+                          ✕ Clear search
+                        </button>
+                      </>
+                    )}
+                  </p>
+                </div>
+                {browseError && (
+                  <div className="notice notice-error center">
+                    <p style={{ margin: 0 }}>{browseError}</p>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      style={{ marginTop: 10 }}
+                      onClick={() => browse(searched ? { q: searched } : { topic }, (catalogue?.page ?? 0) + 1)}
+                    >
+                      Try again
+                    </button>
                   </div>
-                ) : (
+                )}
+                {results.length > 0 && (
+                  <div className="catalogue-grid" ref={setGridEl}>
+                    {shown.map((b) => tileFor(b, "catalogue-book"))}
+                  </div>
+                )}
+                {showingStarred && results.length === 0 && (
                   <p className="muted center">Tap the ☆ on any book to keep it here, for everyone in the family.</p>
-                )
-              ) : (
-                <>
-                  {picks.length > 0 && (
-                    <div className="bookcase">
-                      <ScrollShelf label="Storyhollow picks" count={picks.length}>
-                        {picks.map((c) => tileFor(pick(c)))}
-                      </ScrollShelf>
-                    </div>
-                  )}
-
-                  <section className="stack" style={{ ["--gap" as string]: "14px" }}>
-                    <div className="center">
-                      <h2 style={{ margin: 0 }}>{searched ? "From the whole library" : `${topicLabel} from the whole library`}</h2>
-                      <p className="muted small" style={{ margin: "4px 0 0" }}>
-                        Free books from Project Gutenberg, best-known classics first.
-                        {ages !== "all" ? " These aren't sorted by age, so do look at the covers." : ""}
-                      </p>
-                    </div>
-                    {browseError && (
-                      <div className="notice notice-error center">
-                        <p style={{ margin: 0 }}>{browseError}</p>
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          style={{ marginTop: 10 }}
-                          onClick={() => browse(searched ? { q: searched } : { topic }, (catalogue?.page ?? 0) + 1)}
-                        >
-                          Try again
-                        </button>
-                      </div>
-                    )}
-                    {catalogue && catalogue.results.length > 0 && (
-                      <div className="catalogue-grid" ref={setGridEl}>
-                        {shown.map((hit) =>
-                          tileFor({ gutenbergId: hit.gutenbergId, title: hit.title, author: hit.author, cover: hit.cover, emoji: null }, "catalogue-book"),
-                        )}
-                      </div>
-                    )}
-                    {catalogue && catalogue.results.length === 0 && !browsing && (
-                      <p className="muted center">Nothing found. Try another title, or another kind of story.</p>
-                    )}
-                    {browsing && (
-                      <p className="notice center">
-                        {catalogue ? "✨ Fetching more books…" : "✨ Opening the card catalogue… the first look can take a few seconds."}
-                      </p>
-                    )}
-                    {catalogue && (shown.length < catalogue.results.length || catalogue.more) && !browsing && (
-                      <div className="center">
-                        <button type="button" className="btn btn-ghost" onClick={showMore}>
-                          Show more books
-                        </button>
-                      </div>
-                    )}
-                  </section>
-                </>
-              )}
+                )}
+                {!showingStarred && catalogue && results.length === 0 && !browsing && (
+                  <p className="muted center">Nothing found. Try another title, an author, or another kind of story.</p>
+                )}
+                {browsing && (
+                  <p className="notice center">
+                    {catalogue ? "✨ Fetching more books…" : "✨ Opening the card catalogue… the first look can take a few seconds."}
+                  </p>
+                )}
+                {canShowMore && !browsing && (
+                  <div className="center">
+                    <button type="button" className="btn btn-ghost" onClick={showMore}>
+                      Show more books
+                    </button>
+                  </div>
+                )}
+              </section>
 
               <p className="faint small center">
                 Newer picture books aren't in any free library, so photograph your own copy instead (“A book we own”).

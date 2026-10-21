@@ -32,14 +32,13 @@ export function Cover({
   notes?: string | null;
   showTitle?: boolean;
 }) {
-  if (coverUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={coverUrl} alt="" loading="lazy" />;
-  }
+  // A cover photo lies over the leather one, which shows through if the photo can't be fetched.
   return (
     <div className="leather" style={{ ["--hue" as string]: hueFor(id) }}>
       <span className="leather-emoji">{emojiFor(kind, notes)}</span>
       {showTitle && <span className="leather-title">{title}</span>}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {coverUrl && <img className="cover-photo" src={coverUrl} alt="" loading="lazy" />}
     </div>
   );
 }

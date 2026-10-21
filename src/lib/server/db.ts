@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { config } from "./config";
 import { DEFAULT_SHELVES } from "@/lib/shared/options";
+import { gutenbergCover } from "@/lib/shared/gutenberg";
 import type {
   Book,
   BookKind,
@@ -357,6 +358,11 @@ export function deleteProfile(householdId: string, id: string) {
 
 // --------------------------------------------------------------------- books
 
+/** A book's own cover photo, or for a classic, its cover from Project Gutenberg. */
+function coverFor(coverPath: unknown, kind: unknown, sourceRef: unknown): string | null {
+  return fileUrl(coverPath as string | null) ?? (kind === "classic" && sourceRef ? gutenbergCover(sourceRef as string) : null);
+}
+
 function toBook(r: Row): Book {
   return {
     id: r.id as string,
@@ -364,7 +370,7 @@ function toBook(r: Row): Book {
     author: (r.author as string | null) ?? null,
     kind: r.kind as BookKind,
     shelf: r.shelf as string,
-    coverUrl: fileUrl(r.cover_path as string | null),
+    coverUrl: coverFor(r.cover_path, r.kind, r.source_ref),
     sourceRef: (r.source_ref as string | null) ?? null,
     notes: (r.notes as string | null) ?? null,
     pageCount: Number(r.page_count ?? 0),
@@ -592,7 +598,7 @@ export function getStoryAudioPath(id: string): string | null {
 
 const CARD_SELECT = `
   SELECT s.id, s.book_id, s.profile_id, s.mode, s.title, s.synopsis, s.status, s.duration, s.favorite,
-         s.play_count, s.last_played_at, s.created_at, b.title AS book_title, b.kind AS book_kind, b.cover_path,
+         s.play_count, s.last_played_at, s.created_at, b.title AS book_title, b.kind AS book_kind, b.cover_path, b.source_ref AS book_source_ref,
          (SELECT json_extract(c.value, '$.voiceId') FROM json_each(s.script, '$.cast') c
           WHERE json_extract(c.value, '$.id') = 'narrator') AS narrator_voice_id
   FROM stories s JOIN books b ON b.id = s.book_id`;
@@ -603,7 +609,7 @@ function toCard(r: Row): StoryCard {
     bookId: r.book_id as string,
     bookTitle: r.book_title as string,
     bookKind: r.book_kind as BookKind,
-    coverUrl: fileUrl(r.cover_path as string | null),
+    coverUrl: coverFor(r.cover_path, r.book_kind, r.book_source_ref),
     profileId: (r.profile_id as string | null) ?? null,
     mode: r.mode as StoryMode,
     title: r.title as string,
@@ -898,6 +904,11 @@ export function replaceCatalogue(rows: CatalogueRow[]) {
 export function catalogueLoadedAt(): number | null {
   const r = db().prepare("SELECT value FROM catalogue_meta WHERE key = 'loaded_at'").get() as { value: string } | undefined;
   return r ? Number(r.value) : null;
+}
+
+/** How many books the whole library holds (0 until it's first fetched). */
+export function catalogueSize(): number {
+  return Number((db().prepare("SELECT COUNT(*) AS n FROM catalogue_books").get() as { n: number }).n);
 }
 
 export function catalogueBook(id: number): Omit<CatalogueRow, "topics"> | undefined {

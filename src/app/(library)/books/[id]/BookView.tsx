@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Cover, StoryCardView } from "@/components/Books";
-import { BOOK_KINDS, DEFAULT_SHELVES, defaultSettings } from "@/lib/shared/options";
+import { BOOK_KINDS, DEFAULT_SHELVES, defaultSettings, formatDuration } from "@/lib/shared/options";
 import type { Book, BookPage, Profile, StoryCard, StorySettings } from "@/lib/shared/types";
 
 export function BookView({
@@ -38,6 +38,10 @@ export function BookView({
   const physical = book.kind === "shadow_book" || book.kind === "picture_book";
   const canCreate = book.kind !== "classic" && book.kind !== "own_text";
   const emojiOf = new Map(profiles.map((p) => [p.id, p.avatar]));
+  // A book in the library is usually opened to hear it again: whichever story was made or played last.
+  const lastTouched = (s: StoryCard) => Math.max(s.lastPlayedAt ?? 0, s.createdAt);
+  const toPlay = stories.filter((s) => s.status === "ready").sort((a, b) => lastTouched(b) - lastTouched(a))[0];
+  const makeClass = toPlay ? "btn btn-ghost" : "btn btn-lg";
 
   const quickStory = async () => {
     setBusy(true);
@@ -86,7 +90,7 @@ export function BookView({
         ‹ Back to the library
       </Link>
       <div className="book-header">
-        <div className="book" style={{ ["--w" as string]: "220px" }}>
+        <div className="book">
           <div className="book-cover">
             <Cover id={book.id} title={book.title} kind={book.kind} coverUrl={book.coverUrl} notes={book.notes} />
           </div>
@@ -129,9 +133,37 @@ export function BookView({
 
           {error && <p className="notice notice-error">{error}</p>}
 
+          {toPlay && (
+            <div className="stack" style={{ ["--gap" as string]: "6px" }}>
+              <div className="row">
+                <Link className="btn btn-lg" href={`/play/${toPlay.id}`}>
+                  ▶ Play {toPlay.title}
+                </Link>
+              </div>
+              <p className="faint small" style={{ margin: 0 }}>
+                {[toPlay.narrator ? `Read by ${toPlay.narrator.emoji} ${toPlay.narrator.name}` : null, formatDuration(toPlay.duration)]
+                  .filter(Boolean)
+                  .join(" · ")}
+                {stories.length > 1 && (
+                  <>
+                    {" · "}
+                    <a href="#stories" style={{ whiteSpace: "nowrap" }}>
+                      or pick another story
+                    </a>
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+
+          {toPlay && (canCreate || physical || book.kind === "classic") && (
+            <div className="find-label" style={{ marginTop: 8 }}>
+              Or make something new
+            </div>
+          )}
           <div className="row">
             {canCreate && (
-              <button className="btn btn-lg" onClick={quickStory} disabled={busy || !canMake}>
+              <button className={makeClass} onClick={quickStory} disabled={busy || !canMake}>
                 {busy ? "Summoning the storyteller…" : "✨ A new story tonight"}
               </button>
             )}
@@ -146,7 +178,7 @@ export function BookView({
               </Link>
             )}
             {book.kind === "classic" && (
-              <Link className="btn" href={`/read?classic=${book.sourceRef}`}>
+              <Link className={toPlay ? "btn btn-ghost" : "btn"} href={`/read?classic=${book.sourceRef}`}>
                 🎧 Read another chapter
               </Link>
             )}
@@ -165,21 +197,7 @@ export function BookView({
         </div>
       </div>
 
-      {pages.length > 0 && (
-        <section className="section">
-          <div className="section-head">
-            <h2>The pages</h2>
-          </div>
-          <div className="page-strip">
-            {pages.map((p) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={p.id} src={p.imageUrl} alt={`Page ${p.pageNumber}`} loading="lazy" />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="section">
+      <section className="section" id="stories">
         <div className="section-head">
           <h2>Stories for this book</h2>
         </div>
@@ -196,6 +214,20 @@ export function BookView({
           </p>
         )}
       </section>
+      {pages.length > 0 && (
+        <section className="section">
+          <div className="section-head">
+            <h2>The pages</h2>
+          </div>
+          <div className="page-strip">
+            {pages.map((p) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={p.id} src={p.imageUrl} alt={`Page ${p.pageNumber}`} loading="lazy" />
+            ))}
+          </div>
+        </section>
+      )}
+
     </>
   );
 }

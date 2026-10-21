@@ -1152,7 +1152,8 @@ textarea {
 
 .story-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* wide enough for a title, who reads it, and the edit and play buttons */
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
   gap: 14px;
 }
 .story-card {
@@ -2436,11 +2437,20 @@ body.lights-out-active {
 .book-header .book:hover {
   transform: none;
 }
+/* "or pick another story" lands on the list, not under the header. */
+#stories {
+  scroll-margin-top: calc(var(--safe-top) + 96px);
+}
 @media (max-width: 640px) {
   .book-header {
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
+    gap: 18px;
+  }
+  /* a smaller cover on phones, so Play is on screen without scrolling */
+  .book-header .book {
+    --w: 150px;
   }
   .book-header .row {
     justify-content: center;

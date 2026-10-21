@@ -370,17 +370,18 @@ button.back-link {
   .topbar .nav {
     display: none;
   }
+  /* Fixed to the bottom edge like an iPhone tab bar; the home bar's space is inside it, not a gap beneath. */
   .nav-dock {
     display: flex;
     position: fixed;
-    left: 10px;
-    right: 10px;
-    bottom: max(10px, var(--safe-bottom));
+    left: 0;
+    right: 0;
+    bottom: 0;
     justify-content: space-around;
-    padding: 6px;
-    border-radius: 22px;
-    background: rgba(26, 16, 10, 0.94);
-    border: 1px solid rgba(220, 174, 85, 0.28);
+    padding: 6px max(6px, var(--safe-right)) max(6px, var(--safe-bottom)) max(6px, var(--safe-left));
+    border-radius: 22px 22px 0 0;
+    background: rgba(26, 16, 10, 0.97);
+    border-top: 1px solid rgba(220, 174, 85, 0.28);
     box-shadow: var(--shadow-deep);
     z-index: 30;
   }

@@ -37,14 +37,11 @@ export default async function HallPage() {
   return (
     <main className="page">
       <SetupNotice status={appStatus()} />
-      <div className="hero">
-        <div className="eyebrow">Storyhollow</div>
+      <div className="hero hero-hall">
         <h1>
           <Greeting name={ctx.profile.name} />
         </h1>
-        <p className="muted" style={{ fontSize: "1.1rem" }}>
-          Where shall we go tonight?
-        </p>
+        <p className="muted hero-sub">Where shall we go tonight?</p>
       </div>
 
       <div className="doorways">
@@ -52,21 +49,21 @@ export default async function HallPage() {
           <QuillArt />
           <div className="doorway-text">
             <h2>Create a New Story</h2>
-            <p>From the pictures in a book, something you saw today, or just an idea.</p>
+            <p>From a book&apos;s pictures, something you saw, or just an idea.</p>
           </div>
         </Link>
         <Link href="/read" className="doorway">
           <ReadArt />
           <div className="doorway-text">
             <h2>Read to Me</h2>
-            <p>Choose a storyteller to read a favorite book aloud.</p>
+            <p>A storyteller reads a favorite book aloud.</p>
           </div>
         </Link>
         <Link href="/library" className="doorway">
           <ShelfArt />
           <div className="doorway-text">
             <h2>The Library</h2>
-            <p>Every book and story you've ever made, all on the shelves.</p>
+            <p>Every book and story you&apos;ve made, on the shelves.</p>
           </div>
         </Link>
       </div>

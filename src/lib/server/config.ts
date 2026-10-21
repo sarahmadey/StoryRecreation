@@ -56,6 +56,26 @@ export const config = {
     const region = process.env.BACKUP_REGION?.trim() || url.match(/s3[.-]([a-z0-9-]+)\.(?:backblazeb2|amazonaws)\.com/)?.[1] || "auto";
     return { endpoint: url, bucket, keyId, secret, region };
   },
+  /**
+   * Problem alerts by email, through Resend (resend.com). Without a domain of your own, Resend
+   * sends from onboarding@resend.dev, and only to the address the Resend account was made with.
+   */
+  get alerts(): { apiKey: string; to: string; from: string; apiBase: string } | null {
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    const to = process.env.ALERT_EMAIL?.trim();
+    if (!apiKey || !to) return null;
+    return {
+      apiKey,
+      to,
+      from: process.env.ALERT_FROM?.trim() || "Storyhollow <onboarding@resend.dev>",
+      apiBase: (process.env.RESEND_BASE_URL?.trim() || "https://api.resend.com").replace(/\/+$/, ""),
+    };
+  },
+  /** The app's own address, for links in emails (Railway names it in RAILWAY_PUBLIC_DOMAIN). */
+  get publicUrl(): string | null {
+    const url = process.env.PUBLIC_URL?.trim() || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : "");
+    return url ? url.replace(/\/+$/, "") : null;
+  },
   /** Each copy of the app (live, test) keeps its backups in its own folder of the bucket. */
   get backupFolder(): string {
     return (process.env.STORYHOLLOW_ENV || process.env.RAILWAY_ENVIRONMENT_NAME || "storyhollow").replace(/[^a-z0-9_-]/gi, "-");

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { AwsClient } from "aws4fetch";
 import { config, type BackupStorage } from "./config";
+import { alertBackupFailed } from "./alerts";
 import { closeUnfinishedBackups, finishBackupRun, lastGoodBackup, recentBackupRuns, snapshotDatabase, startBackupRun, type BackupRun } from "./db";
 
 // Automatic backups: every night, everything the family has made is copied to
@@ -170,6 +171,7 @@ async function backUp(): Promise<BackupResult> {
   } catch (err) {
     result.error = err instanceof BackupError ? err.message : `The backup stopped: ${err instanceof Error ? err.message : String(err)}`;
     console.error("Backup failed:", err);
+    void alertBackupFailed(result.error).catch(() => undefined);
     return result;
   } finally {
     finishBackupRun(runId, result);

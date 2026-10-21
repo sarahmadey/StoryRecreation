@@ -23,6 +23,7 @@ import { performAmbience, performLines, performSoundEffect, PerformerError } fro
 import { encodeMp3, floatToPcm16, mixStory, pcm16ToFloat, type Clip, type PlacedEffect } from "./audio";
 import { loadClassic } from "./classics";
 import { forgetVoiceCredits } from "./credits";
+import { alertStoryFailed, checkVoiceCreditLow } from "./alerts";
 import { sectionText, stripTags } from "./text";
 import { personaFor } from "@/lib/shared/personas";
 import type { ScriptLine, ScriptPage, SoundCue, StoryScript } from "@/lib/shared/types";
@@ -54,6 +55,7 @@ function launch(key: string, storyId: string, fn: () => Promise<(() => void) | v
           ? err.message
           : "Something went wrong. Please try again.";
       updateStory(storyId, { status: "error", error: friendly, progress: null });
+      void alertStoryFailed(storyId, friendly).catch(() => undefined);
     })
     .finally(() => {
       running.delete(storyId);
@@ -373,6 +375,7 @@ async function finishMix(
   const mp3 = encodeMp3(samples);
   await fs.promises.writeFile(path.join(dir, "story.mp3"), mp3);
   forgetVoiceCredits(); // the recording used some: the next look at the balance asks again
+  void checkVoiceCreditLow().catch(() => undefined);
   updateStory(storyId, {
     status: "ready",
     progress: null,

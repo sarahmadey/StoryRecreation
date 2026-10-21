@@ -155,10 +155,10 @@ humming placeholder voices.
 src/app/(library)/   hall, library, book, create wizard, studio, read-to-me, grown-ups
 src/app/play/        the player
 src/app/api/         auth, profiles, PIN, books, stories, voices, classics, files
-src/lib/server/      db (SQLite), auth, storyteller, performer, audio, jobs, classics, voices, offsite (backups)
+src/lib/server/      db (SQLite), auth, storyteller, performer, audio, jobs, classics, voices, offsite (backups), alerts, credits
 src/lib/shared/      types, options & presets, personas, chime synthesis
 scripts/             start (for Railway), restore-backup
-tests/               unit tests and API integration tests (fake Claude, ElevenLabs and S3 servers)
+tests/               unit tests and API integration tests (fake Claude, ElevenLabs, S3 and Resend servers)
 ```
 
 Storage is a single SQLite file plus photos and audio under `DATA_DIR` (default `./data`), using Node's
@@ -281,6 +281,28 @@ node scripts/restore-backup.mjs --from production /data    # e.g. fill the test 
 ```
 
 It won't write over an existing library unless you add `--force`.
+
+### Problem alerts
+
+The app can email you when something goes wrong that you'd otherwise find at bedtime: a story that didn't
+finish writing or recording (with ElevenLabs' or Claude's reason, and a link back to it), a nightly backup that
+failed, or voice credit under a tenth of the month's. It sends through [Resend](https://resend.com): make a free
+account with the address the alerts should go to, create a key with sending access, and set:
+
+| Variable | What it is |
+| --- | --- |
+| `RESEND_API_KEY` | The Resend key |
+| `ALERT_EMAIL` | Where alerts go (the address the Resend account was made with) |
+| `ALERT_FROM` | Optional; defaults to Resend's `onboarding@resend.dev`, which can only send to that address |
+| `PUBLIC_URL` | Optional; the app's address for links in emails (on Railway it's found by itself) |
+
+The same problem is sent once (a failed story at most once an hour, a failing backup once a day, low credit once
+a month), and never more than 20 emails an hour. The test copy's emails start with "🧪 Test copy". The Grown-ups'
+corner shows whether alerts are on, the last few sent, and a **Send a test email** button.
+
+**If the app itself is down** it can't send anything, so point a free uptime monitor (UptimeRobot, Better Stack)
+at `https://<your app>/api/health`, every 5 minutes. It answers `{"ok":true}` when the app is up and its library
+can be read, and `503` when not.
 
 ---
 

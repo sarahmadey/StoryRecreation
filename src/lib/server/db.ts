@@ -196,6 +196,18 @@ CREATE TABLE IF NOT EXISTS backup_runs (
   total_bytes INTEGER NOT NULL DEFAULT 0,
   error TEXT
 );
+
+-- Problem alerts emailed to the grown-ups, so the same problem isn't sent twice and the last few can be shown.
+CREATE TABLE IF NOT EXISTS alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  key TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  sent_at INTEGER NOT NULL,
+  ok INTEGER NOT NULL,
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS alerts_by_key ON alerts (kind, key, sent_at);
 `;
 
 type Row = Record<string, unknown>;
@@ -1075,4 +1087,40 @@ export function snapshotDatabase(toPath: string) {
   } finally {
     copy.close();
   }
+}
+
+// --------------------------------------------------------------------- problem alerts
+
+export interface AlertRecord {
+  kind: string;
+  subject: string;
+  sentAt: number;
+  ok: boolean;
+  error: string | null;
+}
+
+export function recordAlert(a: { kind: string; key: string; subject: string; ok: boolean; error?: string }) {
+  db()
+    .prepare("INSERT INTO alerts (kind, key, subject, sent_at, ok, error) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(a.kind, a.key, a.subject, Date.now(), a.ok ? 1 : 0, a.error ?? null);
+}
+
+/** When this alert was last sent (successfully), if ever. */
+export function lastAlertSent(kind: string, key: string): number | null {
+  const r = db().prepare("SELECT MAX(sent_at) AS at FROM alerts WHERE kind = ? AND key = ? AND ok = 1").get(kind, key) as { at: number | null };
+  return r.at ?? null;
+}
+
+export function alertsSentSince(since: number): number {
+  return Number((db().prepare("SELECT COUNT(*) AS n FROM alerts WHERE sent_at > ?").get(since) as { n: number }).n);
+}
+
+export function recentAlerts(limit = 5): AlertRecord[] {
+  return (db().prepare("SELECT kind, subject, sent_at, ok, error FROM alerts ORDER BY id DESC LIMIT ?").all(limit) as Row[]).map((r) => ({
+    kind: r.kind as string,
+    subject: r.subject as string,
+    sentAt: Number(r.sent_at),
+    ok: Boolean(r.ok),
+    error: (r.error as string | null) ?? null,
+  }));
 }

@@ -7,9 +7,11 @@ import { Avatar, ReaderEditor } from "@/components/Readers";
 import { VoiceDesigner } from "@/components/VoiceDesigner";
 import { FamilyVoices } from "@/components/FamilyVoices";
 import { BackupsPanel } from "@/components/BackupsPanel";
+import { AlertsPanel } from "@/components/AlertsPanel";
 import { CreditMeter } from "@/components/Credits";
 import type { AppStatus, FamilyVoice, Keepsake, Profile } from "@/lib/shared/types";
 import type { BackupStatus } from "@/lib/server/offsite";
+import type { AlertsStatus } from "@/lib/server/alerts";
 
 export function GrownupsView({
   familyName,
@@ -22,6 +24,7 @@ export function GrownupsView({
   familyVoices,
   backup,
   backups,
+  alerts,
   status,
 }: {
   familyName: string;
@@ -34,6 +37,7 @@ export function GrownupsView({
   familyVoices: FamilyVoice[];
   backup: { stories: number; recordings: number; photos: number; bytes: number } | null;
   backups: BackupStatus | null;
+  alerts: AlertsStatus | null;
   status: AppStatus;
 }) {
   const api = useApi();
@@ -231,6 +235,8 @@ export function GrownupsView({
       </section>
 
       {backups && <BackupsPanel initial={backups} />}
+
+      {alerts && <AlertsPanel initial={alerts} />}
 
       {backup && (
         <section className="parchment stack">

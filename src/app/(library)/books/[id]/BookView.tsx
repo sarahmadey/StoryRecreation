@@ -40,7 +40,7 @@ export function BookView({
   const emojiOf = new Map(profiles.map((p) => [p.id, p.avatar]));
   // A book in the library is usually opened to hear it again, so its stories come first and making a new one second.
   const hasStories = stories.length > 0;
-  const makeClass = hasStories ? "btn btn-ghost" : "btn btn-lg";
+  const canAdd = canCreate || (physical && pages.length > 0) || book.kind === "classic";
 
   const quickStory = async () => {
     setBusy(true);
@@ -140,38 +140,51 @@ export function BookView({
             </div>
           )}
 
-          {hasStories && (canCreate || physical || book.kind === "classic") && (
-            <div className="find-label" style={{ marginTop: 8 }}>
-              Or make something new
+          {canAdd && (
+            <div>
+              <div className="find-label">{hasStories ? "Add another story to this book" : "Make a story for this book"}</div>
+              <div className="make-cards">
+                {canCreate && (
+                  <button type="button" className="make-card" onClick={quickStory} disabled={busy || !canMake}>
+                    <span className="make-card-emoji">✨</span>
+                    <span>
+                      <b>{busy ? "Summoning the storyteller…" : "Quick new story"}</b>
+                      <span className="small">
+                        One tap: a brand-new story {book.kind === "idea" ? "on the same idea" : "for these pictures"}
+                        {lastCreate ? ", with the same voices and length as last time" : ""}.
+                      </span>
+                    </span>
+                  </button>
+                )}
+                {canCreate && (
+                  <Link className="make-card" href={`/create?book=${book.id}`}>
+                    <span className="make-card-emoji">🎨</span>
+                    <span>
+                      <b>Choose the details</b>
+                      <span className="small">Pick how long it is, what kind of story, who&apos;s in it, and who reads it.</span>
+                    </span>
+                  </Link>
+                )}
+                {physical && pages.length > 0 && (
+                  <Link className="make-card" href={`/read?book=${book.id}`}>
+                    <span className="make-card-emoji">🎧</span>
+                    <span>
+                      <b>Read the book&apos;s own words</b>
+                      <span className="small">The words printed on your pages, read aloud just as they are.</span>
+                    </span>
+                  </Link>
+                )}
+                {book.kind === "classic" && (
+                  <Link className="make-card" href={`/read?classic=${book.sourceRef}`}>
+                    <span className="make-card-emoji">📜</span>
+                    <span>
+                      <b>Read another chapter</b>
+                      <span className="small">Choose the next chapter of this book to hear.</span>
+                    </span>
+                  </Link>
+                )}
+              </div>
             </div>
-          )}
-          <div className="row">
-            {canCreate && (
-              <button className={makeClass} onClick={quickStory} disabled={busy || !canMake}>
-                {busy ? "Summoning the storyteller…" : "✨ A new story tonight"}
-              </button>
-            )}
-            {canCreate && (
-              <Link className="btn btn-ghost" href={`/create?book=${book.id}`}>
-                Make one my way
-              </Link>
-            )}
-            {physical && pages.length > 0 && (
-              <Link className="btn btn-ghost" href={`/read?book=${book.id}`}>
-                🎧 Read the real words to me
-              </Link>
-            )}
-            {book.kind === "classic" && (
-              <Link className={hasStories ? "btn btn-ghost" : "btn"} href={`/read?classic=${book.sourceRef}`}>
-                🎧 Read another chapter
-              </Link>
-            )}
-          </div>
-          {canCreate && (
-            <p className="faint small" style={{ marginTop: 6 }}>
-              “A new story tonight” writes and records a brand-new tale for these pictures, different from every story
-              before it{lastCreate ? ", using the same voices and length as last time" : ""}.
-            </p>
           )}
           {!editing && (
             <button className="btn btn-quiet btn-sm" onClick={() => setEditing(true)} style={{ alignSelf: "flex-start" }}>

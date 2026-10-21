@@ -2455,6 +2455,55 @@ body.lights-out-active {
 .book-stories .story-list {
   text-align: left;
 }
+/* Ways to add another story to a book: a dashed card each, saying what it does. */
+.make-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  gap: 12px;
+  text-align: left;
+}
+.make-card {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px dashed rgba(220, 174, 85, 0.45);
+  background: rgba(42, 27, 17, 0.45);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s, background 0.2s;
+}
+.make-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(220, 174, 85, 0.75);
+  background: rgba(52, 34, 21, 0.7);
+}
+.make-card:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}
+.make-card-emoji {
+  flex: none;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+.make-card b {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  font-weight: normal;
+  color: var(--gold-1);
+}
+.make-card .small {
+  display: block;
+  color: var(--text-faint);
+  line-height: 1.4;
+}
 @media (max-width: 640px) {
   .book-header {
     grid-template-columns: 1fr;

@@ -1035,10 +1035,14 @@ export function upNext(householdId: string, story: Story): UpNext {
 }
 
 /** Stories the family made (not read-alouds), with how each was made, newest first: for "make one like…". */
-export function madeStories(householdId: string, limit = 40, include?: string): { id: string; title: string; bookTitle: string; settings: StorySettings; createdAt: number }[] {
+export function madeStories(
+  householdId: string,
+  limit = 40,
+  include?: string,
+): { id: string; title: string; bookId: string; bookTitle: string; bookKind: BookKind; settings: StorySettings; createdAt: number }[] {
   const rows = db()
     .prepare(
-      `SELECT s.id, s.title, s.settings, s.created_at, b.title AS book_title FROM stories s JOIN books b ON b.id = s.book_id
+      `SELECT s.id, s.title, s.settings, s.created_at, s.book_id, b.title AS book_title, b.kind AS book_kind FROM stories s JOIN books b ON b.id = s.book_id
         WHERE s.household_id = ? AND s.mode = 'create' AND s.status != 'error' AND (s.id = ? OR s.id IN
           (SELECT id FROM stories WHERE household_id = ? AND mode = 'create' AND status != 'error' ORDER BY created_at DESC LIMIT ?))
         ORDER BY s.created_at DESC`,
@@ -1047,7 +1051,9 @@ export function madeStories(householdId: string, limit = 40, include?: string): 
   return rows.map((r) => ({
     id: r.id as string,
     title: r.title as string,
+    bookId: r.book_id as string,
     bookTitle: r.book_title as string,
+    bookKind: r.book_kind as BookKind,
     settings: json<StorySettings>(r.settings)!,
     createdAt: r.created_at as number,
   }));

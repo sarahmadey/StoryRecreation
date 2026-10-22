@@ -2981,6 +2981,9 @@ code {
   border: 1px dashed rgba(107, 63, 21, 0.35);
   background: rgba(255, 252, 242, 0.45);
 }
+.like-search {
+  flex-basis: 100%;
+}
 .like-list {
   flex-basis: 100%;
   max-height: 320px;

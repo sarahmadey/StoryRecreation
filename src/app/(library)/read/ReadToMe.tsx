@@ -16,6 +16,7 @@ import type { AppStatus, Book } from "@/lib/shared/types";
 import type { CataloguePage, Classic, Refinement, TOPICS } from "@/lib/server/classics";
 import type { FavoriteClassic } from "@/lib/server/db";
 import { Plaque } from "@/components/Plaque";
+import { BookPicker } from "@/components/BookPicker";
 
 type Tab = "classics" | "own" | "words";
 type Topic = (typeof TOPICS)[number];
@@ -144,7 +145,7 @@ export function ReadToMe({
   const openRef = useRef<HTMLDivElement>(null);
 
   // own book
-  const [bookId, setBookId] = useState<string>(preselectBook ?? ownBooks[0]?.id ?? "");
+  const [bookId, setBookId] = useState<string>(preselectBook ?? "");
   const [checkFirst, setCheckFirst] = useState(false);
 
   // own words
@@ -747,23 +748,7 @@ export function ReadToMe({
                 Choose a book you&apos;ve photographed, and your storyteller will read its real words aloud, with a chime to turn
                 each page. (For your family&apos;s own listening.)
               </p>
-              <div className="choices" style={{ ["--min" as string]: "120px" }}>
-                {ownBooks.map((b) => (
-                  <button key={b.id} type="button" className="choice" aria-pressed={bookId === b.id} onClick={() => setBookId(b.id)} style={{ padding: 10 }}>
-                    <div className="story-thumb" style={{ width: 66, height: 88 }}>
-                      <Cover id={b.id} title={b.title} kind={b.kind} coverUrl={b.coverUrl} showTitle={false} />
-                    </div>
-                    <span className="choice-title" style={{ fontSize: "1rem" }}>
-                      {b.title}
-                    </span>
-                  </button>
-                ))}
-                <Link className="choice" href="/books/new?then=read">
-                  <span className="choice-emoji">＋</span>
-                  <span className="choice-title">Add a book</span>
-                  <span className="choice-sub">Photograph its pages</span>
-                </Link>
-              </div>
+              <BookPicker books={ownBooks} value={bookId} onChange={setBookId} addHref="/books/new?then=read" />
               <label className="toggle">
                 <input type="checkbox" checked={checkFirst} onChange={(e) => setCheckFirst(e.target.checked)} />
                 <span>

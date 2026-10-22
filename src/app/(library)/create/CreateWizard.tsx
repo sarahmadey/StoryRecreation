@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { ChimePicker, PhotoPicker, SoundsPicker, VoicePicker, soundsOf, useVoices } from "@/components/Pickers";
-import { Cover } from "@/components/Books";
+import { BookPicker } from "@/components/BookPicker";
 import { Steps, toTop } from "@/components/Steps";
 import { CreditNote } from "@/components/Credits";
 import type { PickedPhoto } from "@/lib/client/images";
@@ -18,6 +17,7 @@ type Source = "book" | "wild" | "idea";
 interface PastStory {
   id: string;
   title: string;
+  bookId: string;
   bookTitle: string;
   settings: StorySettings;
   createdAt: number;
@@ -74,7 +74,8 @@ export function CreateWizard({
     : liked0
       ? madeLike(liked0).source
       : "book";
-  const [step, setStep] = useState(preselect ? 1 : 0);
+  // A book already chosen goes straight to the details, unless it came with a story to make one like.
+  const [step, setStep] = useState(preselect && !like ? 1 : 0);
   const goTo = (next: number) => {
     setStep(next);
     toTop();
@@ -93,10 +94,13 @@ export function CreateWizard({
       chime: preselectSettings?.chime ?? { enabled: src === "book", style: "bell", gapSeconds: 3 },
       review: true,
     });
+  const physicalBooks = books.filter((b) => (b.kind === "shadow_book" || b.kind === "picture_book") && b.pageCount > 0);
+  const chosenBook = bookId ? books.find((b) => b.id === bookId) : undefined;
   const [settings, setSettings] = useState<StorySettings>(() => (liked0 ? madeLike(liked0).settings : fresh(initialSource)));
   // "Make one like…": which story it's like (if any), and whether the list to choose from is open.
   const [likedId, setLikedId] = useState<string | null>(liked0?.id ?? null);
   const [choosing, setChoosing] = useState(false);
+  const [likeQuery, setLikeQuery] = useState("");
   const liked = likedId ? past.find((s) => s.id === likedId) : undefined;
   const makeLike = (story: PastStory) => {
     const l = madeLike(story);
@@ -104,12 +108,20 @@ export function CreateWizard({
     setSettings(l.settings);
     setLikedId(story.id);
     setChoosing(false);
+    setLikeQuery("");
+    // A book story with no book chosen yet is made for that story's book; a book already chosen stays chosen.
+    if (l.source === "book" && !physicalBooks.some((b) => b.id === bookId) && physicalBooks.some((b) => b.id === story.bookId)) setBookId(story.bookId);
   };
   const startFresh = () => {
     setLikedId(null);
     setChoosing(false);
     setSettings(fresh(source));
   };
+  // The story to suggest: the last one made for the chosen book, else the last book story, else the last of any kind.
+  const forChosen = source === "book" && chosenBook ? past.find((s) => s.bookId === chosenBook.id) : undefined;
+  const suggestion = forChosen ?? (source === "book" ? past.find((s) => s.settings.source === "book") : undefined) ?? past[0];
+  const lq = likeQuery.trim().toLowerCase();
+  const likeOptions = lq ? past.filter((s) => s.title.toLowerCase().includes(lq) || s.bookTitle.toLowerCase().includes(lq)) : past;
   const howItWasMade = (s: PastStory) =>
     [s.narrator ? `${s.narrator.emoji} ${s.narrator.name}` : null, LENGTHS[s.settings.length].label, s.settings.heroes.join(" & ") || null]
       .filter(Boolean)
@@ -120,8 +132,6 @@ export function CreateWizard({
 
   const set = <K extends keyof StorySettings>(k: K, v: StorySettings[K]) => setSettings((s) => ({ ...s, [k]: v }));
 
-  const physicalBooks = books.filter((b) => (b.kind === "shadow_book" || b.kind === "picture_book") && b.pageCount > 0);
-  const chosenBook = bookId ? books.find((b) => b.id === bookId) : undefined;
   const pageCount =
     source === "book"
       ? chosenBook?.pageCount ?? 0
@@ -211,33 +221,15 @@ export function CreateWizard({
               <div className="stack">
                 <div>
                   <span className="label">Which book?</span>
-                  <div className="choices" style={{ ["--min" as string]: "120px" }}>
-                    {physicalBooks.map((b) => (
-                      <button
-                        key={b.id}
-                        type="button"
-                        className="choice"
-                        aria-pressed={bookId === b.id}
-                        onClick={() => setBookId(b.id)}
-                        style={{ padding: 10 }}
-                      >
-                        <div className="story-thumb" style={{ width: 66, height: 88 }}>
-                          <Cover id={b.id} title={b.title} kind={b.kind} coverUrl={b.coverUrl} showTitle={false} />
-                        </div>
-                        <span className="choice-title" style={{ fontSize: "1rem" }}>
-                          {b.title}
-                        </span>
-                        <span className="choice-sub">
-                          {b.pageCount} {b.pageCount === 1 ? "page" : "pages"} · {b.storyCount} {b.storyCount === 1 ? "story" : "stories"}
-                        </span>
-                      </button>
-                    ))}
-                    <Link className="choice" href="/books/new?then=create">
-                      <span className="choice-emoji">＋</span>
-                      <span className="choice-title">Add a book</span>
-                      <span className="choice-sub">Photograph its pages</span>
-                    </Link>
-                  </div>
+                  <BookPicker
+                    books={physicalBooks}
+                    value={bookId}
+                    onChange={setBookId}
+                    addHref="/books/new?then=create"
+                    detail={(b) =>
+                      `${b.pageCount} ${b.pageCount === 1 ? "page" : "pages"} · ${b.storyCount} ${b.storyCount === 1 ? "story" : "stories"}`
+                    }
+                  />
                 </div>
               </div>
             )}
@@ -287,7 +279,15 @@ export function CreateWizard({
                 {liked ? (
                   <>
                     <div>
-                      ✨ <b>Like &ldquo;{liked.title}&rdquo;</b>
+                      {source === "book" && chosenBook && chosenBook.id !== liked.bookId ? (
+                        <>
+                          ✨ <b>A new &ldquo;{chosenBook.title}&rdquo; story</b>, like &ldquo;{liked.title}&rdquo;
+                        </>
+                      ) : (
+                        <>
+                          ✨ <b>Like &ldquo;{liked.title}&rdquo;</b>
+                        </>
+                      )}
                       <div className="small muted">{howItWasMade(liked)}</div>
                     </div>
                     <div className="row">
@@ -302,11 +302,19 @@ export function CreateWizard({
                 ) : (
                   <>
                     <div>
-                      ✨ Or make one like <b>&ldquo;{past[0].title}&rdquo;</b>?
-                      <div className="small muted">{howItWasMade(past[0])}</div>
+                      {forChosen && chosenBook ? (
+                        <>
+                          ✨ Or make it like the last &ldquo;{chosenBook.title}&rdquo; story, <b>&ldquo;{suggestion.title}&rdquo;</b>?
+                        </>
+                      ) : (
+                        <>
+                          ✨ Or make {source === "book" && chosenBook ? "it" : "one"} like <b>&ldquo;{suggestion.title}&rdquo;</b>?
+                        </>
+                      )}
+                      <div className="small muted">{howItWasMade(suggestion)}</div>
                     </div>
                     <div className="row">
-                      <button type="button" className="btn btn-sm" onClick={() => makeLike(past[0])}>
+                      <button type="button" className="btn btn-sm" onClick={() => makeLike(suggestion)}>
                         Yes, like that one
                       </button>
                       {past.length > 1 && (
@@ -317,9 +325,20 @@ export function CreateWizard({
                     </div>
                   </>
                 )}
+                {choosing && past.length > 8 && (
+                  <input
+                    className="input like-search"
+                    type="search"
+                    value={likeQuery}
+                    onChange={(e) => setLikeQuery(e.target.value)}
+                    placeholder={`🔍 Find one of your ${past.length} stories`}
+                    aria-label="Find a story"
+                  />
+                )}
                 {choosing && (
                   <div className="like-list" role="radiogroup" aria-label="Make one like">
-                    {past.map((s) => (
+                    {lq && likeOptions.length === 0 && <p className="small muted" style={{ margin: 0 }}>No story or book by that name.</p>}
+                    {likeOptions.map((s) => (
                       <button key={s.id} type="button" role="radio" aria-checked={s.id === likedId} className="like-option" onClick={() => makeLike(s)}>
                         <b>{s.title}</b>
                         <span className="small muted">

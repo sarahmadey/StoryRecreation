@@ -11,14 +11,18 @@ export default async function CreatePage(props: PageProps<"/create">) {
   const ctx = await pageCtx();
   const sp = await props.searchParams;
   const books = listBooks(ctx.household.id).filter((b) => ["shadow_book", "picture_book", "wild", "idea"].includes(b.kind));
-  const preselect = typeof sp.book === "string" ? books.find((b) => b.id === sp.book) : undefined;
+  const chosenBook = typeof sp.book === "string" ? books.find((b) => b.id === sp.book) : undefined;
   // "Make one like…": the stories the family has made, each with who read it (and the one asked for, however old).
   const like = typeof sp.like === "string" ? sp.like : null;
   const labels = await voiceLabels(ctx.household.id);
-  const past = madeStories(ctx.household.id, 40, like ?? undefined).map((s) => ({
+  const past = madeStories(ctx.household.id, 200, like ?? undefined).map((s) => ({
     ...s,
     narrator: s.settings.narratorVoiceId ? (labels.get(s.settings.narratorVoiceId) ?? null) : null,
   }));
+  // From "Make another like this" on a story's page: that story's book is chosen too, when it's a book the family owns.
+  const liked = past.find((s) => s.id === like);
+  const preselect =
+    chosenBook ?? (liked && (liked.bookKind === "shadow_book" || liked.bookKind === "picture_book") ? books.find((b) => b.id === liked.bookId) : undefined);
   return (
     <main className="page page-narrow">
       <SetupNotice status={appStatus()} />
@@ -27,7 +31,7 @@ export default async function CreatePage(props: PageProps<"/create">) {
         profiles={listProfiles(ctx.household.id)}
         currentProfile={ctx.profile}
         preselect={preselect ?? null}
-        preselectSettings={preselect ? lastSettingsForBook(preselect.id, "create") : null}
+        preselectSettings={chosenBook ? lastSettingsForBook(chosenBook.id, "create") : null}
         past={past}
         like={past.some((s) => s.id === like) ? like : null}
       />

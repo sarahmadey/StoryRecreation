@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ScrollShelf } from "./Shelf";
 import { BOOK_KINDS, formatDuration } from "@/lib/shared/options";
 import type { Book, BookKind, StoryCard } from "@/lib/shared/types";
 
@@ -56,14 +55,6 @@ export function BookOnShelf({ book }: { book: Book }) {
       </div>
       <div className="book-title">{book.title}</div>
     </Link>
-  );
-}
-
-export function Shelf({ label, books, empty }: { label: string; books: Book[]; empty?: React.ReactNode }) {
-  return (
-    <ScrollShelf label={label} count={books.length}>
-      {books.length ? books.map((b) => <BookOnShelf key={b.id} book={b} />) : <div className="shelf-empty">{empty}</div>}
-    </ScrollShelf>
   );
 }
 

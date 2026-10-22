@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Shelf, StoryCardView } from "@/components/Books";
-import { TieredShelf } from "@/components/TieredShelf";
+import { StoryCardView } from "@/components/Books";
+import { Bookcase, EmptyBookcase } from "@/components/Bookcase";
 import { SHELF_ORDER } from "@/lib/shared/options";
 import type { Book, Profile, StoryCard } from "@/lib/shared/types";
 
@@ -91,21 +91,15 @@ export function LibraryView({
 
   const emojiOf = new Map(profiles.map((p) => [p.id, p.avatar]));
   const nothing = (
-    <div className="bookcase">
-      <Shelf
-        label={books.length ? "Nothing matches" : "Your first shelf"}
-        books={[]}
-        empty={
-          books.length ? (
-            "Nothing matches. Try another filter."
-          ) : (
-            <>
-              The shelves are empty, for now. <Link href="/create">Photograph a book</Link> to begin.
-            </>
-          )
-        }
-      />
-    </div>
+    <EmptyBookcase label={books.length ? "Nothing matches" : "Your first shelf"}>
+      {books.length ? (
+        "Try another filter, or clear the search."
+      ) : (
+        <>
+          The shelves are empty, for now. <Link href="/create">Photograph a book</Link> to begin.
+        </>
+      )}
+    </EmptyBookcase>
   );
 
   return (
@@ -201,15 +195,9 @@ export function LibraryView({
         (shownBooks.length === 0 ? (
           nothing
         ) : order === "kind" ? (
-          <div className="bookcase">
-            {shelves.map(([name, list]) => (
-              <Shelf key={name} label={name} books={list} />
-            ))}
-          </div>
+          <Bookcase label="Books by kind" groups={shelves.map(([name, list]) => ({ label: name, books: list }))} />
         ) : (
-          <div className="bookcase">
-            <TieredShelf label={order === "az" ? "A to Z" : "Newest first"} books={shownBooks} />
-          </div>
+          <Bookcase label={order === "az" ? "Books from A to Z" : "Newest books first"} groups={[{ label: null, books: shownBooks }]} />
         ))}
 
       {view === "stories" &&

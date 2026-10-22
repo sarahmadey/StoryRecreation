@@ -31,25 +31,3 @@ export function SideArrows({ ends, slide, what }: { ends: { start: boolean; end:
     </span>
   );
 }
-
-/** A bookshelf: a brass label, books you swipe along (with arrows when there are more), and a plank. */
-export function ScrollShelf({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
-  const { ref, ends, measure, slide, overflows } = useSideScroll<HTMLDivElement>(count);
-  return (
-    <section className="shelf" aria-label={label}>
-      <div className="shelf-head">
-        <span className="shelf-label">{label}</span>
-        {overflows && (
-          <span className="shelf-more">
-            <span className="small">{count} books</span>
-            <SideArrows ends={ends} slide={slide} what="books" />
-          </span>
-        )}
-      </div>
-      <div className="shelf-books" ref={ref} onScroll={measure}>
-        {children}
-      </div>
-      <div className="shelf-plank" />
-    </section>
-  );
-}

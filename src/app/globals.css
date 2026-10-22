@@ -2665,3 +2665,20 @@ code {
     display: none;
   }
 }
+
+/* Read to Me: the book that's been chosen, above the storytellers who could read it. */
+.chosen-book {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.chosen-book .story-thumb {
+  background: rgba(107, 63, 21, 0.18);
+}
+.chosen-emoji {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 1.8rem;
+}

@@ -90,11 +90,14 @@ export function ReadToMe({
   preselectClassic,
   favoriteClassics,
   librarySize,
+  lastReaders,
 }: {
   classics: Classic[];
   topics: readonly Topic[];
   ownBooks: Book[];
   readAlouds: StoryCard[];
+  /** The storyteller who last read each book ("classic:<id>" or "book:<id>"). */
+  lastReaders: Record<string, string>;
   profiles: Profile[];
   status: AppStatus;
   preselectBook: string | null;
@@ -110,8 +113,9 @@ export function ReadToMe({
   const [reader, setReader] = useState<string>(DEFAULT_NARRATOR_ID);
   const [fullCast, setFullCast] = useState(false);
   const [tab, setTab] = useState<Tab>(preselectBook ? "own" : "classics");
-  // First the storyteller, then the book. Arriving from a book's page, the book is already chosen.
-  const [step, setStep] = useState(preselectBook || preselectClassic ? 1 : 0);
+  // First the book, then who reads it. Arriving from one of the family's books, it's already chosen.
+  const startsChosen = Boolean(preselectBook && ownBooks.some((b) => b.id === preselectBook));
+  const [step, setStep] = useState(startsChosen ? 1 : 0);
   const goTo = (next: number) => {
     setStep(next);
     toTop();
@@ -121,6 +125,7 @@ export function ReadToMe({
 
   // classics
   const [open, setOpen] = useState<{ gid: number; title: string; author: string | null; emoji: string; chapters: ChapterInfo[] } | null>(null);
+  const [chapter, setChapter] = useState<ChapterInfo | null>(null);
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState<string>(topics[0]?.id ?? "loved");
   const [searched, setSearched] = useState<string | null>(null);
@@ -150,14 +155,33 @@ export function ReadToMe({
   const storytellerReady = status.storyteller || status.demoMode;
   const emojiOf = new Map(profiles.map((p) => [p.id, p.avatar]));
 
-  useEffect(() => {
+  const savedReader = () => {
     try {
-      const saved = localStorage.getItem("storyhollow:reader");
-      if (saved) setReader(saved);
+      return localStorage.getItem("storyhollow:reader") || DEFAULT_NARRATOR_ID;
     } catch {
-      // ignore
+      return DEFAULT_NARRATOR_ID;
     }
+  };
+  // The book chosen so far, and who read it last time.
+  const bookKey = tab === "classics" ? (open ? `classic:${open.gid}` : null) : tab === "own" && bookId !== "new" ? `book:${bookId}` : null;
+  const usual = bookKey ? lastReaders[bookKey] : undefined;
+  // Once per book: whoever read it last (so a story keeps its voice from chapter to chapter), or the family's usual choice.
+  const pickedFor = useRef<string | null>(null);
+  const pickReader = () => {
+    const key = bookKey ?? tab;
+    if (pickedFor.current === key) return;
+    pickedFor.current = key;
+    setReader(usual ?? savedReader());
+  };
+  useEffect(() => {
+    if (startsChosen) pickReader();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const toStoryteller = () => {
+    pickReader();
+    setError(null);
+    goTo(1);
+  };
   const readerVoice = voices?.find((v) => v.voiceId === reader);
   const readerName = readerVoice
     ? `${readerVoice.persona?.emoji ?? (readerVoice.source === "family" ? "💛" : readerVoice.source === "designed" ? "🪄" : "🗣️")} ${readerVoice.persona?.name ?? readerVoice.name}`
@@ -352,8 +376,8 @@ export function ReadToMe({
       review: source === "book_read" ? checkFirst : false,
     });
 
-  const readChapter = async (chapter: ChapterInfo) => {
-    if (!open) return;
+  const readChapter = async () => {
+    if (!open || !chapter) return;
     setBusy("Opening the book…");
     setError(null);
     try {
@@ -411,22 +435,90 @@ export function ReadToMe({
   };
 
   const minutes = (w: number) => Math.max(1, Math.round(w / 150));
+  const wordCount = (t: string) => t.trim().split(/\s+/).filter(Boolean).length;
+
+  // What's been chosen to read, shown above the storytellers.
+  const ownBook = ownBooks.find((b) => b.id === bookId);
+  const chosen =
+    tab === "classics"
+      ? open && chapter
+        ? {
+            thumb: <Cover id={String(open.gid)} title={open.title} kind="classic" coverUrl={gutenbergCover(open.gid)} notes={open.emoji} showTitle={false} />,
+            title: open.title,
+            sub: open.chapters.length > 1 ? chapter.title : open.author,
+            about: `About ${minutes(chapter.words)} min`,
+            credits: chapter.characters,
+          }
+        : null
+      : tab === "own"
+        ? ownBook
+          ? {
+              thumb: <Cover id={ownBook.id} title={ownBook.title} kind={ownBook.kind} coverUrl={ownBook.coverUrl} showTitle={false} />,
+              title: ownBook.title,
+              sub: `${ownBook.pageCount} ${ownBook.pageCount === 1 ? "page" : "pages"}, with page-turn chimes`,
+              about: null,
+              credits: null,
+            }
+          : photos.length > 0
+            ? {
+                thumb: <span className="chosen-emoji">📷</span>,
+                title: newTitle.trim() || "Our Book",
+                sub: `${photos.length} photographed ${photos.length === 1 ? "page" : "pages"}, with page-turn chimes`,
+                about: null,
+                credits: null,
+              }
+            : null
+        : words.trim().length >= 10
+          ? {
+              thumb: <span className="chosen-emoji">✉️</span>,
+              title: wordsTitle.trim() || "Our Words",
+              sub: null,
+              about: `About ${minutes(wordCount(words))} min`,
+              credits: words.trim().length,
+            }
+          : null;
+  const readIt = () => (tab === "classics" ? readChapter() : tab === "own" ? readOwnBook() : readWords());
 
   return (
     <div className="stack" style={{ ["--gap" as string]: "26px" }}>
       {step === 1 && (
         <button type="button" className="back-link" onClick={() => goTo(0)} style={{ marginBottom: -12 }}>
-          ‹ Back to the storyteller
+          ‹ Back to the book
         </button>
       )}
       <div className="center">
         <div className="eyebrow">Read to Me</div>
-        <h1>{step === 0 ? "Who shall read to you?" : "What shall we read?"}</h1>
+        <h1>{step === 0 ? "What shall we read?" : "Who shall read it to you?"}</h1>
       </div>
-      <Steps labels={["The storyteller", "The book"]} step={step} onGo={goTo} />
+      <Steps labels={["The book", "The storyteller"]} step={step} onGo={goTo} />
 
-      {step === 0 && (
+      {step === 1 && (
         <div className="parchment stack">
+          {chosen ? (
+            <div className="cast-card chosen-book">
+              <div className="story-thumb">{chosen.thumb}</div>
+              <div className="story-meta">
+                <div className="cast-name">{chosen.title}</div>
+                {chosen.sub && <div className="small muted">{chosen.sub}</div>}
+                {chosen.about && <div className="small faint">{chosen.about}</div>}
+              </div>
+              <button type="button" className="btn btn-quiet btn-sm" onClick={() => goTo(0)}>
+                Change
+              </button>
+            </div>
+          ) : (
+            <p className="notice center" style={{ margin: 0 }}>
+              First, choose something to read.{" "}
+              <button type="button" className="btn btn-quiet btn-sm" onClick={() => goTo(0)}>
+                Choose a book
+              </button>
+            </p>
+          )}
+          {usual && reader === usual && (
+            <p className="small muted" style={{ margin: 0 }}>
+              Picked because <b>{readerName}</b> read this book last time. Choose anyone you like.
+            </p>
+          )}
           <VoicePicker voices={voices} value={reader} onChange={chooseReader} allowAuto={false} />
           <label className="toggle">
             <input type="checkbox" checked={fullCast} onChange={(e) => setFullCast(e.target.checked)} disabled={!storytellerReady} />
@@ -439,24 +531,19 @@ export function ReadToMe({
               </span>
             </span>
           </label>
-          <div className="spread">
-            <span />
-            <button className="btn" type="button" onClick={() => goTo(1)}>
-              Next →
+          {error && <p className="notice notice-error center">{error}</p>}
+          {busy && <p className="notice center">✨ {busy}</p>}
+          {chosen?.credits ? <CreditNote needed={chosen.credits} className="small muted center" /> : <CreditsLeft className="small muted center" />}
+          <div className="center">
+            <button className="btn btn-lg" onClick={readIt} disabled={!chosen || Boolean(busy) || (tab === "own" && !storytellerReady)}>
+              🎧 Read it to me
             </button>
           </div>
         </div>
       )}
 
-      {step === 1 && (
+      {step === 0 && (
         <>
-          <p className="center muted" style={{ margin: 0 }}>
-            Read by <b>{readerName}</b>
-            {fullCast ? ", with a voice for every character" : ""} ·{" "}
-            <button type="button" className="btn btn-quiet btn-sm" onClick={() => goTo(0)}>
-              Change
-            </button>
-          </p>
           <div className="chips read-tabs" role="tablist" style={{ justifyContent: "center" }}>
             {(
               [
@@ -622,8 +709,15 @@ export function ReadToMe({
                         {c.opening}…
                       </div>
                     </div>
-                    <button className="btn btn-sm" onClick={() => readChapter(c)} disabled={Boolean(busy)}>
-                      🎧 {open.chapters.length === 1 ? "Read it to me" : "Read this"}
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => {
+                        setChapter(c);
+                        toStoryteller();
+                      }}
+                      disabled={Boolean(busy)}
+                    >
+                      Choose ›
                     </button>
                   </div>
                 ))}
@@ -670,14 +764,10 @@ export function ReadToMe({
                 </span>
               </label>
               {!storytellerReady && <p className="notice small">Reading your own pages needs the storyteller (an Anthropic key).</p>}
-              <CreditsLeft className="small muted center" />
-              <div className="center">
-                <button
-                  className="btn btn-lg"
-                  onClick={readOwnBook}
-                  disabled={Boolean(busy) || !storytellerReady || (bookId === "new" && photos.length === 0)}
-                >
-                  🎧 Read it to me
+              <div className="spread">
+                <span />
+                <button className="btn" type="button" onClick={toStoryteller} disabled={!storytellerReady || (bookId === "new" && photos.length === 0)}>
+                  Next: the storyteller →
                 </button>
               </div>
             </div>
@@ -696,10 +786,10 @@ export function ReadToMe({
                 <span>The words</span>
                 <textarea className="textarea" style={{ minHeight: 220 }} value={words} onChange={(e) => setWords(e.target.value)} />
               </label>
-              {words.trim().length >= 10 && <CreditNote needed={words.trim().length} className="small muted center" />}
-              <div className="center">
-                <button className="btn btn-lg" onClick={readWords} disabled={Boolean(busy) || words.trim().length < 10}>
-                  🎧 Read it to me
+              <div className="spread">
+                <span />
+                <button className="btn" type="button" onClick={toStoryteller} disabled={words.trim().length < 10}>
+                  Next: the storyteller →
                 </button>
               </div>
             </div>

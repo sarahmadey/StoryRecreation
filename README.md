@@ -68,7 +68,8 @@ a brand-new tale for the very same pictures.
   in the car, and can be **downloaded for a make-your-own Yoto card**.
 
 ### 🎧 Read to Me
-- **Pick a reader**, then a book. Add *character voices* so the dialogue is acted out.
+- **Pick a book**, then who reads it (whoever read that book last is picked again, so chapter 3 sounds like
+  chapters 1 and 2). Add *character voices* so the dialogue is acted out.
 - **The Classic Treasury:** Peter Rabbit, Winnie-the-Pooh, The Velveteen Rabbit, The Wind in the Willows,
   Aesop, Grimm and more, plus a search of 70,000+ public-domain books (Project Gutenberg).
 - **A book we own:** photograph the pages and the storyteller transcribes the real words exactly, then reads

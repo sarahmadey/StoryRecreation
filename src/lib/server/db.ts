@@ -13,6 +13,7 @@ import type {
   Keepsake,
   Profile,
   Story,
+  StoryArt,
   StoryCard,
   StoryMode,
   StoryProgress,
@@ -208,6 +209,24 @@ CREATE TABLE IF NOT EXISTS alerts (
   error TEXT
 );
 CREATE INDEX IF NOT EXISTS alerts_by_key ON alerts (kind, key, sent_at);
+
+-- What the family has spent: pictures a grown-up approved with the PIN (approved_micros is
+-- the most they agreed to), and what the storyteller cost to write each story. Amounts are
+-- millionths of a dollar.
+CREATE TABLE IF NOT EXISTS spending (
+  id TEXT PRIMARY KEY,
+  household_id TEXT NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  story_id TEXT,
+  service TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  what TEXT NOT NULL,
+  approved_micros INTEGER,
+  spent_micros INTEGER NOT NULL DEFAULT 0,
+  pictures INTEGER NOT NULL DEFAULT 0,
+  stand_in INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS spending_household ON spending (household_id, created_at);
 `;
 
 type Row = Record<string, unknown>;
@@ -222,6 +241,9 @@ export function db(): DatabaseSync {
     // for the other to finish writing rather than failing.
     conn.exec("PRAGMA busy_timeout = 5000");
     conn.exec(SCHEMA);
+    // Columns added after the first families had libraries.
+    const storyColumns = (conn.prepare("PRAGMA table_info(stories)").all() as Row[]).map((c) => c.name);
+    if (!storyColumns.includes("art")) conn.exec("ALTER TABLE stories ADD COLUMN art TEXT");
     globalForDb.__storyhollowDb = conn;
     recoverInterruptedJobs(conn);
   }
@@ -242,6 +264,18 @@ export const newId = () => randomUUID().replace(/-/g, "").slice(0, 16);
 
 export function fileUrl(relPath: string | null | undefined): string | null {
   return relPath ? `/api/files/${relPath}` : null;
+}
+
+/** A picture book's pictures as the browser sees them: the stored paths become file addresses. */
+export function artUrls(art: StoryArt | null): StoryArt | null {
+  if (!art) return null;
+  const url = (p: string | null) => fileUrl(p);
+  return {
+    ...art,
+    cover: url(art.cover),
+    pages: art.pages.map(url),
+    characters: art.characters.map((c) => ({ ...c, drawing: url(c.drawing), sketches: c.sketches.map((p) => fileUrl(p)!) })),
+  };
 }
 
 function json<T>(value: unknown): T | null {
@@ -581,6 +615,7 @@ function toStory(r: Row): Story {
     playCount: Number(r.play_count ?? 0),
     lastPlayedAt: (r.last_played_at as number | null) ?? null,
     createdAt: r.created_at as number,
+    art: artUrls(json<StoryArt>(r.art)),
   };
 }
 
@@ -608,9 +643,11 @@ export function listStoriesForBackup(householdId: string): {
   audioPath: string | null;
   duration: number | null;
   createdAt: number;
+  /** A picture book's pictures, as stored paths. */
+  art: StoryArt | null;
 }[] {
   const rows = db()
-    .prepare("SELECT id, book_id, title, synopsis, mode, script, audio_path, duration, created_at FROM stories WHERE household_id = ? ORDER BY created_at")
+    .prepare("SELECT id, book_id, title, synopsis, mode, script, audio_path, duration, created_at, art FROM stories WHERE household_id = ? ORDER BY created_at")
     .all(householdId) as Row[];
   return rows.map((r) => ({
     id: r.id as string,
@@ -622,7 +659,25 @@ export function listStoriesForBackup(householdId: string): {
     audioPath: (r.audio_path as string | null) ?? null,
     duration: (r.duration as number | null) ?? null,
     createdAt: r.created_at as number,
+    art: json<StoryArt>(r.art),
   }));
+}
+
+/** A picture book's pictures as stored, with paths (for the illustrator, which reads them). */
+export function getStoryArt(id: string): StoryArt | null {
+  const r = db().prepare("SELECT art FROM stories WHERE id = ?").get(id) as Row | undefined;
+  return json<StoryArt>(r?.art);
+}
+
+/**
+ * Change a picture book's pictures. Read and written in one step, so the
+ * illustrator and the family's own changes never undo each other.
+ */
+export function changeStoryArt(id: string, fn: (art: StoryArt | null) => StoryArt | null): StoryArt | null {
+  const next = fn(getStoryArt(id));
+  // updated_at is left alone: it versions the recording's address, and pictures don't change the recording.
+  db().prepare("UPDATE stories SET art = ? WHERE id = ?").run(next ? JSON.stringify(next) : null, id);
+  return next;
 }
 
 export function getStoryAudioPath(id: string): string | null {
@@ -633,6 +688,7 @@ export function getStoryAudioPath(id: string): string | null {
 const CARD_SELECT = `
   SELECT s.id, s.book_id, s.profile_id, s.mode, s.title, s.synopsis, s.status, s.duration, s.favorite,
          s.play_count, s.last_played_at, s.created_at, b.title AS book_title, b.kind AS book_kind, b.cover_path, b.source_ref AS book_source_ref,
+         json_extract(s.art, '$.cover') AS art_cover,
          (SELECT json_extract(c.value, '$.voiceId') FROM json_each(s.script, '$.cast') c
           WHERE json_extract(c.value, '$.id') = 'narrator') AS narrator_voice_id
   FROM stories s JOIN books b ON b.id = s.book_id`;
@@ -643,7 +699,7 @@ function toCard(r: Row): StoryCard {
     bookId: r.book_id as string,
     bookTitle: r.book_title as string,
     bookKind: r.book_kind as BookKind,
-    coverUrl: coverFor(r.cover_path, r.book_kind, r.book_source_ref),
+    coverUrl: r.art_cover ? fileUrl(r.art_cover as string) : coverFor(r.cover_path, r.book_kind, r.book_source_ref),
     profileId: (r.profile_id as string | null) ?? null,
     mode: r.mode as StoryMode,
     title: r.title as string,

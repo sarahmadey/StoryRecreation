@@ -61,12 +61,17 @@ export interface ScriptLine {
   text: string;
 }
 
+/** A little moving touch drawn over a page's picture while it's read ("living pictures"). */
+export type SceneEffect = "none" | "sparkles" | "snow" | "rain" | "fireflies" | "leaves" | "stars" | "bubbles" | "petals";
+
 export interface ScriptPage {
   /** 1-based page number; 0 is reserved for the read-along intro. */
   page: number;
   /** What the storyteller saw in the picture (helps grown-ups check the match). */
   picture: string;
   lines: ScriptLine[];
+  /** Chosen by the storyteller to suit the scene. */
+  effect?: SceneEffect;
 }
 
 /** One short sound effect, landing on a word as it's spoken. */
@@ -131,6 +136,9 @@ export interface StorySettings {
   /** A few short sound effects at just the right moments. */
   effects: boolean;
   review: boolean;
+  /** Draw pictures for it too: a picture book (stories dreamed up from an idea). */
+  pictures?: boolean;
+  artStyle?: ArtStyle;
   /** For read-aloud: a classic chapter reference. */
   classic?: { gutenbergId: number; chapter: number };
   /** For read-aloud of pasted text. */
@@ -170,6 +178,47 @@ export interface StoryTimeline {
   pages: TimelinePage[];
 }
 
+export type ArtStyle = "watercolor" | "gouache" | "pencil" | "papercut" | "shadow";
+
+/** A character the illustrator draws, and the sketches the family chose between. */
+export interface ArtCharacter {
+  /** The cast id, or a short slug for someone who never speaks. */
+  id: string;
+  name: string;
+  /** What they look like, in plain words. The family can change it. */
+  look: string;
+  /** Sketched first, then drawn from the chosen sketch on every page, so they look the same throughout. */
+  main: boolean;
+  /** A child's own drawing of them, when the family added one. */
+  drawing: string | null;
+  sketches: string[];
+  /** Which sketch is them (an index into sketches). */
+  chosen: number | null;
+}
+
+/** What to draw on one page. */
+export interface ArtScene {
+  page: number;
+  scene: string;
+  /** Ids of the characters in the picture. */
+  characters: string[];
+}
+
+/** A picture book's pictures. Pictures are file URLs (paths, in the database); stand-ins are .svg. */
+export interface StoryArt {
+  style: ArtStyle;
+  /** What the illustrator is doing right now. */
+  status: "idle" | "planning" | "sketching" | "drawing";
+  progress: StoryProgress | null;
+  error: string | null;
+  characters: ArtCharacter[];
+  coverScene: string;
+  scenes: ArtScene[];
+  cover: string | null;
+  /** One picture per page (index = page - 1), null until drawn. */
+  pages: (string | null)[];
+}
+
 export interface Story {
   id: string;
   bookId: string;
@@ -189,6 +238,8 @@ export interface Story {
   playCount: number;
   lastPlayedAt: number | null;
   createdAt: number;
+  /** Its own pictures, when it's a picture book. */
+  art: StoryArt | null;
 }
 
 export interface StoryCard {
@@ -196,6 +247,7 @@ export interface StoryCard {
   bookId: string;
   bookTitle: string;
   bookKind: BookKind;
+  /** The story's own cover when it's a picture book, otherwise its book's. */
   coverUrl: string | null;
   profileId: string | null;
   mode: StoryMode;
@@ -273,4 +325,34 @@ export interface AppStatus {
   voices: boolean;
   storyModel: string;
   voiceModel: string;
+  /** The storyteller's dollars per million tokens, for estimates. */
+  storytellerRates: { input: number; output: number };
+  /** Pictures: drawn by the illustrator once its key is set, stand-ins (free) until then. */
+  illustrator: boolean;
+  pictureModel: string;
+  /** About what one picture costs, in millionths of a dollar (what it would cost, while stand-ins are free). */
+  picturePrice: number;
 }
+
+/** What the family has spent, for the Grown-ups' corner. Amounts are millionths of a dollar. */
+export interface SpendingItem {
+  id: string;
+  storyId: string | null;
+  service: "pictures" | "storyteller";
+  what: string;
+  /** What a grown-up approved with the PIN (pictures). */
+  approved: number | null;
+  spent: number;
+  pictures: number;
+  standIn: boolean;
+  createdAt: number;
+}
+
+export interface SpendingSummary {
+  /** This calendar month, by service. */
+  month: { pictures: number; storyteller: number; pictureCount: number; stories: number };
+  recent: SpendingItem[];
+}
+
+/** About what writing a story costs the family, by length, in millionths of a dollar. */
+export type WriteCosts = Record<LengthPreset, number>;

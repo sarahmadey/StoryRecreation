@@ -54,7 +54,8 @@ export function BookView({
           chime: { enabled: physical, style: "bell", gapSeconds: 3 },
           heroes: currentProfile ? [currentProfile.name] : [],
         });
-      const settings: StorySettings = { ...base, surprise: true, review: false };
+      // One tap makes one story: no pictures planned along the way (a story can become a picture book from its page).
+      const settings: StorySettings = { ...base, surprise: true, review: false, pictures: false };
       const { id } = await api.post<{ id: string }>("/api/stories", { bookId: book.id, mode: "create", settings });
       router.push(`/stories/${id}`);
     } catch (err) {

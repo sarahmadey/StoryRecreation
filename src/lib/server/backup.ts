@@ -94,6 +94,17 @@ export function familyBackup(householdId: string): { filename: string; root: str
     photoLinks.set(b.id, links);
   }
 
+  // Picture books' own pictures (the real ones; stand-ins are left out), filed by story.
+  for (const s of stories) {
+    const pictures = [s.art?.cover ?? null, ...(s.art?.pages ?? [])];
+    pictures.forEach((rel, i) => {
+      const file = rel && !rel.endsWith(".svg") ? existing(householdId, rel) : null;
+      if (!file) return;
+      add(unique(`Story pictures/${safeName(s.title)}`, i === 0 ? "cover" : `page-${String(i).padStart(2, "0")}`, path.extname(file).toLowerCase()), file);
+      photos++;
+    });
+  }
+
   // ---------------------------------------------------------------- Read me.html
   const storyHtml = books
     .filter((b) => stories.some((s) => s.bookId === b.id))

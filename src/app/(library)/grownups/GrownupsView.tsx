@@ -10,7 +10,8 @@ import { BackupsPanel } from "@/components/BackupsPanel";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { CreditMeter, useCredits } from "@/components/Credits";
 import { forgetOffline } from "@/components/Offline";
-import type { AppStatus, FamilyVoice, Keepsake, Profile } from "@/lib/shared/types";
+import { formatMoney } from "@/lib/shared/art";
+import type { AppStatus, FamilyVoice, Keepsake, Profile, SpendingSummary } from "@/lib/shared/types";
 import type { BackupStatus } from "@/lib/server/offsite";
 import type { AlertsStatus } from "@/lib/server/alerts";
 
@@ -48,6 +49,7 @@ export function GrownupsView({
   backup,
   backups,
   alerts,
+  spending,
   status,
 }: {
   familyName: string;
@@ -61,6 +63,7 @@ export function GrownupsView({
   backup: { stories: number; recordings: number; photos: number; bytes: number } | null;
   backups: BackupStatus | null;
   alerts: AlertsStatus | null;
+  spending: SpendingSummary | null;
   status: AppStatus;
 }) {
   const api = useApi();
@@ -176,6 +179,16 @@ export function GrownupsView({
             </div>
           </div>
           <div className="status-item">
+            <span className={`status-dot ${status.illustrator ? "on" : "demo"}`} />
+            <div>
+              <b>The illustrator</b>: {status.illustrator ? `connected (${status.pictureModel})` : "stand-in pictures, for free"}
+              <div className="small muted">
+                Google&apos;s picture model draws picture books, about {formatMoney(status.picturePrice)} a picture, each purchase approved with the
+                family PIN. Set <code>GEMINI_API_KEY</code>.
+              </div>
+            </div>
+          </div>
+          <div className="status-item">
             <span className={`status-dot ${status.voices ? "on" : status.demoMode ? "demo" : "off"}`} />
             <div>
               <b>The voices</b>: {status.voices ? `connected (${status.voiceModel})` : status.demoMode ? "demo hum" : "not connected"}
@@ -247,10 +260,10 @@ export function GrownupsView({
         )}
       </Fold>
 
-      <Fold id="pin" title="Grown-up PIN" note={pinSet ? "On" : "Off"} about="Keeps making stories for grown-ups.">
+      <Fold id="pin" title="Grown-up PIN" note={pinSet ? "On" : "Off"} about="Keeps making stories, and buying, for grown-ups.">
         <p className="muted" style={{ margin: 0 }}>
           With a PIN, children can listen to anything on the shelves, but making new stories (which uses credits) and changing
-          settings needs a grown-up.
+          settings needs a grown-up. Buying pictures asks for the PIN every time, even when this device is unlocked.
         </p>
         <form
           className="row"
@@ -284,6 +297,52 @@ export function GrownupsView({
           )}
         </form>
       </Fold>
+
+      {spending && (
+        <Fold
+          id="spending"
+          title="Spending"
+          note={`${formatMoney(spending.month.pictures + spending.month.storyteller, "Nothing")} this month`}
+          about="What pictures and the storyteller have cost."
+        >
+          <div className="spend-totals">
+            <div>
+              <b>{formatMoney(spending.month.storyteller, "$0")}</b> storyteller
+              <span className="small muted">
+                {" "}
+                · {spending.month.stories} {spending.month.stories === 1 ? "story" : "stories"} written this month
+              </span>
+            </div>
+            <div>
+              <b>{formatMoney(spending.month.pictures, "$0")}</b> pictures
+              <span className="small muted">
+                {" "}
+                · {spending.month.pictureCount} drawn this month
+              </span>
+            </div>
+          </div>
+          {spending.recent.length > 0 && (
+            <ul className="spend-list">
+              {spending.recent.map((item) => (
+                <li key={item.id}>
+                  <span className="small muted">
+                    {mounted ? new Date(item.createdAt).toLocaleDateString([], { month: "short", day: "numeric" }) : ""}
+                  </span>
+                  <span>{item.what}</span>
+                  <span className="spend-amount">
+                    {item.standIn ? "free (stand-ins)" : formatMoney(item.spent, "$0")}
+                    {item.approved !== null && !item.standIn ? <span className="small muted"> of {formatMoney(item.approved)} approved</span> : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="small muted" style={{ margin: 0 }}>
+            Pictures are bought with the family PIN and never cost more than the price approved; Google bills them to the account the key belongs
+            to. The storyteller&apos;s time is billed by Anthropic. Voices use your ElevenLabs credits, shown under The engines.
+          </p>
+        </Fold>
+      )}
 
       <Fold
         id="family-voices"

@@ -2,6 +2,8 @@ import { apiCtx, HttpError, readJson, requireGrownup, route } from "@/lib/server
 import { deleteStory, getStory, updateStory } from "@/lib/server/db";
 import { removeDir, storyDir } from "@/lib/server/files";
 import { isRunning } from "@/lib/server/jobs";
+import { artBusy, settleLostArt } from "@/lib/server/art";
+import { pictureSpendForStory } from "@/lib/server/spending";
 import type { StoryScript } from "@/lib/shared/types";
 
 export const GET = route(async (_req: Request, ctx: RouteContext<"/api/stories/[id]">) => {
@@ -18,7 +20,11 @@ export const GET = route(async (_req: Request, ctx: RouteContext<"/api/stories/[
     });
     story = getStory(c.household.id, id)!;
   }
-  return Response.json({ story, running: isRunning(id) });
+  if (story.art && story.art.status !== "idle" && !artBusy(id)) {
+    settleLostArt(id);
+    story = getStory(c.household.id, id)!;
+  }
+  return Response.json({ story, running: isRunning(id), pictureSpend: pictureSpendForStory(id) });
 });
 
 /** Edit the draft (title, lines, cast voices) or mark a favorite. */
@@ -75,6 +81,7 @@ export const DELETE = route(async (_req: Request, ctx: RouteContext<"/api/storie
   requireGrownup(c);
   const { id } = await ctx.params;
   if (isRunning(id)) throw new HttpError(409, "Please wait until the storyteller has finished.");
+  if (artBusy(id)) throw new HttpError(409, "Please wait until the illustrator has finished.");
   deleteStory(c.household.id, id);
   await removeDir(storyDir(c.household.id, id));
   return Response.json({ ok: true });

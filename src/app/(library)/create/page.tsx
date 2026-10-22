@@ -2,6 +2,7 @@ import { pageCtx } from "@/lib/server/auth";
 import { listBooks, listProfiles, lastSettingsForBook, madeStories } from "@/lib/server/db";
 import { voiceLabels } from "@/lib/server/voices";
 import { appStatus } from "@/lib/server/config";
+import { writeCosts } from "@/lib/server/spending";
 import { CreateWizard } from "./CreateWizard";
 import { SetupNotice } from "@/components/SetupNotice";
 
@@ -34,6 +35,8 @@ export default async function CreatePage(props: PageProps<"/create">) {
         preselectSettings={chosenBook ? lastSettingsForBook(chosenBook.id, "create") : null}
         past={past}
         like={past.some((s) => s.id === like) ? like : null}
+        status={appStatus()}
+        writeCosts={writeCosts(ctx.household.id)}
       />
     </main>
   );

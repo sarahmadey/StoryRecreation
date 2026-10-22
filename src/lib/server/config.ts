@@ -1,4 +1,5 @@
 import path from "node:path";
+import { picturePrice, storytellerRates } from "./prices";
 import type { AppStatus } from "@/lib/shared/types";
 
 export interface BackupStorage {
@@ -32,6 +33,22 @@ export const config = {
   },
   get voiceModel(): string {
     return process.env.VOICE_MODEL || "eleven_v4";
+  },
+  /** Google's picture model draws picture books (a Gemini API key from aistudio.google.com). */
+  get illustratorKey(): string | undefined {
+    return process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim() || undefined;
+  },
+  get pictureModel(): string {
+    return process.env.PICTURE_MODEL?.trim() || "gemini-nano-banana-2.1";
+  },
+  /** The Gemini API's address (changeable for tests). */
+  get illustratorBaseUrl(): string {
+    return (process.env.GEMINI_BASE_URL?.trim() || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
+  },
+  /** For a picture model the app doesn't know the price of: dollars per picture, e.g. "0.08". */
+  get picturePriceOverride(): number | null {
+    const v = Number(process.env.PICTURE_PRICE);
+    return Number.isFinite(v) && v > 0 ? v : null;
   },
   /** e.g. an ElevenLabs data-residency endpoint; defaults to the global API. */
   get elevenLabsBaseUrl(): string | undefined {
@@ -93,6 +110,10 @@ export function appStatus(): AppStatus {
     voices: Boolean(config.elevenLabsKey),
     storyModel: config.storyModel,
     voiceModel: config.voiceModel,
+    storytellerRates: storytellerRates(),
+    illustrator: Boolean(config.illustratorKey),
+    pictureModel: config.pictureModel,
+    picturePrice: picturePrice(),
   };
 }
 

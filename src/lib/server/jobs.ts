@@ -24,6 +24,8 @@ import { encodeMp3, floatToPcm16, mixStory, pcm16ToFloat, type Clip, type Placed
 import { loadClassic } from "./classics";
 import { forgetVoiceCredits } from "./credits";
 import { alertStoryFailed, checkVoiceCreditLow } from "./alerts";
+import { recordSpend } from "./spending";
+import { planPicturesAfterWriting } from "./art";
 import { sectionText, stripTags } from "./text";
 import { personaFor } from "@/lib/shared/personas";
 import type { ScriptLine, ScriptPage, SoundCue, StoryScript } from "@/lib/shared/types";
@@ -138,6 +140,15 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
     script = written.script;
     if (written.photoOrder) applyPhotoOrder(story.householdId, book.id, pageRows, written.photoOrder);
     if (story.mode === "read") script.title = story.title || script.title;
+    if (written.cost > 0) {
+      recordSpend(story.householdId, {
+        storyId,
+        service: "storyteller",
+        kind: story.mode === "read" ? "read" : `write:${s.length}`,
+        what: `${story.mode === "read" ? "Prepared the reading of" : "Wrote"} “${script.title}”`,
+        spent: written.cost,
+      });
+    }
   }
 
   updateStory(storyId, {
@@ -148,6 +159,8 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
     progress: null,
   });
 
+  // A picture book: the illustrator reads the story and plans what to draw, ready for the family to meet the characters.
+  if (s.pictures && story.mode === "create") planPicturesAfterWriting(storyId);
   if (!s.review) return () => startRecording(storyId);
 }
 
@@ -344,7 +357,16 @@ const effectFile = (dir: string, cue: SoundCue) =>
 /** Choose the sound effects (once per script), make any not yet made, and place them. */
 async function recordEffects(storyId: string, dir: string, script: StoryScript, pages: { page: number; clip: Clip }[]): Promise<PlacedEffect[]> {
   if (!script.effects) {
-    script.effects = config.anthropicKey || !config.demoMode ? await spotSoundEffects(script) : demoSoundCues(script);
+    if (config.anthropicKey || !config.demoMode) {
+      const { cues, cost } = await spotSoundEffects(script);
+      script.effects = cues;
+      const householdId = getStoryById(storyId)?.householdId;
+      if (householdId && cost > 0) {
+        recordSpend(householdId, { storyId, service: "storyteller", kind: "sounds", what: `Chose the sound effects for “${script.title}”`, spent: cost });
+      }
+    } else {
+      script.effects = demoSoundCues(script);
+    }
     updateStory(storyId, { script });
   }
   const placed: PlacedEffect[] = [];

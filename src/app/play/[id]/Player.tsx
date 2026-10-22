@@ -6,7 +6,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Cover } from "@/components/Books";
 import { useApi } from "@/components/Grownup";
 import { keepForOffline } from "@/components/Offline";
+import { DriftingImage, SceneEffects } from "@/components/LivingPicture";
 import { imageForPage } from "@/lib/shared/pages";
+import { artForPage } from "@/lib/shared/art";
 import { formatClock } from "@/lib/shared/options";
 import type { Book, BookPage, Story, TimelinePage, VoiceLabel } from "@/lib/shared/types";
 import type { UpNext } from "@/lib/server/db";
@@ -358,11 +360,17 @@ export function Player({
     if (y < 0 || y > box.clientHeight * 0.65) box.scrollTo({ top: now.offsetTop - box.clientHeight * 0.3, behavior: "smooth" });
   }, [wordIdx]);
 
-  const img = page.page > 0 ? imageForPage(page.page, photos, story.settings.source, storyPages) : null;
+  // A picture book shows its own pictures (and its cover while the welcome plays); other stories, the book's photos.
+  const img =
+    page.page > 0 ? (artForPage(story.art, page.page) ?? imageForPage(page.page, photos, story.settings.source, storyPages)) : (story.art?.cover ?? null);
+  // Living pictures: how far into this page the story was when it came up, so the drift keeps time with the voice.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pageOffset = useMemo(() => Math.max(0, t - page.start), [idx]);
+  const effect = story.script?.pages.find((p) => p.page === page.page)?.effect ?? "none";
   const label =
     page.page === 0
       ? "Welcome"
-      : physical
+      : physical || story.art
         ? `Page ${page.page} of ${storyPages}`
         : story.settings.source === "classic" || story.settings.source === "text"
           ? `Part ${page.page} of ${storyPages}`
@@ -381,13 +389,13 @@ export function Player({
           // The first time it plays, it's saved on the phone for listening without signal.
           if (!saved.current) {
             saved.current = true;
-            const images = pages.map((p) => imageForPage(p.page, photos, story.settings.source, storyPages));
+            const images = pages.map((p) => artForPage(story.art, p.page) ?? imageForPage(p.page, photos, story.settings.source, storyPages));
             void keepForOffline({
               id: story.id,
               title: story.title,
               book: book.title,
               audioUrl: story.audioUrl!,
-              images: [...new Set([book.coverUrl, ...images].filter((src): src is string => Boolean(src)))],
+              images: [...new Set([book.coverUrl, story.art?.cover ?? null, ...images].filter((src): src is string => Boolean(src)))],
             });
           }
         }}
@@ -422,11 +430,11 @@ export function Player({
       <div className="player-stage">
         <div className={`page-frame ${img ? "photo" : ""}`}>
           {img ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={img} src={img} alt={label} />
+            <DriftingImage key={img} src={img} alt={label} page={page.page} seconds={page.next - page.start} offset={pageOffset} playing={playing} />
           ) : (
             <Cover id={book.id} title={story.title} kind={book.kind} coverUrl={page.page === 0 ? book.coverUrl : null} notes={book.notes} />
           )}
+          <SceneEffects effect={effect} playing={playing} />
           {inCue && !ended && (
             <div className="turn-cue" aria-live="polite">
               <div>

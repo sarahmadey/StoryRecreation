@@ -16,6 +16,7 @@ import type { AppStatus, Book } from "@/lib/shared/types";
 import type { CataloguePage, Classic, Refinement, TOPICS } from "@/lib/server/classics";
 import type { FavoriteClassic } from "@/lib/server/db";
 import { Plaque } from "@/components/Plaque";
+import { formatMoney, storytellerCost } from "@/lib/shared/art";
 import { BookPicker } from "@/components/BookPicker";
 
 type Tab = "classics" | "own" | "words";
@@ -494,6 +495,17 @@ export function ReadToMe({
             }
           : null;
   const readIt = () => (tab === "classics" ? readChapter() : tab === "own" ? readOwnBook() : readWords());
+  // The storyteller's time, when it's needed: reading the words off your own pages, or sorting out who says what for
+  // character voices. One reader, word for word, needs none.
+  const chosenWords = tab === "classics" ? (chapter?.words ?? 0) : wordCount(words);
+  const preparing =
+    !storytellerReady || !chosen
+      ? 0
+      : tab === "own" && ownBook
+        ? storytellerCost(status.storytellerRates, 6_000 + ownBook.pageCount * 1_600, 2_500 + ownBook.pageCount * 350)
+        : fullCast
+          ? storytellerCost(status.storytellerRates, 7_000 + chosenWords * 1.4, 3_000 + chosenWords * 1.6)
+          : 0;
 
   return (
     <div className="stack" style={{ ["--gap" as string]: "26px" }}>
@@ -549,6 +561,11 @@ export function ReadToMe({
           </label>
           {error && <p className="notice notice-error center">{error}</p>}
           {busy && <p className="notice center">✨ {busy}</p>}
+          {preparing > 0 && (
+            <p className="small muted center" style={{ margin: 0 }}>
+              Preparing it: about {formatMoney(preparing)} of storyteller time.
+            </p>
+          )}
           {chosen?.credits ? <CreditNote needed={chosen.credits} className="small muted center" /> : <CreditsLeft className="small muted center" />}
           <div className="center">
             <button className="btn btn-lg" onClick={readIt} disabled={!chosen || Boolean(busy) || (tab === "own" && !storytellerReady)}>
@@ -787,7 +804,10 @@ export function ReadToMe({
                 <button type="button" className="btn btn-ghost" onClick={() => picturesInput.current?.click()} disabled={reading}>
                   {reading ? "✨ Reading the words…" : "📷 Add a photo or screenshot"}
                 </button>
-                <span className="hint">The words in it are copied out below for you to check.</span>
+                <span className="hint">
+                  The words in it are copied out below for you to check
+                  {storytellerReady ? ` (about ${formatMoney(storytellerCost(status.storytellerRates, 2_500, 1_500))} of storyteller time a picture)` : ""}.
+                </span>
               </div>
               {readNote && <p className={`notice small ${readNote.ok ? "" : "notice-error"}`} style={{ margin: 0 }}>{readNote.text}</p>}
               <label className="field">

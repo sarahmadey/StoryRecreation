@@ -4,6 +4,7 @@ import { MAX_IMAGE_BYTES } from "@/lib/server/files";
 import { recordAttempt, tooManyAttempts } from "@/lib/server/ratelimit";
 import { readWordsFromPictures, StorytellerError, type StoryImage } from "@/lib/server/storyteller";
 import { demoWordsFromPictures } from "@/lib/server/demo-storyteller";
+import { recordSpend } from "@/lib/server/spending";
 
 const MAX_PICTURES = 6;
 
@@ -41,7 +42,14 @@ export const POST = route(async (req: Request) => {
   if (tooManyAttempts(key, 30, 60 * 60 * 1000)) throw new HttpError(429, "That's a lot of pictures this hour. Try again a little later.");
   recordAttempt(key);
   try {
-    return Response.json(await readWordsFromPictures(images));
+    const { title, text, cost } = await readWordsFromPictures(images);
+    recordSpend(ctx.household.id, {
+      service: "storyteller",
+      kind: "words",
+      what: `Copied out the words from ${images.length === 1 ? "a picture" : `${images.length} pictures`}${title ? `: “${title}”` : ""}`,
+      spent: cost,
+    });
+    return Response.json({ title, text });
   } catch (err) {
     if (err instanceof StorytellerError) throw new HttpError(502, err.message);
     throw err;

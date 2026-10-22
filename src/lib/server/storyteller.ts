@@ -1,7 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { config } from "./config";
+import { claudeCost } from "./prices";
 import { describeVoiceForCasting } from "./voices";
+import { SCENE_EFFECTS, sceneEffect } from "@/lib/shared/art";
 import { AGES, BOOK_KINDS, LENGTHS, MOODS, WORDS_PER_MINUTE, wordsPerPage } from "@/lib/shared/options";
 import type { BookKind, SoundCue, StoryScript, StorySettings, VoiceOption } from "@/lib/shared/types";
 import type { RememberedCharacter } from "./db";
@@ -20,6 +22,8 @@ Performing
 - Every line is spoken by one cast member, named in "speaker" by cast id. Narration goes to the narrator. Dialogue goes to the character who says it, without quotation marks.
 - You may start a line (or a phrase inside one) with a delivery tag in square brackets when it truly helps the performance: [whispers], [softly], [excitedly], [giggles], [laughs], [gasps], [sighs], [yawns], [sleepily], [curious], [surprised], [nervously], [proudly], [mischievously], [sadly], [warmly]. At most one tag per line, and not on most lines. Never use tags for sound effects or music.
 - Use punctuation for pacing: an ellipsis for a pause, an em dash for an interruption, exclamation marks sparingly. Spell out numbers. No emoji, symbols, stage directions or headings in spoken text.`;
+
+const EFFECT_RULE = `- "effect": a little moving touch drawn over the page's picture while it is read: "sparkles" (magic, fairy dust, wishes), "snow", "rain", "fireflies" (summer nights, gardens), "leaves" (autumn, wind in the woods), "stars" (a night sky), "bubbles" (water, baths, under the sea), "petals" (spring, flowers), or "none". Only where it truly suits what is happening on that page; "none" on most pages.`;
 
 const CREATE_SYSTEM = `You are the Storyteller of Storyhollow: an award-winning children's author and audio-drama director. You write brand-new stories that are performed by a cast of expressive, human-sounding voices and heard by young children, very often at bedtime.
 
@@ -40,7 +44,8 @@ ${PERFORMANCE_RULES}
 Shape
 - A title that would look lovely on a book spine, and a one- or two-sentence synopsis for the library card.
 - "ambience": a short description of a gentle, seamlessly looping background soundscape that suits the setting, such as "soft night crickets and a faint breeze in the pines". No music, no voices, nothing sudden.
-- Return exactly the pages requested, in reading order. "picture" is a short note of what you see in that page's picture (or what the page is about when there is no picture).`;
+- Return exactly the pages requested, in reading order. "picture" is a short note of what you see in that page's picture (or what the page is about when there is no picture).
+${EFFECT_RULE}`;
 
 const READ_SYSTEM = `You are the Reader of Storyhollow. You prepare a faithful read-aloud performance script of a real book, performed by expressive, human-sounding voices for a child who is following along.
 
@@ -54,7 +59,8 @@ ${PERFORMANCE_RULES}
 - Dialogue tags such as "said the bear" stay in the narrator's lines, word for word.
 
 Shape
-- "title": the book's title. "synopsis": one warm sentence describing the book. "ambience": a gentle looping background soundscape that suits it.`;
+- "title": the book's title. "synopsis": one warm sentence describing the book. "ambience": a gentle looping background soundscape that suits it.
+${EFFECT_RULE}`;
 
 // ----------------------------------------------------------------- schema
 
@@ -72,7 +78,9 @@ const ScriptSchema = z.object({
       voice_id: z.string(),
     }),
   ),
-  pages: z.array(z.object({ page: z.number().int(), photo: z.number().int(), picture: z.string(), lines: z.array(LineSchema) })),
+  pages: z.array(
+    z.object({ page: z.number().int(), photo: z.number().int(), picture: z.string(), lines: z.array(LineSchema), effect: z.string().optional() }),
+  ),
 });
 type RawScript = z.infer<typeof ScriptSchema>;
 
@@ -106,11 +114,12 @@ function jsonSchema(voiceIds: string[]) {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["page", "photo", "picture", "lines"],
+          required: ["page", "photo", "picture", "lines", "effect"],
           properties: {
             page: { type: "integer" },
             photo: { type: "integer" },
             picture: str,
+            effect: { type: "string", enum: Object.keys(SCENE_EFFECTS) },
             lines: {
               type: "array",
               items: {
@@ -259,7 +268,12 @@ export interface WrittenStory {
   script: StoryScript;
   /** When the photos were out of order: which photo (1-based) belongs on each page, in reading order. */
   photoOrder: number[] | null;
+  /** What writing it cost, in millionths of a dollar. */
+  cost: number;
 }
+
+/** What a finished Claude call cost (priced for the model that actually answered). */
+const costOf = (message: Anthropic.Beta.BetaMessage) => claudeCost(message.model, message.usage);
 
 export async function writeScript(req: StoryRequest, onProgress: WriteProgress): Promise<WrittenStory> {
   const voiceIds = [...new Set(req.voices.map((v) => v.voiceId))];
@@ -317,7 +331,7 @@ export async function writeScript(req: StoryRequest, onProgress: WriteProgress):
   } catch {
     throw new StorytellerError("The storyteller's pages got jumbled. Please try again.");
   }
-  return { script: normalizeScript(raw, req), photoOrder: photoOrderFrom(raw, req) };
+  return { script: normalizeScript(raw, req), photoOrder: photoOrderFrom(raw, req), cost: costOf(message) };
 }
 
 /**
@@ -360,13 +374,17 @@ export function normalizeScript(raw: RawScript, req: StoryRequest): StoryScript 
   }
 
   const castIds = new Set(cast.map((c) => c.id));
-  let pages = raw.pages.map((p, i) => ({
-    page: i + 1,
-    picture: p.picture.trim(),
-    lines: p.lines
-      .map((l) => ({ speaker: castIds.has(slug(l.speaker)) ? slug(l.speaker) : "narrator", text: l.text.trim() }))
-      .filter((l) => l.text.length > 0),
-  }));
+  let pages: StoryScript["pages"] = raw.pages.map((p, i) => {
+    const effect = sceneEffect(p.effect);
+    return {
+      page: i + 1,
+      picture: p.picture.trim(),
+      lines: p.lines
+        .map((l) => ({ speaker: castIds.has(slug(l.speaker)) ? slug(l.speaker) : "narrator", text: l.text.trim() }))
+        .filter((l) => l.text.length > 0),
+      ...(effect !== "none" ? { effect } : {}),
+    };
+  });
   // Pages tied to real pictures must line up one-to-one with them.
   if (!req.text) {
     pages = pages.slice(0, req.pageCount);
@@ -432,8 +450,8 @@ export function cleanSoundCues(script: StoryScript, cues: SoundCue[]): SoundCue[
   return out.sort((a, b) => a.page - b.page);
 }
 
-/** Ask the sound designer where a few short effects belong in a finished script. */
-export async function spotSoundEffects(script: StoryScript): Promise<SoundCue[]> {
+/** Ask the sound designer where a few short effects belong in a finished script (and what asking cost). */
+export async function spotSoundEffects(script: StoryScript): Promise<{ cues: SoundCue[]; cost: number }> {
   const cast = new Map(script.cast.map((c) => [c.id, c.name]));
   const pages = script.pages
     .map((p) => [`Page ${p.page}`, ...p.lines.map((l, i) => `  [${i}] ${cast.get(l.speaker) ?? l.speaker}: ${l.text}`)].join("\n"))
@@ -460,9 +478,136 @@ export async function spotSoundEffects(script: StoryScript): Promise<SoundCue[]>
     .map((b) => b.text)
     .join("");
   try {
-    return cleanSoundCues(script, SoundCuesSchema.parse(JSON.parse(out)).effects);
+    return { cues: cleanSoundCues(script, SoundCuesSchema.parse(JSON.parse(out)).effects), cost: costOf(message) };
   } catch {
     throw new StorytellerError("The sound designer's notes got jumbled. Please try again.");
+  }
+}
+
+// ---------------------------------------------------------- planning pictures
+
+const ART_SYSTEM = `You are the art director of Storyhollow, planning the pictures for a children's picture book made from a finished story. An illustrator will paint a cover and one picture for each page, in a style the family chose, and must keep every character looking the same from picture to picture.
+
+Characters
+- List each character who appears in the pictures: the people, animals and creatures the story is about, never the narrator. Use the cast id for anyone in the cast, and a short lowercase slug for anyone else.
+- "look": what they look like, in one or two concrete sentences an illustrator can paint the same way every time: what kind of creature, size and shape, colors, clothes, and one or two delightful details. Follow everything the story and the family say about them: a giant is giant, a green and lumpy fairy is green and lumpy.
+- Heroes named by the family are real children. Unless the family described how they look, leave their "look" empty so a grown-up can describe them. Never guess a real child's skin, hair or features.
+- "main": true for the few characters (at most four) who appear on several pages and matter most. They are sketched first, so they look the same on every page.
+
+Pictures
+- "cover": the front cover: the main characters in an inviting moment that captures the story without giving away the ending.
+- For every page, "scene": one or two sentences describing a single moment to paint: who is where, doing what, the setting, the time of day and the light. Choose the most picturable moment on that page, and show only what has happened by then.
+- "characters": the ids of the characters visible in that picture.
+- Keep places, colors and belongings consistent from page to page.
+- Never ask for words, letters, signs or speech bubbles in a picture: the words are printed separately.`;
+
+const ART_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["characters", "cover", "pages"],
+  properties: {
+    characters: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "name", "look", "main"],
+        properties: { id: { type: "string" }, name: { type: "string" }, look: { type: "string" }, main: { type: "boolean" } },
+      },
+    },
+    cover: { type: "string" },
+    pages: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["page", "scene", "characters"],
+        properties: { page: { type: "integer" }, scene: { type: "string" }, characters: { type: "array", items: { type: "string" } } },
+      },
+    },
+  },
+};
+const ArtPlanSchema = z.object({
+  characters: z.array(z.object({ id: z.string(), name: z.string(), look: z.string(), main: z.boolean() })),
+  cover: z.string(),
+  pages: z.array(z.object({ page: z.number(), scene: z.string(), characters: z.array(z.string()) })),
+});
+
+export interface PicturePlan {
+  characters: { id: string; name: string; look: string; main: boolean }[];
+  cover: string;
+  pages: { page: number; scene: string; characters: string[] }[];
+}
+
+/** Keep a plan's promises: real ids, at most four main characters, every page planned, in order. */
+export function cleanPicturePlan(script: StoryScript, plan: PicturePlan): PicturePlan {
+  const seen = new Set<string>();
+  const characters = plan.characters
+    .map((c) => ({ id: slug(c.id) || slug(c.name), name: c.name.trim().slice(0, 60), look: c.look.trim().slice(0, 500), main: c.main }))
+    .filter((c) => c.id && c.id !== "narrator" && c.name && !seen.has(c.id) && seen.add(c.id));
+  let mains = 0;
+  for (const c of characters) if (c.main && ++mains > 4) c.main = false;
+  if (mains === 0 && characters[0]) characters[0].main = true;
+  const ids = new Set(characters.map((c) => c.id));
+  const pages = script.pages.map((p) => {
+    const planned = plan.pages.find((x) => x.page === p.page);
+    return {
+      page: p.page,
+      scene: (planned?.scene.trim() || p.picture || p.lines.map((l) => l.text).join(" ").slice(0, 300)).slice(0, 600),
+      characters: (planned?.characters ?? []).map(slug).filter((id) => ids.has(id)).slice(0, 6),
+    };
+  });
+  return { characters, cover: plan.cover.trim().slice(0, 600) || script.synopsis, pages };
+}
+
+/** Read a finished story and plan its pictures: who is in them and what each looks like, and what to paint on each page. */
+export async function planPictures(
+  script: StoryScript,
+  family: { description: string; heroes: string[]; mood: string },
+): Promise<{ plan: PicturePlan; cost: number }> {
+  const cast = new Map(script.cast.map((c) => [c.id, c.name]));
+  const text = [
+    `"${script.title}": ${script.synopsis}`,
+    family.description.trim() ? `What the family said they wanted: ${family.description.trim()}` : "",
+    family.heroes.length ? `Heroes (real children): ${family.heroes.join(", ")}` : "",
+    `Mood: ${family.mood}`,
+    `Cast:\n${script.cast
+      .filter((c) => c.id !== "narrator")
+      .map((c) => `- ${c.id}: ${c.name}, ${c.description}`)
+      .join("\n")}`,
+    script.pages
+      .map((p) => [`Page ${p.page}`, ...p.lines.map((l) => `  ${cast.get(l.speaker) ?? l.speaker}: ${l.text}`)].join("\n"))
+      .join("\n\n"),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  let message: Anthropic.Beta.BetaMessage;
+  try {
+    message = await anthropic().beta.messages.create({
+      model: config.storyModel,
+      max_tokens: 16000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: "medium", format: { type: "json_schema", schema: ART_SCHEMA } },
+      system: ART_SYSTEM,
+      messages: [{ role: "user", content: text }],
+    });
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) throw new StorytellerError("The Anthropic API key was not accepted.");
+    if (err instanceof Anthropic.RateLimitError) throw new StorytellerError("The storyteller is busy right now. Please try again in a minute.");
+    if (err instanceof Anthropic.APIError) throw new StorytellerError(`The storyteller hit a snag planning the pictures (${err.status}). Please try again.`);
+    throw err;
+  }
+  if (message.stop_reason === "refusal") throw new StorytellerError("The storyteller couldn't plan pictures for this story.");
+  if (message.stop_reason !== "end_turn") throw new StorytellerError("Planning the pictures didn't finish. Please try again.");
+  const out = message.content
+    .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+  try {
+    return { plan: cleanPicturePlan(script, ArtPlanSchema.parse(JSON.parse(out))), cost: costOf(message) };
+  } catch {
+    throw new StorytellerError("The picture plan came back jumbled. Please try again.");
   }
 }
 
@@ -486,7 +631,7 @@ const WORDS_SCHEMA = {
 } as const;
 
 /** The words in photos or screenshots of a poem, letter or page, copied out exactly so they can be read aloud. */
-export async function readWordsFromPictures(images: StoryImage[]): Promise<{ title: string | null; text: string }> {
+export async function readWordsFromPictures(images: StoryImage[]): Promise<{ title: string | null; text: string; cost: number }> {
   const content: Anthropic.Beta.BetaContentBlockParam[] = images.flatMap((img, i) => [
     ...(images.length > 1 ? [{ type: "text" as const, text: `Picture ${i + 1}:` }] : []),
     { type: "image" as const, source: { type: "base64" as const, media_type: img.mediaType, data: img.data } },
@@ -517,7 +662,7 @@ export async function readWordsFromPictures(images: StoryImage[]): Promise<{ tit
     .join("");
   try {
     const { title, text } = JSON.parse(out) as { title: string; text: string };
-    return { title: title.trim() || null, text: text.trim() };
+    return { title: title.trim() || null, text: text.trim(), cost: costOf(message) };
   } catch {
     throw new StorytellerError("The words came back jumbled. Please try again.");
   }

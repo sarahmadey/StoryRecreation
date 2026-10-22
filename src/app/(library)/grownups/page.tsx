@@ -4,6 +4,7 @@ import { appStatus } from "@/lib/server/config";
 import { familyBackup } from "@/lib/server/backup";
 import { backupStatus } from "@/lib/server/offsite";
 import { alertsStatus } from "@/lib/server/alerts";
+import { spendingSummary } from "@/lib/server/spending";
 import { GrownupsView } from "./GrownupsView";
 
 export const metadata = { title: "Grown-ups' corner" };
@@ -24,6 +25,7 @@ export default async function GrownupsPage() {
         backup={ctx.grownup ? familyBackup(ctx.household.id).summary : null}
         backups={ctx.grownup ? backupStatus() : null}
         alerts={ctx.grownup ? alertsStatus() : null}
+        spending={ctx.grownup ? spendingSummary(ctx.household.id) : null}
         status={appStatus()}
       />
     </main>

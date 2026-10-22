@@ -11,6 +11,12 @@ import {
 import { setHouseholdPin, setSessionGrownup } from "@/lib/server/db";
 import { clearAttempts, recordAttempt, tooManyAttempts } from "@/lib/server/ratelimit";
 
+/** Whether the family has a PIN (purchases always need one), and whether this device is unlocked. */
+export const GET = route(async () => {
+  const ctx = await apiCtx();
+  return Response.json({ pinSet: Boolean(ctx.household.pin_hash), unlocked: ctx.grownup });
+});
+
 /** Enter the grown-up PIN to unlock creating and settings for a while. */
 export const POST = route(async (req: Request) => {
   const ctx = await apiCtx();

@@ -23,6 +23,8 @@ export const GET = route(async (req: Request, ctx: RouteContext<"/api/files/[...
     "Content-Type": type,
     "Accept-Ranges": "bytes",
     "Cache-Control": "private, max-age=31536000, immutable",
+    // Stand-in pictures are SVGs the app draws itself; even so, nothing in one may ever run.
+    ...(type === "image/svg+xml" ? { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox" } : {}),
     ...(download ? { "Content-Disposition": `attachment; filename="${download.replace(/[^\w .-]/g, "")}"` } : {}),
   };
 

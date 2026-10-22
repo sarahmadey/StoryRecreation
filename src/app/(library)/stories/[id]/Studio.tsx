@@ -11,12 +11,34 @@ import { ChimePicker, SoundsPicker, VoicePicker, VoiceSelect, soundsOf, useVoice
 import { VoiceDesigner } from "@/components/VoiceDesigner";
 import { imageForPage } from "@/lib/shared/pages";
 import { formatDuration } from "@/lib/shared/options";
+import { formatMoney } from "@/lib/shared/art";
+import { PagePicture, Pictures } from "./Pictures";
 import type { AppStatus, Book, BookPage, ChimeSettings, Story, StoryScript, VoiceOption } from "@/lib/shared/types";
 
-export function Studio({ initial, book, photos, status }: { initial: Story; book: Book; photos: BookPage[]; status: AppStatus }) {
+export function Studio({
+  initial,
+  book,
+  photos,
+  status,
+  pictureSpend,
+  planPrice,
+  writeCost,
+}: {
+  initial: Story;
+  book: Book;
+  photos: BookPage[];
+  status: AppStatus;
+  /** What this story's pictures have cost so far. */
+  pictureSpend: number;
+  /** About what planning its pictures would cost. */
+  planPrice: number;
+  /** About what writing it again would cost. */
+  writeCost: number;
+}) {
   const api = useApi();
   const router = useRouter();
   const [story, setStory] = useState(initial);
+  const [spent, setSpent] = useState(pictureSpend);
   const [script, setScript] = useState<StoryScript | null>(initial.script);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState(initial.status === "draft");
@@ -32,10 +54,13 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
   const voices = [...extraVoices, ...(loadedVoices ?? [])];
 
   const working = story.status === "writing" || story.status === "recording";
+  // The illustrator works alongside the voices: its progress is watched the same way.
+  const drawing = Boolean(story.art && story.art.status !== "idle");
   const lastStatus = useRef(initial.status);
 
   const refresh = useCallback(async () => {
-    const res = await api.get<{ story: Story }>(`/api/stories/${story.id}`);
+    const res = await api.get<{ story: Story; pictureSpend: number }>(`/api/stories/${story.id}`);
+    setSpent(res.pictureSpend);
     // The storyteller may have put the book's photos in order: reload them.
     if (lastStatus.current === "writing" && res.story.status !== "writing") router.refresh();
     lastStatus.current = res.story.status;
@@ -55,10 +80,20 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
   }, [working]);
 
   useEffect(() => {
-    if (!working) return;
+    if (!working && !drawing) return;
     const t = setInterval(() => void refresh().catch(() => undefined), 1500);
     return () => clearInterval(t);
-  }, [working, refresh]);
+  }, [working, drawing, refresh]);
+
+  // A change to the pictures (a purchase, a chosen sketch): show it, then keep watching while the illustrator works.
+  const onArt = (next: Story) => {
+    setStory((cur) => ({ ...cur, art: next.art, settings: next.settings }));
+    void refresh().catch(() => undefined);
+  };
+  const canPicture = story.mode === "create" && story.settings.source === "idea" && Boolean(story.script);
+  const pictures = canPicture && (
+    <Pictures story={story} status={status} spent={spent} planPrice={planPrice} heroes={story.settings.heroes} onStory={onArt} />
+  );
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -90,7 +125,9 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
 
   const rewrite = () =>
     run(async () => {
-      if (story.script && !confirm("Write a completely different story? This draft will be replaced.")) return;
+      const cost = writeCost > 0 ? ` (About ${formatMoney(writeCost)} of storyteller time.)` : "";
+      const what = story.art ? "This draft and its pictures will be replaced" : "This draft will be replaced";
+      if (story.script && !confirm(`Write a completely different story? ${what}.${cost}`)) return;
       await api.post(`/api/stories/${story.id}/rewrite`);
       setDirty(false);
       await refresh();
@@ -158,15 +195,18 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
   }
   if (story.status === "recording") {
     return (
-      <Brewing
-        title={story.audioUrl ? "Updating the story" : "The voices are recording"}
-        progress={story.progress}
-        note={
-          story.audioUrl
-            ? "This takes a minute or two. You can leave this page; the story will be waiting on the shelf."
-            : "Each character is stepping up to the microphone. This takes a minute or two."
-        }
-      />
+      <div className="stack" style={{ ["--gap" as string]: "22px" }}>
+        <Brewing
+          title={story.audioUrl ? "Updating the story" : "The voices are recording"}
+          progress={story.progress}
+          note={
+            story.audioUrl
+              ? "This takes a minute or two. You can leave this page; the story will be waiting on the shelf."
+              : "Each character is stepping up to the microphone. This takes a minute or two."
+          }
+        />
+        {pictures}
+      </div>
     );
   }
 
@@ -257,6 +297,8 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
 
       {error && <p className="notice notice-error">{error}</p>}
 
+      {pictures}
+
       {script && (
         <div className="parchment stack" style={{ ["--gap" as string]: "22px" }}>
           <div className="spread">
@@ -312,13 +354,18 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
             <h3>The pages</h3>
             {script.pages.map((p, pi) => {
               const img = imageForPage(p.page, photos, story.settings.source, script.pages.length);
+              const art = Boolean(story.art?.scenes.length && story.art.pages.length === script.pages.length);
               return (
-                <div className="script-page" key={p.page} style={img ? undefined : { gridTemplateColumns: "1fr" }}>
-                  {img && (
-                    <div className="script-pic">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img} alt={`Page ${p.page}`} loading="lazy" />
-                    </div>
+                <div className="script-page" key={p.page} style={img || art ? undefined : { gridTemplateColumns: "1fr" }}>
+                  {art ? (
+                    <PagePicture story={story} status={status} page={p.page} onStory={onArt} />
+                  ) : (
+                    img && (
+                      <div className="script-pic">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img} alt={`Page ${p.page}`} loading="lazy" />
+                      </div>
+                    )
                   )}
                   <div>
                     <div className="eyebrow">

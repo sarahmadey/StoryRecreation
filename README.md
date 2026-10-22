@@ -6,7 +6,8 @@
 
 **A new story for every night.** Photograph the pages of a book your children love, or something wonderful
 you found on a walk, and a cast of storytellers turns it into an immersive audio story, with a soft chime
-whenever it's time to turn the page.
+whenever it's time to turn the page. Or start from an idea, and it becomes a picture book: words, voices and
+pictures.
 
 Built first for a shadow book whose old read-along had been heard a hundred times. Now every night can bring
 a brand-new tale for the very same pictures.
@@ -31,6 +32,24 @@ a brand-new tale for the very same pictures.
 - **Pages in any order.** Photographed the book back to front? The storyteller reads the printed page numbers
   and puts the pages in order for this and every future story. There's also a ⇅ Reverse button.
 - **✨ A new story tonight:** one tap on any book writes and records a fresh story with last time's settings.
+
+### 📖 Picture books
+- **An idea becomes an illustrated book.** For a story dreamed up from an idea, switch on *Make it a picture book*
+  and pick a style: watercolor, painted, colored pencil, cut paper or shadow puppets.
+- **Meet the characters first.** The storyteller reads the finished story and plans the pictures: who's in them,
+  what each one looks like, and what every page shows. Each main character is sketched three times and you choose
+  the right one together, or photograph your child's own drawing and the sketches are made from it.
+- **The same on every page.** The cover is drawn first, then every page from the chosen sketches and the cover,
+  so the characters and colors stay the same all the way through. Redraw any page, with a note about what to change.
+- **Children are described, never photographed:** the illustrator works from words like "curly hair and a
+  brand-new gap in a big smile", so photos of your children are never sent anywhere.
+- **Living pictures:** while a story plays, its picture drifts slowly, and a little touch the storyteller chose
+  for the scene (fairy dust, falling snow, fireflies, petals…) floats over it. Photographed books get it too. It
+  pauses with the story, and rests on phones set to reduce motion.
+- **The price first, and the PIN every time.** Every step that costs money says what it costs before it happens,
+  and buying pictures always asks for the family PIN, even on an unlocked device. The illustrator never spends
+  more than was approved, and the Grown-ups' corner shows what was spent.
+- **Try it before setting it up:** until the illustrator's key is added, free stand-in pictures are drawn instead.
 
 ### 🎭 Voices that feel human
 - **A full cast.** The narrator and every character get their own expressive voice from ElevenLabs'
@@ -87,7 +106,7 @@ a brand-new tale for the very same pictures.
 - **Family accounts with reader cards:** one grown-up login per family, then a "Who's listening tonight?"
   card for each child (no passwords), so everyone finds their own favorites.
 - **Grown-up PIN** (optional): children can play anything on the shelves, but creating new stories, which
-  spends credits, needs a grown-up.
+  spends credits, needs a grown-up. Buying pictures always asks for it, so a family chooses one the first time.
 - **⬇ Download everything:** one ZIP with every story as an MP3 (filed by book), the family recordings (by
   person), the book photos, and a *Read me* page to browse, play and read every story's words. It's the
   family's copy to keep, whatever happens to the app or the subscriptions.
@@ -121,11 +140,14 @@ humming placeholder voices.
 4. Choose the length, mood and voices. Leave *Let me read it before the voices record it* on the first time.
 5. Read the script, swap any voice, then press **Record the story**. After a minute or two, press **Listen**.
 6. Tomorrow, open the book and tap **✨ Quick create**. When a story ends, *Up next* offers the next one.
-7. To make one like a story you've made before, open Create and choose the book: *Quick create* at the bottom offers
+7. For a picture book, choose **Just an idea**, describe it (the sillier the what-ifs, the better), and switch on
+   **📖 Make it a picture book**. Once it's written, meet the characters on the story's page: sketch each one,
+   choose together, then **Draw the book**. Each of those shows its price and asks for the family PIN.
+8. To make one like a story you've made before, open Create and choose the book: *Quick create* at the bottom offers
    the last story made for it (*Choose another* lists, and searches, every story you've made). Its storyteller,
    length, mood, sounds and characters are filled in, so it's one tap; *Start fresh* clears them. **Make another
    like this** on a story's page does the same, with its book already chosen.
-8. Create and Read to Me show your 6 most recent books, with a search and *See all* for the rest; once you pick
+9. Create and Read to Me show your 6 most recent books, with a search and *See all* for the rest; once you pick
    one it folds to a single line, with *Change*.
 
 ---
@@ -155,6 +177,13 @@ humming placeholder voices.
 - **Mixing and MP3 encoding** are pure JavaScript (`src/lib/server/audio.ts`); no ffmpeg needed.
 - **Editing a page only re-records that page.** Recordings are cached by content, and changing the chime
   or the sounds re-binds the story without re-recording any voices.
+- **Pictures:** a separate Claude request reads a picture book's finished script and plans its pictures (each
+  character's look, each page's scene). Google's picture model (`gemini-nano-banana-2.1` through the Gemini API)
+  draws the sketches, then the cover, then each page with the chosen sketches and the cover as reference pictures.
+  Every picture is drawn on a purchase a grown-up approved; a job sets each picture's price aside before drawing it
+  and stops before it would pass what was approved. See `src/lib/server/illustrator.ts` and `src/lib/server/art.ts`.
+- **What things cost** is worked out from each service's reported usage (`src/lib/server/prices.ts`) and kept in
+  the database (`src/lib/server/spending.ts`), so estimates follow what the family's stories have really cost.
 - **Sound effects** are placed by a small, separate Claude request that reads the finished script
   (`spotSoundEffects` in `src/lib/server/storyteller.ts`), made with ElevenLabs Sound Effects, and laid on
   the spoken word's timing about 8 dB under the narration (`src/lib/server/audio.ts`).
@@ -167,10 +196,11 @@ humming placeholder voices.
 src/app/(library)/   hall, library, book, create wizard, studio, read-to-me, grown-ups
 src/app/play/        the player
 src/app/api/         auth, profiles, PIN, books, stories, voices, classics, files
-src/lib/server/      db (SQLite), auth, storyteller, performer, audio, jobs, classics, voices, offsite (backups), alerts, credits
+src/lib/server/      db (SQLite), auth, storyteller, performer, audio, jobs, classics, voices, offsite (backups), alerts, credits,
+                     illustrator & art (picture books), prices & spending
 src/lib/shared/      types, options & presets, personas, chime synthesis
 scripts/             start (for Railway), restore-backup
-tests/               unit tests and API integration tests (fake Claude, ElevenLabs, S3 and Resend servers)
+tests/               unit tests and API integration tests (fake Claude, ElevenLabs, Google, S3 and Resend servers)
 ```
 
 Storage is a single SQLite file plus photos and audio under `DATA_DIR` (default `./data`), using Node's
@@ -223,11 +253,15 @@ That's for your family's own listening; please don't share those recordings publ
 | Changing chimes or sounds, replaying, downloading | free (new sound effects aside) |
 | Keeping family recordings | free |
 | Making a family storytelling voice | included in ElevenLabs plans from Starter up (each voice uses one of your plan's voice slots) |
+| Planning a picture book's pictures (Claude) | a few cents |
+| Pictures (Google's Nano Banana 2.1, print-sized) | at most 7¢ each, usually about 5¢: three sketches of a character about 20¢, a 6-page book about 46¢, so about 85¢ for a whole book with two characters |
+| Living pictures | free |
 
 To trim costs, set `STORY_MODEL=claude-sonnet-5-5` for the storyteller, or pick a shorter length.
 
-The create screen estimates character use before you start. A grown-up PIN keeps small hands from
-spending credits.
+Before anything is made, the create screen shows about what the storyteller will cost (from what your recent
+stories cost) and how many voice credits it uses. Pictures are bought one step at a time, each with its price and
+the family PIN, and never cost more than the price approved. The Grown-ups' corner lists what was spent this month.
 
 ---
 
@@ -244,7 +278,8 @@ spending credits.
    and choose the right branch.
 5. **Add a volume** to the service with mount path **`/data`**. That's where books, photos and recordings live.
 6. **Variables:** add `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY` and `SIGNUP_CODE` (a secret word only your
-   family knows; it's needed to create a library card).
+   family knows; it's needed to create a library card). For picture books, add `GEMINI_API_KEY` too (see
+   *Picture books* below); without it, stand-in pictures are drawn for free.
 7. **Settings → Networking → Generate Domain.** That's your Storyhollow address (`…up.railway.app`).
 8. Open it, create your library card with the sign-up code, and on the iPad use **Share → Add to Home Screen**.
 
@@ -269,6 +304,25 @@ The camera and "Add to Home Screen" need **HTTPS** (or `localhost`).
 family can sign up and the door closes behind them, so strangers who find the address can't spend your credits.
 
 Optional settings live in `.env.example` (`STORY_MODEL`, `VOICE_MODEL`, `ELEVENLABS_BASE_URL`, `DATA_DIR`).
+
+### Picture books
+
+The illustrator is Google's picture model, through the Gemini API:
+
+1. Go to [aistudio.google.com](https://aistudio.google.com), sign in with a Google account, and choose **Get API key →
+   Create API key**.
+2. Pictures are paid, so turn on billing for the key's project (AI Studio offers to set it up next to the key).
+   Google bills the pictures to that account.
+3. In Railway, open the service's **Variables** and add `GEMINI_API_KEY` with the key. (Paste it there, never into a
+   chat or an email.) Add it to the test copy first and try a picture book there.
+
+| Variable | What it is |
+| --- | --- |
+| `GEMINI_API_KEY` | The key from Google AI Studio (`GOOGLE_API_KEY` works too) |
+| `PICTURE_MODEL` | Optional; defaults to `gemini-nano-banana-2.1`. `gemini-3-pro-image-preview` (Nano Banana Pro) paints richer pictures at about three times the price |
+| `PICTURE_PRICE` | Optional; dollars per picture, for a picture model the app doesn't know the price of |
+
+The Grown-ups' corner shows whether the illustrator is connected, about what a picture costs, and what was spent.
 
 ### Automatic backups
 
@@ -330,9 +384,11 @@ can be read, and `503` when not.
   story on the shelf.
 - **Ongoing sagas:** recurring characters with memories across nights ("Ollie remembers last week's
   adventure").
+- **A printed picture book:** a print-ready PDF to download, then ordering a hardcover from inside the app.
+- **Moving pictures:** an animated clip for a favorite page or the cover.
+- **Characters who come back:** keep a picture book's characters, so the same tooth fairy visits for every tooth.
 - **Kid-made covers:** photograph a child's drawing as the book's cover.
 - **Sleep timer and soundscape-only mode** after the story ends.
-- **Offline shelf:** save favorite stories on the device for car trips and flights.
 - **Share with family:** send a story link to grandparents, or let them make one for the kids.
 - **Stories in other languages**, for bilingual families.
 - **Native wrappers** (Capacitor) for App Store / Play Store distribution.

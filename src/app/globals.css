@@ -3009,3 +3009,441 @@ code {
   border-color: #a8792b;
   background: linear-gradient(180deg, rgba(255, 236, 180, 0.9), rgba(240, 210, 140, 0.75));
 }
+
+/* Purchases: the price first, then the family PIN. */
+.purchase-summary {
+  margin: 14px auto 4px;
+  padding: 14px 16px;
+  max-width: 380px;
+  border-radius: 14px;
+  border: 1px solid rgba(107, 63, 21, 0.3);
+  background: rgba(255, 252, 242, 0.65);
+}
+.purchase-what {
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  color: var(--ink);
+}
+.purchase-price {
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  line-height: 1.2;
+  color: #6b1f2b;
+}
+.purchase-terms {
+  color: var(--ink-soft);
+}
+.purchase .pin-dots {
+  margin: 14px 0;
+}
+
+/* Picture books in the studio: the characters as sketches, then the book. */
+.art-character .sketches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 10px;
+  max-width: 420px;
+  margin-top: 12px;
+}
+.sketch {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid rgba(107, 63, 21, 0.25);
+  background: #fffaf0;
+  cursor: pointer;
+}
+.sketch img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sketch[aria-checked="true"] {
+  border-color: #a8792b;
+  box-shadow: 0 0 0 3px rgba(220, 174, 85, 0.6);
+}
+.sketch[aria-checked="true"]::after {
+  content: "✓";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.85rem;
+  background: radial-gradient(circle at 35% 30%, #b84459, #6b1f2b);
+}
+.sketch.drawing {
+  cursor: default;
+  border-style: dashed;
+}
+.sketch.drawing figcaption {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 2px 4px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--ink);
+  background: rgba(255, 250, 240, 0.85);
+}
+label.btn.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.art-cover-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) 1fr;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .art-cover-row {
+    grid-template-columns: 1fr;
+  }
+}
+.page-picture {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: visible;
+  box-shadow: none;
+}
+.page-picture img {
+  border-radius: 8px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+}
+.picture-to-be {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  aspect-ratio: 4 / 3;
+  padding: 10px 12px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px dashed rgba(107, 63, 21, 0.4);
+  background: rgba(255, 252, 242, 0.5);
+  color: var(--ink-soft);
+}
+.art-others summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+.art-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Spending, in the Grown-ups' corner. */
+.spend-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+}
+.spend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.spend-list li {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(107, 63, 21, 0.15);
+}
+.spend-amount {
+  text-align: right;
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .spend-list li {
+    grid-template-columns: 1fr auto;
+  }
+  .spend-list li > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Living pictures: a slow camera drift for as long as the page lasts. */
+.drift {
+  display: block;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: both;
+  transform-origin: center;
+  will-change: transform;
+}
+.page-frame:not(.photo) .drift {
+  width: 100%;
+  height: 100%;
+}
+.drift-a {
+  animation-name: drift-a;
+}
+.drift-b {
+  animation-name: drift-b;
+}
+.drift-c {
+  animation-name: drift-c;
+}
+.drift-d {
+  animation-name: drift-d;
+}
+@keyframes drift-a {
+  from {
+    transform: scale(1.01) translate(0, 0);
+  }
+  to {
+    transform: scale(1.07) translate(-1.6%, -1.2%);
+  }
+}
+@keyframes drift-b {
+  from {
+    transform: scale(1.01) translate(0, 0);
+  }
+  to {
+    transform: scale(1.07) translate(1.6%, -1%);
+  }
+}
+@keyframes drift-c {
+  from {
+    transform: scale(1.06) translate(-2%, 0);
+  }
+  to {
+    transform: scale(1.06) translate(2%, 0);
+  }
+}
+@keyframes drift-d {
+  from {
+    transform: scale(1.07) translate(0, -1%);
+  }
+  to {
+    transform: scale(1.01) translate(0, 0);
+  }
+}
+
+/* …and a little touch floating over it, chosen for the scene. */
+.scene-effect {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.scene-effect span {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--s);
+  height: var(--s);
+  animation-duration: var(--d);
+  animation-delay: var(--delay);
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+}
+.scene-effect.paused span {
+  animation-play-state: paused;
+}
+.fx-snow span {
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.7);
+  animation-name: fx-fall;
+}
+.fx-rain span {
+  width: 1.5px;
+  height: calc(var(--s) * 4);
+  border-radius: 1px;
+  background: linear-gradient(rgba(210, 228, 255, 0), rgba(210, 228, 255, 0.6));
+  animation-name: fx-rain;
+}
+.fx-sparkles span {
+  border-radius: 50%;
+  background: #fff2c4;
+  box-shadow:
+    0 0 6px 2px rgba(246, 217, 139, 0.85),
+    0 0 14px 4px rgba(246, 217, 139, 0.35);
+  animation-name: fx-sparkle;
+  animation-timing-function: ease-in-out;
+}
+.fx-fireflies span {
+  border-radius: 50%;
+  background: #f4f7a1;
+  box-shadow: 0 0 10px 4px rgba(214, 233, 96, 0.7);
+  animation-name: fx-firefly;
+  animation-timing-function: ease-in-out;
+  animation-direction: alternate;
+}
+.fx-leaves span {
+  width: calc(var(--s) * 2.4);
+  height: calc(var(--s) * 1.4);
+  border-radius: 80% 0 80% 0;
+  background: #c8642d;
+  animation-name: fx-tumble;
+}
+.fx-leaves span:nth-child(3n + 1) {
+  background: #d9a03a;
+}
+.fx-leaves span:nth-child(3n + 2) {
+  background: #8e4a25;
+}
+.fx-stars span {
+  width: calc(var(--s) * 0.7);
+  height: calc(var(--s) * 0.7);
+  border-radius: 50%;
+  background: #fffbe8;
+  box-shadow: 0 0 6px 1px rgba(255, 251, 232, 0.8);
+  animation-name: fx-twinkle;
+  animation-timing-function: ease-in-out;
+  animation-direction: alternate;
+}
+.fx-bubbles span {
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.05) 45%, rgba(173, 216, 230, 0.12));
+  animation-name: fx-rise;
+}
+.fx-petals span {
+  width: calc(var(--s) * 2);
+  height: calc(var(--s) * 1.3);
+  border-radius: 60% 40% 60% 40%;
+  background: #f4b6c8;
+  animation-name: fx-drift-down;
+}
+.fx-petals span:nth-child(2n) {
+  background: #fbd5df;
+}
+@keyframes fx-fall {
+  0% {
+    top: -6%;
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(var(--sway));
+  }
+  100% {
+    top: 106%;
+    transform: translateX(0);
+  }
+}
+@keyframes fx-rain {
+  from {
+    top: -12%;
+    transform: translateX(0) rotate(10deg);
+  }
+  to {
+    top: 106%;
+    transform: translateX(-30px) rotate(10deg);
+  }
+}
+@keyframes fx-sparkle {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.4);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-12px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-46px) scale(0.5);
+  }
+}
+@keyframes fx-firefly {
+  0% {
+    opacity: 0.15;
+    transform: translate(0, 0);
+  }
+  40% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0.9;
+    transform: translate(var(--sway), calc(var(--sway) * -0.8));
+  }
+}
+@keyframes fx-tumble {
+  0% {
+    top: -6%;
+    transform: translateX(0) rotate(0deg);
+  }
+  50% {
+    transform: translateX(var(--sway)) rotate(calc(var(--rot) / 2));
+  }
+  100% {
+    top: 106%;
+    transform: translateX(0) rotate(var(--rot));
+  }
+}
+@keyframes fx-twinkle {
+  from {
+    opacity: 0.15;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+@keyframes fx-rise {
+  0% {
+    top: 106%;
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(var(--sway));
+  }
+  100% {
+    top: -12%;
+    transform: translateX(0);
+  }
+}
+@keyframes fx-drift-down {
+  0% {
+    top: -6%;
+    transform: translateX(0) rotate(0deg);
+  }
+  100% {
+    top: 106%;
+    transform: translateX(var(--sway)) rotate(var(--rot));
+  }
+}
+/* Resting for anyone who prefers less motion, and in lights-out (shadows on the wall). */
+.player.lights-out .scene-effect {
+  display: none;
+}
+.player.lights-out .drift {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-effect {
+    display: none;
+  }
+  .drift {
+    animation: none;
+  }
+}

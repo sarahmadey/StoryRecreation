@@ -7,9 +7,11 @@ import { ChimePicker, PhotoPicker, SoundsPicker, VoicePicker, soundsOf, useVoice
 import { BookPicker } from "@/components/BookPicker";
 import { Steps, toTop } from "@/components/Steps";
 import { CreditNote } from "@/components/Credits";
+import { StylePicker, bookEstimate } from "@/components/PictureBook";
+import { DEFAULT_ART_STYLE, formatMoney, storytellerCost } from "@/lib/shared/art";
 import type { PickedPhoto } from "@/lib/client/images";
 import { AGES, LENGTHS, MOODS, defaultSettings, estimateMinutes } from "@/lib/shared/options";
-import type { AgeBand, Book, LengthPreset, Mood, Profile, StorySettings, VoiceLabel } from "@/lib/shared/types";
+import type { AgeBand, AppStatus, Book, LengthPreset, Mood, Profile, StorySettings, VoiceLabel, WriteCosts } from "@/lib/shared/types";
 
 type Source = "book" | "wild" | "idea";
 
@@ -49,6 +51,8 @@ export function CreateWizard({
   preselectSettings,
   past,
   like,
+  status,
+  writeCosts,
 }: {
   books: Book[];
   profiles: Profile[];
@@ -59,6 +63,9 @@ export function CreateWizard({
   past: PastStory[];
   /** Arrived from "Make another like this" on a story's page. */
   like: string | null;
+  status: AppStatus;
+  /** About what writing a story costs, by length. */
+  writeCosts: WriteCosts;
 }) {
   const api = useApi();
   const router = useRouter();
@@ -190,6 +197,19 @@ export function CreateWizard({
 
   const STEPS = ["The pictures", "The story", "Voices & sounds", "Conjure"];
 
+  // What it costs, before anything is spent: the storyteller's time, and the pictures (bought later, with the PIN).
+  const pictureBook = source === "idea" && Boolean(settings.pictures);
+  const planning = pictureBook
+    ? storytellerCost(status.storytellerRates, 3_000 + LENGTHS[settings.length].minutes * 140 * 1.5, 2_500 + pageCount * 150)
+    : 0;
+  const costs = (
+    <p className="faint small center" style={{ margin: 0 }}>
+      Writing it{pictureBook ? " and planning the pictures" : ""}: about {formatMoney(writeCosts[settings.length] + planning)} of storyteller time.
+      {pictureBook &&
+        ` Pictures: about ${formatMoney(bookEstimate(pageCount, status.picturePrice))}${status.illustrator ? "" : " once the illustrator is set up (free stand-ins until then)"}, approved with the family PIN before any are drawn.`}
+    </p>
+  );
+
   return (
     <>
       <div className="center" style={{ marginBottom: 16 }}>
@@ -272,6 +292,21 @@ export function CreateWizard({
                   <span>A title (optional)</span>
                   <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="The storyteller will choose one" />
                 </label>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(settings.pictures)}
+                    onChange={(e) => setSettings((cur) => ({ ...cur, pictures: e.target.checked, artStyle: cur.artStyle ?? DEFAULT_ART_STYLE }))}
+                  />
+                  <span>
+                    <b>📖 Make it a picture book</b>
+                    <span className="muted small">
+                      The illustrator draws a cover and a picture for every page. You&apos;ll meet the characters first, and a grown-up approves the
+                      pictures with the family PIN before any are drawn.
+                    </span>
+                  </span>
+                </label>
+                {settings.pictures && <StylePicker value={settings.artStyle ?? DEFAULT_ART_STYLE} onChange={(s) => set("artStyle", s)} />}
               </div>
             )}
             {past.length > 0 && (
@@ -516,7 +551,7 @@ export function CreateWizard({
                     , starring <b>{settings.heroes.join(" & ")}</b>
                   </>
                 ) : null}
-                .
+                {pictureBook ? ", as a picture book" : ""}.
               </p>
               <p className="muted">
                 {settings.fullCast ? "A full cast of voices" : "One storyteller"}
@@ -533,6 +568,7 @@ export function CreateWizard({
                 </span>
               </span>
             </label>
+            {costs}
             <CreditNote needed={words.chars} />
             {error && <p className="notice notice-error">{error}</p>}
             <div className="center">
@@ -568,7 +604,12 @@ export function CreateWizard({
             )
           )}
         </div>
-        {step === 0 && liked && sourceReady && <CreditNote needed={words.chars} />}
+        {step === 0 && liked && sourceReady && (
+          <>
+            {costs}
+            <CreditNote needed={words.chars} />
+          </>
+        )}
         {step === 0 && error && <p className="notice notice-error">{error}</p>}
       </div>
     </>

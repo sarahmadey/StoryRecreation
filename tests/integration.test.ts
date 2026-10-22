@@ -201,7 +201,7 @@ test("the storyteller sends pictures, settings and the voice catalog, and reads 
 
   const progress: string[] = [];
   const tinyJpeg = Buffer.from("/9j/4AAQSkZJRgABAQ==", "base64").toString("base64");
-  const { script, photoOrder } = await writeScript(
+  const { script, photoOrder, cost } = await writeScript(
     {
       mode: "create",
       bookTitle: "The Moonlit Woods",
@@ -221,6 +221,10 @@ test("the storyteller sends pictures, settings and the voice catalog, and reads 
 
   const req = captured.find((c) => c.url.startsWith("/v1/messages"))!;
   assert.ok(req, "Claude was called");
+  // what it cost, at Claude Opus 5.5's prices: 10 tokens in at $4 a million, 200 out at $20 a million
+  assert.equal(cost, 10 * 4 + 200 * 20);
+  const effects = (req.body as Record<string, any>).output_config.format.schema.properties.pages.items.properties.effect.enum;
+  assert.ok(effects.includes("sparkles") && effects.includes("none"), "the storyteller picks a moving touch for each page");
   const body = req.body as Record<string, any>;
   assert.equal(body.model, "claude-opus-5-5");
   assert.equal(body.fallbacks, "default");
@@ -483,7 +487,8 @@ test("sound effects are chosen for a finished script, made short, and land on th
       { page: 2, line: 0, word: "hoo", sound: "a soft owl hoot", seconds: 30 },
     ],
   });
-  const cues = await spotSoundEffects(script);
+  const { cues, cost } = await spotSoundEffects(script);
+  assert.equal(cost, 10 * 4 + 40 * 20, "what choosing the sounds cost is known");
   const req = captured.findLast((c) => c.url.startsWith("/v1/messages"))!;
   const body = req.body as Record<string, any>;
   assert.equal(body.stream, undefined, "a quick request, not a stream");
@@ -534,7 +539,11 @@ test("the words in a photo or screenshot are copied out exactly, a poem keeping 
     { data: Buffer.from("page two").toString("base64"), mediaType: "image/png" as const },
   ];
   const words = await readWordsFromPictures(pictures);
-  assert.deepEqual(words, { title: "The Owl", text: "The owl looked up\nat the moon so bright,\n\nand hooted softly\nall through the night." });
+  assert.deepEqual(words, {
+    title: "The Owl",
+    text: "The owl looked up\nat the moon so bright,\n\nand hooted softly\nall through the night.",
+    cost: 10 * 4 + 40 * 20,
+  });
   const body = captured.findLast((c) => c.url.startsWith("/v1/messages"))!.body as Record<string, any>;
   assert.equal(body.model, "claude-opus-5-5");
   assert.equal(body.fallbacks, "default");
@@ -548,7 +557,7 @@ test("the words in a photo or screenshot are copied out exactly, a poem keeping 
   );
 
   soundJson = JSON.stringify({ title: "", text: "" });
-  assert.deepEqual(await readWordsFromPictures(pictures.slice(0, 1)), { title: null, text: "" }, "no words, no title");
+  assert.deepEqual(await readWordsFromPictures(pictures.slice(0, 1)), { title: null, text: "", cost: 840 }, "no words, no title");
 });
 
 test("a Gutenberg text's title and author are read from its header", async () => {

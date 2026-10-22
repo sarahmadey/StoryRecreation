@@ -1,5 +1,6 @@
 import { AGES, CHIMES, LENGTHS, MOODS, defaultSettings } from "@/lib/shared/options";
-import type { AgeBand, ChimeStyle, LengthPreset, Mood, StorySettings, StorySource } from "@/lib/shared/types";
+import { ART_STYLES, DEFAULT_ART_STYLE } from "@/lib/shared/art";
+import type { AgeBand, ArtStyle, ChimeStyle, LengthPreset, Mood, StorySettings, StorySource } from "@/lib/shared/types";
 
 const SOURCES: StorySource[] = ["book", "wild", "idea", "classic", "book_read", "text"];
 
@@ -13,8 +14,9 @@ export function sanitizeSettings(input: unknown): StorySettings {
   const d = defaultSettings();
   const chime = (i.chime && typeof i.chime === "object" ? i.chime : {}) as Record<string, unknown>;
   const classic = i.classic as { gutenbergId?: unknown; chapter?: unknown } | undefined;
+  const source = pick(i.source, SOURCES, d.source);
   return {
-    source: pick(i.source, SOURCES, d.source),
+    source,
     length: pick(i.length, Object.keys(LENGTHS) as LengthPreset[], d.length),
     mood: pick(i.mood, Object.keys(MOODS) as Mood[], d.mood),
     age: pick(i.age, Object.keys(AGES) as AgeBand[], d.age),
@@ -35,6 +37,10 @@ export function sanitizeSettings(input: unknown): StorySettings {
     ambience: Boolean(i.ambience),
     effects: Boolean(i.effects),
     review: i.review === undefined ? d.review : Boolean(i.review),
+    // Pictures are drawn for stories dreamed up from an idea (the others have the family's own pictures).
+    ...(i.pictures && source === "idea"
+      ? { pictures: true, artStyle: pick(i.artStyle, Object.keys(ART_STYLES) as ArtStyle[], DEFAULT_ART_STYLE) }
+      : {}),
     ...(classic && Number.isInteger(classic.gutenbergId) && Number.isInteger(classic.chapter)
       ? { classic: { gutenbergId: Number(classic.gutenbergId), chapter: Number(classic.chapter) } }
       : {}),

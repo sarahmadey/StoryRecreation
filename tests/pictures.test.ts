@@ -1,0 +1,308 @@
+// Picture books: what pictures cost and how that's shown, the purchase a grown-up approves with the PIN,
+// the picture plan and the illustrator's prompts, and drawing a book on a fake Google that stays within
+// the approved price.
+
+import { after, before, test } from "node:test";
+import assert from "node:assert/strict";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
+import fs from "node:fs";
+import type { AddressInfo } from "node:net";
+import type { StoryArt, StoryScript } from "@/lib/shared/types";
+
+// A 1×1 PNG: what the fake Google draws.
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+
+let mode: "ok" | "forbidden" | "blocked" = "ok";
+const asked: { headers: http.IncomingHttpHeaders; url: string; body: Record<string, any> }[] = [];
+let server: http.Server;
+
+before(async () => {
+  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "storyhollow-pictures-test-"));
+  server = http.createServer((req, res) => {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    req.on("end", () => {
+      asked.push({ headers: req.headers, url: req.url ?? "", body: JSON.parse(raw || "{}") });
+      res.setHeader("Content-Type", "application/json");
+      if (mode === "forbidden") {
+        res.statusCode = 403;
+        return res.end(JSON.stringify({ error: { message: "API key not valid.", status: "PERMISSION_DENIED" } }));
+      }
+      if (mode === "blocked") {
+        return res.end(JSON.stringify({ promptFeedback: { blockReason: "SAFETY" }, usageMetadata: { promptTokenCount: 500 } }));
+      }
+      res.end(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: PNG.toString("base64") } }] }, finishReason: "STOP" }],
+          usageMetadata: { promptTokenCount: 3000, candidatesTokenCount: 1680 },
+        }),
+      );
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  process.env.GEMINI_BASE_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+});
+
+after(() => server.close());
+
+/** What one picture from the fake Google costs on Nano Banana 2.1: 1,680 tokens out at $30 a million, 3,000 in at 50¢ a million. */
+const DRAWN = 1680 * 30 + 3000 * 0.5;
+
+test("money is shown rounded up, so it's never less than it can cost", async () => {
+  const { formatMoney } = await import("@/lib/shared/art");
+  assert.equal(formatMoney(0), "free");
+  assert.equal(formatMoney(0, "$0"), "$0");
+  assert.equal(formatMoney(50_400), "6¢");
+  assert.equal(formatMoney(1_000_000), "$1.00");
+  assert.equal(formatMoney(1_234_567), "$1.24");
+});
+
+test("prices: Claude by the token, pictures by the picture, with a fair guess before any stories are written", async () => {
+  const { claudeCost, picturePrice, pictureCost, writeCostGuess, planCostGuess } = await import("@/lib/server/prices");
+  assert.equal(claudeCost("claude-opus-5-5", { input_tokens: 1000, output_tokens: 2000 }), 1000 * 4 + 2000 * 20);
+  assert.equal(
+    claudeCost("claude-opus-5-5", { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 1000, cache_read_input_tokens: 1000 }),
+    1000 * 4 * 1.25 + 1000 * 0.2,
+  );
+  assert.equal(claudeCost("claude-opus-4-8", { input_tokens: 1000, output_tokens: 0 }), 5000, "an older Opus at its own price");
+  assert.equal(picturePrice("gemini-nano-banana-2.1"), 2000 * 30 + 10_000 * 0.5);
+  assert.ok(picturePrice("gemini-3-pro-image-preview") > picturePrice("gemini-nano-banana-2.1"), "the premium model costs more");
+  assert.equal(pictureCost("gemini-nano-banana-2.1", { promptTokenCount: 3000, candidatesTokenCount: 1680 }), DRAWN);
+  assert.ok(DRAWN <= picturePrice("gemini-nano-banana-2.1"), "a picture never costs more than its price");
+  assert.ok(writeCostGuess("short") < writeCostGuess("medium") && writeCostGuess("medium") < writeCostGuess("long"));
+  assert.ok(planCostGuess(800, 6) > 0);
+
+  process.env.PICTURE_PRICE = "0.08";
+  assert.equal(picturePrice("some-new-model"), 80_000, "a model the app doesn't know is priced by the family");
+  delete process.env.PICTURE_PRICE;
+});
+
+test("a purchase needs the family PIN, entered for it, and a price no lower than it can cost", async () => {
+  const { createHousehold, createSession, getHousehold, getSession, setHouseholdPin } = await import("@/lib/server/db");
+  const { hashSecret } = await import("@/lib/server/auth");
+  const { approvePurchase } = await import("@/lib/server/spending");
+  const id = createHousehold("The Gap Family", "gap@example.com", "hash");
+  const session = getSession(createSession(id, 60_000))!;
+  const ctx = () => ({ session, household: getHousehold(id)!, profile: null, grownup: true });
+  const code = (fn: () => void) => {
+    try {
+      fn();
+      return "approved";
+    } catch (err) {
+      return (err as { code?: string }).code;
+    }
+  };
+  assert.equal(code(() => approvePurchase(ctx(), { pin: "1234", micros: 100 }, 100)), "pin_needed", "without a PIN, one is chosen first");
+  setHouseholdPin(id, hashSecret("2468"));
+  assert.equal(code(() => approvePurchase(ctx(), { pin: "1111", micros: 100 }, 100)), "wrong_pin");
+  assert.equal(code(() => approvePurchase(ctx(), { micros: 100 }, 100)), "wrong_pin", "an unlocked device isn't enough");
+  assert.equal(code(() => approvePurchase(ctx(), { pin: "2468", micros: 99 }, 100)), "price_changed", "never more than was approved");
+  assert.equal(code(() => approvePurchase(ctx(), { pin: "2468", micros: 100 }, 100)), "approved");
+});
+
+const script: StoryScript = {
+  title: "The Tooth Fairy Who Was Actually a Giant",
+  synopsis: "Mia discovers who really collects her teeth.",
+  ambience: "",
+  cast: [
+    { id: "narrator", name: "Narrator", description: "", voiceBrief: "", voiceId: "v1" },
+    { id: "mia", name: "Mia", description: "a girl who just lost a tooth", voiceBrief: "", voiceId: "v2" },
+    { id: "fairy", name: "Gwendolyn", description: "the tooth fairy", voiceBrief: "", voiceId: "v3" },
+  ],
+  pages: [1, 2, 3].map((page) => ({ page, picture: `Page ${page}`, lines: [{ speaker: "narrator", text: `Words for page ${page}.` }] })),
+};
+
+test("the picture plan keeps its promises: real characters, a few main ones, every page planned", async () => {
+  const { cleanPicturePlan } = await import("@/lib/server/storyteller");
+  const plan = cleanPicturePlan(script, {
+    characters: [
+      { id: "narrator", name: "Narrator", look: "", main: true },
+      { id: "Fairy", name: "Gwendolyn", look: "a giant, green and lumpy, with a coin purse the size of a bathtub", main: true },
+      { id: "fairy", name: "Gwendolyn again", look: "", main: true },
+      { id: "mia", name: "Mia", look: "", main: true },
+      ...["a", "b", "c", "d"].map((id) => ({ id, name: id.toUpperCase(), look: "", main: true })),
+    ],
+    cover: "  Mia peeking at a giant shadow.  ",
+    pages: [
+      { page: 1, scene: "Mia puts her tooth under the pillow.", characters: ["mia", "nobody"] },
+      { page: 3, scene: "The giant fairy waves goodbye.", characters: ["fairy", "mia"] },
+    ],
+  });
+  assert.deepEqual(plan.characters.map((c) => c.id), ["fairy", "mia", "a", "b", "c", "d"], "no narrator, no repeats");
+  assert.equal(plan.characters.filter((c) => c.main).length, 4, "at most four are sketched");
+  assert.equal(plan.cover, "Mia peeking at a giant shadow.");
+  assert.deepEqual(plan.pages.map((p) => p.page), [1, 2, 3], "every page has a picture planned");
+  assert.deepEqual(plan.pages[0].characters, ["mia"], "only characters who exist");
+  assert.equal(plan.pages[1].scene, "Page 2", "a page the plan missed falls back to the storyteller's note");
+});
+
+test("the illustrator's prompts: sketches from a description or a child's drawing, pages from the chosen sketches and the cover", async () => {
+  const { characterPrompt, sceneRequest, undrawn } = await import("@/lib/server/art");
+  const fairy = { id: "fairy", name: "Gwendolyn", look: "a giant, green and lumpy", main: true, drawing: null, sketches: [], chosen: null };
+  const mia = { ...fairy, id: "mia", name: "Mia", look: "curly hair and a gap in her smile" };
+  assert.match(characterPrompt(fairy, "watercolor", false), /Gwendolyn, a giant, green and lumpy\..*watercolor.*No words/);
+  assert.match(characterPrompt(fairy, "watercolor", true), /child's own drawing of Gwendolyn.*Keep the child's design/);
+
+  const sketch = { data: PNG, mime: "image/png", label: "Gwendolyn" };
+  const cover = { data: PNG, mime: "image/png", label: "the cover" };
+  const page = sceneRequest({
+    title: "The Giant Tooth Fairy",
+    page: 2,
+    scene: "Gwendolyn tiptoes past the bed.",
+    characters: [fairy, mia],
+    sketches: new Map([["fairy", sketch]]),
+    cover,
+    style: "watercolor",
+    mood: "silly",
+    note: "make her even lumpier",
+    seed: "x",
+  });
+  assert.equal(page.references.length, 2, "Gwendolyn's sketch, then the cover");
+  assert.equal(page.aspect, "4:3");
+  assert.match(page.prompt, /page 2 of the picture book "The Giant Tooth Fairy"/);
+  assert.match(page.prompt, /Gwendolyn looks exactly like reference picture 1/);
+  assert.match(page.prompt, /Mia: curly hair and a gap in her smile/, "a character without a sketch is described");
+  assert.match(page.prompt, /Match the style, palette and lighting of the cover \(reference picture 2\)/);
+  assert.match(page.prompt, /The family asked for this change: make her even lumpier/);
+  const front = sceneRequest({ title: "T", page: 0, scene: "s", characters: [fairy], sketches: new Map(), cover, style: "shadow", mood: "bedtime", seed: "y" });
+  assert.equal(front.references.length, 0, "the cover isn't drawn from itself");
+  assert.match(front.prompt, /front cover/);
+
+  const art = { cover: null, pages: ["stories/x/art/page-01.png", null, null] } as unknown as StoryArt;
+  assert.deepEqual(undrawn(art), [0, 2, 3]);
+});
+
+test("stand-in pictures: clearly pretend, the words wrapped and escaped", async () => {
+  const { standInPicture, wrapWords } = await import("@/lib/server/illustrator");
+  assert.deepEqual(wrapWords("one two three four five six", 9, 2), ["one two", "three…"]);
+  assert.deepEqual(wrapWords("short", 20, 3), ["short"]);
+  const svg = standInPicture({ aspect: "4:3", standIn: { heading: "Page 1", caption: "Mia & the <giant>", style: "watercolor", seed: "a" } });
+  assert.match(svg, /^<svg[^>]+viewBox="0 0 1200 900"/);
+  assert.match(svg, /Mia &amp; the &lt;giant&gt;/);
+  assert.match(svg, /Stand-in picture/);
+  assert.doesNotMatch(svg, /<script/);
+});
+
+/** A picture book ready to draw: planned, with Gwendolyn's sketch chosen. */
+async function pictureBook(title: string) {
+  const { createHousehold, createBook, createStory, updateStory, changeStoryArt } = await import("@/lib/server/db");
+  const { defaultSettings } = await import("@/lib/shared/options");
+  const { newArt } = await import("@/lib/server/art");
+  const { householdDir } = await import("@/lib/server/files");
+  const household = createHousehold(title, `${title.replace(/\W+/g, "").toLowerCase()}@example.com`, "hash");
+  const book = createBook(household, { title, kind: "idea" });
+  const story = createStory(household, { bookId: book, profileId: null, mode: "create", title, settings: defaultSettings({ source: "idea", pictures: true }), status: "ready" });
+  updateStory(story, { script });
+  const sketch = `stories/${story}/art/sketch-fairy-1.png`;
+  fs.mkdirSync(path.join(householdDir(household), `stories/${story}/art`), { recursive: true });
+  fs.writeFileSync(path.join(householdDir(household), sketch), PNG);
+  changeStoryArt(story, () => ({
+    ...newArt("watercolor", 3),
+    characters: [
+      { id: "fairy", name: "Gwendolyn", look: "a giant, green and lumpy", main: true, drawing: null, sketches: [sketch], chosen: 0 },
+      { id: "mia", name: "Mia", look: "curly hair", main: false, drawing: null, sketches: [], chosen: null },
+    ],
+    coverScene: "Mia and Gwendolyn under the moon.",
+    scenes: [1, 2, 3].map((page) => ({ page, scene: `Scene ${page}`, characters: ["fairy", "mia"] })),
+  }));
+  return { household, book, story };
+}
+
+async function untilDrawn(story: string) {
+  const { artBusy } = await import("@/lib/server/art");
+  for (let i = 0; i < 200 && artBusy(story); i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(artBusy(story), false, "the illustrator finished");
+}
+
+test("drawing a book: the cover first, then each page from the chosen sketch and the cover, within the approved price", async () => {
+  process.env.GEMINI_API_KEY = "test-google-key";
+  mode = "ok";
+  asked.length = 0;
+  const { getStoryArt, getBook } = await import("@/lib/server/db");
+  const { startDrawing } = await import("@/lib/server/art");
+  const { recordSpend, getPurchase, spendingSummary } = await import("@/lib/server/spending");
+  const { picturePrice } = await import("@/lib/server/prices");
+  const { householdDir } = await import("@/lib/server/files");
+  const { household, book, story } = await pictureBook("The Giant Tooth Fairy");
+
+  const approved = picturePrice() * 4;
+  const purchase = recordSpend(household, { storyId: story, service: "pictures", kind: "draw", what: "Drew the book", approved });
+  assert.ok(startDrawing(story, [0, 1, 2, 3], purchase));
+  assert.equal(startDrawing(story, [1], purchase), false, "one job at a time");
+  await untilDrawn(story);
+
+  const art = getStoryArt(story)!;
+  assert.equal(art.error, null);
+  assert.ok(art.cover && art.pages.every(Boolean), "the cover and every page are drawn");
+  for (const rel of [art.cover!, ...(art.pages as string[])]) assert.ok(fs.existsSync(path.join(householdDir(household), rel)));
+  assert.deepEqual(getPurchase(purchase), { approved, spent: DRAWN * 4, pictures: 4 }, "what it really cost, within what was approved");
+  assert.equal(spendingSummary(household).month.pictureCount, 4);
+  assert.ok(getBook(household, book)!.coverUrl, "the book has its first picture book's cover");
+
+  assert.equal(asked.length, 4);
+  const first = asked[0];
+  assert.match(first.url, /\/v1beta\/models\/gemini-nano-banana-2\.1:generateContent$/);
+  assert.equal(first.headers["x-goog-api-key"], "test-google-key");
+  assert.deepEqual(first.body.generationConfig, { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "4:3", imageSize: "2K" } });
+  const parts = (r: (typeof asked)[number]) => r.body.contents[0].parts as { text?: string; inlineData?: { mimeType: string } }[];
+  assert.match(parts(first).at(-1)!.text!, /front cover/, "the cover comes first");
+  assert.equal(parts(first).filter((p) => p.inlineData).length, 1, "drawn from Gwendolyn's sketch");
+  for (const page of asked.slice(1)) {
+    assert.equal(parts(page).filter((p) => p.inlineData).length, 2, "each page: Gwendolyn's sketch and the cover");
+    assert.match(parts(page).at(-1)!.text!, /Gwendolyn looks exactly like reference picture 1.*Mia: curly hair/);
+  }
+});
+
+test("the illustrator never draws more than the purchase covers, and a refusal or a bad key is said plainly", async () => {
+  process.env.GEMINI_API_KEY = "test-google-key";
+  mode = "ok";
+  const { getStoryArt } = await import("@/lib/server/db");
+  const { startDrawing, startSketches } = await import("@/lib/server/art");
+  const { recordSpend, getPurchase } = await import("@/lib/server/spending");
+  const { picturePrice } = await import("@/lib/server/prices");
+
+  const short = await pictureBook("Two Pictures Only");
+  const purchase = recordSpend(short.household, { storyId: short.story, service: "pictures", kind: "draw", what: "x", approved: picturePrice() * 2 });
+  startDrawing(short.story, [0, 1, 2], purchase);
+  await untilDrawn(short.story);
+  const art = getStoryArt(short.story)!;
+  assert.equal([art.cover, ...art.pages].filter(Boolean).length, 2);
+  assert.match(art.error ?? "", /couldn't be drawn\. That's all the approved purchase covers\./);
+  assert.equal(getPurchase(purchase)!.pictures, 2);
+
+  mode = "forbidden";
+  const locked = await pictureBook("A Bad Key");
+  const p2 = recordSpend(locked.household, { storyId: locked.story, service: "pictures", kind: "draw", what: "x", approved: picturePrice() });
+  startDrawing(locked.story, [1], p2);
+  await untilDrawn(locked.story);
+  assert.match(getStoryArt(locked.story)!.error ?? "", /Google key wasn't accepted.*API key not valid/);
+  assert.equal(getPurchase(p2)!.spent, 0, "a refused request costs nothing");
+
+  mode = "blocked";
+  const shy = await pictureBook("A Shy Illustrator");
+  const p3 = recordSpend(shy.household, { storyId: shy.story, service: "pictures", kind: "sketch", what: "x", approved: picturePrice() * 3 });
+  startSketches(shy.story, "fairy", p3, 3);
+  await untilDrawn(shy.story);
+  assert.match(getStoryArt(shy.story)!.error ?? "", /wouldn't draw this one/);
+  assert.deepEqual(getPurchase(p3), { approved: picturePrice() * 3, spent: 500 * 0.5 * 3, pictures: 0 }, "what a picture-less reply cost is still counted");
+  mode = "ok";
+});
+
+test("without the illustrator's key, the pictures are free stand-ins", async () => {
+  delete process.env.GEMINI_API_KEY;
+  asked.length = 0;
+  const { getStoryArt } = await import("@/lib/server/db");
+  const { startSketches } = await import("@/lib/server/art");
+  const { recordSpend, getPurchase } = await import("@/lib/server/spending");
+  const { household, story } = await pictureBook("Stand-in Sketches");
+  const purchase = recordSpend(household, { storyId: story, service: "pictures", kind: "sketch", what: "x", approved: 0, standIn: true });
+  startSketches(story, "mia", purchase, 3);
+  await untilDrawn(story);
+  const mia = getStoryArt(story)!.characters.find((c) => c.id === "mia")!;
+  assert.equal(mia.sketches.length, 3);
+  assert.ok(mia.sketches.every((p) => p.endsWith(".svg")));
+  assert.deepEqual(getPurchase(purchase), { approved: 0, spent: 0, pictures: 3 });
+  assert.equal(asked.length, 0, "Google wasn't asked");
+});

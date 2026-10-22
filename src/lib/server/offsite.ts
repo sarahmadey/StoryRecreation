@@ -95,7 +95,7 @@ function dataFiles(dir: string, rel = ""): { rel: string; size: number }[] {
   return out;
 }
 
-const TYPES: Record<string, string> = { ".mp3": "audio/mpeg", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".json": "application/json", ".db": "application/vnd.sqlite3" };
+const TYPES: Record<string, string> = { ".mp3": "audio/mpeg", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".svg": "image/svg+xml", ".json": "application/json", ".db": "application/vnd.sqlite3" };
 const typeOf = (file: string) => TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream";
 
 export interface BackupResult {

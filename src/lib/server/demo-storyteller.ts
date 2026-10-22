@@ -1,5 +1,14 @@
 import { wordsPerPage } from "@/lib/shared/options";
-import { cleanSoundCues, normalizeScript, type RawScript, type StoryRequest, type WriteProgress, type WrittenStory } from "./storyteller";
+import {
+  cleanPicturePlan,
+  cleanSoundCues,
+  normalizeScript,
+  type PicturePlan,
+  type RawScript,
+  type StoryRequest,
+  type WriteProgress,
+  type WrittenStory,
+} from "./storyteller";
 import type { SoundCue, StoryScript } from "@/lib/shared/types";
 import { sectionText } from "./text";
 
@@ -32,7 +41,7 @@ export async function writeDemoScript(req: StoryRequest, onProgress: WriteProgre
       },
       req,
     );
-    return { script, photoOrder: null };
+    return { script, photoOrder: null, cost: 0 };
   }
 
   const raw: RawScript = {
@@ -86,10 +95,12 @@ export async function writeDemoScript(req: StoryRequest, onProgress: WriteProgre
       if (i % 2 === 0) lines.push({ speaker: "hero", text: "[excitedly] Did you see that? Let's turn the page!" });
       else lines.push({ speaker: "ollie-owl", text: "[sleepily] Hoo... Patience, little one. The best part is coming." });
     }
-    raw.pages.push({ page: i + 1, photo: i + 1, picture: `Picture ${i + 1}`, lines });
+    // A few pages get a moving touch, so living pictures can be seen in demo mode.
+    const effect = ["sparkles", "none", "fireflies", "none", "stars", "snow"][i % 6];
+    raw.pages.push({ page: i + 1, photo: i + 1, picture: `Picture ${i + 1}`, lines, effect });
     onProgress(req.mode === "create" ? "Writing the pages" : "Reading the pages", i + 1, req.pageCount);
   }
-  return { script: normalizeScript(raw, req), photoOrder: null };
+  return { script: normalizeScript(raw, req), photoOrder: null, cost: 0 };
 }
 
 /** DEMO_MODE sound designer: a soft chime on the first word of every other page. */
@@ -100,6 +111,20 @@ export function demoSoundCues(script: StoryScript): SoundCue[] {
       .filter((p, i) => i % 2 === 0 && p.lines.length)
       .map((p) => ({ page: p.page, line: 0, word: p.lines[0].text.replace(/\[[^\]]*\]/g, "").trim().split(/\s+/)[0] ?? "", sound: "a soft, twinkly chime", seconds: 1.5 })),
   );
+}
+
+/** DEMO_MODE art director: everyone in the cast, drawn from their descriptions, on every page. */
+export function demoPicturePlan(script: StoryScript): PicturePlan {
+  const cast = script.cast.filter((c) => c.id !== "narrator");
+  return cleanPicturePlan(script, {
+    characters: cast.map((c, i) => ({ id: c.id, name: c.name, look: c.id === "hero" ? "" : c.description, main: i < 2 })),
+    cover: `${cast.map((c) => c.name).join(" and ") || "Our hero"} at the start of a big adventure, under a sky full of stars.`,
+    pages: script.pages.map((p) => ({
+      page: p.page,
+      scene: `${p.lines[0]?.text.replace(/\[[^\]]*\]\s*/g, "").slice(0, 140) ?? "A quiet moment"}`,
+      characters: cast.slice(0, 2).map((c) => c.id),
+    })),
+  });
 }
 
 /** In demo mode, the "words in a picture" are always the same little poem. */

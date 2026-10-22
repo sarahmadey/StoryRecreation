@@ -30,8 +30,7 @@ export function AlertsPanel({ initial }: { initial: AlertsStatus }) {
   };
 
   return (
-    <section className="parchment stack">
-      <h2 style={{ margin: 0 }}>Problem alerts</h2>
+    <div className="stack">
       {!status.configured ? (
         <>
           <p className="muted" style={{ margin: 0 }}>
@@ -92,6 +91,6 @@ export function AlertsPanel({ initial }: { initial: AlertsStatus }) {
           <code style={{ wordBreak: "break-all" }}>{origin ? `${origin}/api/health` : "/api/health"}</code>
         </p>
       </details>
-    </section>
+    </div>
   );
 }

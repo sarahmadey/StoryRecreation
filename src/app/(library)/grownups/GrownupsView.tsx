@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Avatar, ReaderEditor } from "@/components/Readers";
@@ -8,10 +8,31 @@ import { VoiceDesigner } from "@/components/VoiceDesigner";
 import { FamilyVoices } from "@/components/FamilyVoices";
 import { BackupsPanel } from "@/components/BackupsPanel";
 import { AlertsPanel } from "@/components/AlertsPanel";
-import { CreditMeter } from "@/components/Credits";
+import { CreditMeter, useCredits } from "@/components/Credits";
 import type { AppStatus, FamilyVoice, Keepsake, Profile } from "@/lib/shared/types";
 import type { BackupStatus } from "@/lib/server/offsite";
 import type { AlertsStatus } from "@/lib/server/alerts";
+
+/** A section of the corner that opens when it's wanted: its title, and a word on how it stands. */
+function Fold({ id, title, note, children }: { id: string; title: string; note: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <details className="parchment fold" id={id}>
+      <summary>
+        <h2>{title}</h2>
+        <span className="fold-note">{note}</span>
+      </summary>
+      <div className="stack fold-body">{children}</div>
+    </details>
+  );
+}
+
+/** Open a section and bring it into view (from the line at the top, or a link to /grownups#section). */
+function openFold(id: string) {
+  const fold = document.getElementById(id);
+  if (!(fold instanceof HTMLDetailsElement)) return;
+  fold.open = true;
+  fold.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 export function GrownupsView({
   familyName,
@@ -60,6 +81,44 @@ export function GrownupsView({
     }
   };
 
+  // Times are in the phone's own time zone, so only once the page is on it.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    const follow = () => window.location.hash && openFold(window.location.hash.slice(1));
+    follow();
+    window.addEventListener("hashchange", follow);
+    return () => window.removeEventListener("hashchange", follow);
+  }, []);
+  const credits = useCredits();
+
+  // How the backups stand, in a few words.
+  const lastBackup = backups?.recent[0];
+  const backedUp = (at: number) => {
+    if (!mounted) return "Backed up";
+    const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(at).setHours(0, 0, 0, 0)) / 86400000);
+    return `Backed up ${days === 0 ? "today" : days === 1 ? "yesterday" : new Date(at).toLocaleDateString([], { weekday: "long" })}`;
+  };
+  const backupNote = !backups
+    ? null
+    : !backups.configured
+      ? { ok: false, text: "Nightly backups are off" }
+      : backups.running
+        ? { ok: true, text: "Backing up now" }
+        : lastBackup && !lastBackup.ok
+          ? { ok: false, text: "The last backup didn't finish" }
+          : backups.lastGood
+            ? { ok: true, text: backedUp(backups.lastGood.finishedAt ?? backups.lastGood.startedAt) }
+            : { ok: true, text: "First backup on its way" };
+  const enginesOk = status.storyteller && status.voices;
+  const glance = [
+    enginesOk || status.demoMode ? null : { id: "engines", ok: false, text: "The storyteller or voices aren't connected" },
+    backupNote && { id: "safe", ...backupNote },
+    alerts && { id: "alerts", ok: alerts.configured, text: alerts.configured ? "Problem alerts on" : "Problem alerts are off" },
+    credits && { id: "engines", ok: credits.left > credits.limit * 0.1, text: `${credits.left.toLocaleString()} voice credits left` },
+  ].filter((g): g is { id: string; ok: boolean; text: string } => Boolean(g));
+  const names = profiles.map((p) => p.name);
+
   if (!unlocked) {
     return (
       <div className="parchment center stack">
@@ -84,8 +143,24 @@ export function GrownupsView({
       {msg && <p className="notice center">{msg}</p>}
       {error && <p className="notice notice-error center">{error}</p>}
 
-      <section className="parchment stack">
-        <h2>The engines</h2>
+      {glance.length > 0 && (
+        <p className="glance" aria-label="At a glance">
+          {glance.map((g, i) => (
+            <span key={g.text}>
+              {i > 0 && <span aria-hidden="true"> · </span>}
+              <button type="button" className={`glance-item ${g.ok ? "" : "glance-warn"}`} onClick={() => openFold(g.id)}>
+                {g.ok ? "✓" : "⚠︎"} {g.text}
+              </button>
+            </span>
+          ))}
+        </p>
+      )}
+
+      <Fold
+        id="engines"
+        title="The engines"
+        note={enginesOk ? "Storyteller and voices connected" : status.demoMode ? "Demo mode" : "Not connected"}
+      >
         <div className="status-list">
           <div className="status-item">
             <span className={`status-dot ${status.storyteller ? "on" : status.demoMode ? "demo" : "off"}`} />
@@ -117,17 +192,13 @@ export function GrownupsView({
             Add the keys to <code>.env.local</code> next to the app (see <code>.env.example</code>) and restart it.
           </p>
         )}
-      </section>
+      </Fold>
 
-      <section className="parchment stack">
-        <div className="spread">
-          <h2 style={{ margin: 0 }}>Readers</h2>
-          {editing === null && (
-            <button className="btn btn-sm" onClick={() => setEditing("new")}>
-              ＋ Add a reader
-            </button>
-          )}
-        </div>
+      <Fold
+        id="readers"
+        title="Readers"
+        note={names.length ? (names.length > 3 ? `${names.slice(0, 3).join(", ")} and ${names.length - 3} more` : names.join(", ")) : "No readers yet"}
+      >
         {editing ? (
           <ReaderEditor
             profile={editing === "new" ? undefined : editing}
@@ -161,13 +232,16 @@ export function GrownupsView({
                 </div>
               </div>
             ))}
-            {profiles.length === 0 && <p className="muted">No readers yet.</p>}
+            <div>
+              <button className="btn btn-sm" onClick={() => setEditing("new")}>
+                ＋ Add a reader
+              </button>
+            </div>
           </div>
         )}
-      </section>
+      </Fold>
 
-      <section className="parchment stack">
-        <h2 style={{ margin: 0 }}>Grown-up PIN</h2>
+      <Fold id="pin" title="Grown-up PIN" note={pinSet ? "On" : "Off: anyone can make stories"}>
         <p className="muted" style={{ margin: 0 }}>
           With a PIN, children can listen to anything on the shelves, but making new stories (which uses credits) and changing
           settings needs a grown-up.
@@ -203,19 +277,21 @@ export function GrownupsView({
             </>
           )}
         </form>
-      </section>
+      </Fold>
 
-      <FamilyVoices keepsakes={keepsakes} familyVoices={familyVoices} canMakeVoices={status.voices || status.demoMode} />
+      <Fold
+        id="family-voices"
+        title="Family voices"
+        note={
+          keepsakes.length
+            ? `${keepsakes.length} ${keepsakes.length === 1 ? "recording" : "recordings"}${familyVoices.length ? ` · ${familyVoices.length} ${familyVoices.length === 1 ? "storyteller" : "storytellers"}` : ""}`
+            : "None yet"
+        }
+      >
+        <FamilyVoices keepsakes={keepsakes} familyVoices={familyVoices} canMakeVoices={status.voices || status.demoMode} />
+      </Fold>
 
-      <section className="parchment stack">
-        <div className="spread">
-          <h2 style={{ margin: 0 }}>The voice wardrobe</h2>
-          {status.voices && (
-            <button className="btn btn-sm" onClick={() => setDesigning(true)}>
-              🪄 Conjure a voice
-            </button>
-          )}
-        </div>
+      <Fold id="wardrobe" title="The voice wardrobe" note={designed.length ? `${designed.length} conjured ${designed.length === 1 ? "voice" : "voices"}` : "None yet"}>
         <p className="muted" style={{ margin: 0 }}>
           Voices you conjure (a tiny squeaky mouse, an ancient sleepy dragon) join the cast for every future story. Voices you
           add to your ElevenLabs account from its Voice Library appear here automatically, too.
@@ -232,35 +308,47 @@ export function GrownupsView({
         ) : (
           <p className="faint small">No conjured voices yet.</p>
         )}
-      </section>
-
-      {backups && <BackupsPanel initial={backups} />}
-
-      {alerts && <AlertsPanel initial={alerts} />}
-
-      {backup && (
-        <section className="parchment stack">
-          <h2 style={{ margin: 0 }}>Keep a copy</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            One file with every story as an MP3, your family recordings, the book photos, and the words of every story. Open{" "}
-            <i>Read me</i> inside to browse and play it all. Keep it somewhere safe, like your computer or a cloud drive: it&apos;s
-            yours, whatever happens to the app.
-          </p>
-          <p className="small" style={{ margin: 0 }}>
-            {[
-              `${backup.stories} ${backup.stories === 1 ? "story" : "stories"}`,
-              `${backup.recordings} family ${backup.recordings === 1 ? "recording" : "recordings"}`,
-              `${backup.photos} book ${backup.photos === 1 ? "photo" : "photos"}`,
-              backup.bytes < 1024 * 1024 ? "under 1 MB" : `about ${Math.round(backup.bytes / (1024 * 1024))} MB`,
-            ].join(" · ")}
-          </p>
+        {status.voices && (
           <div>
-            <a className="btn btn-sm" href="/api/export" download>
-              ⬇ Download everything
-            </a>
+            <button className="btn btn-sm" onClick={() => setDesigning(true)}>
+              🪄 Conjure a voice
+            </button>
           </div>
-          <p className="hint" style={{ margin: 0 }}>On an iPhone or iPad, it lands in the Files app, under Downloads.</p>
-        </section>
+        )}
+      </Fold>
+
+      <Fold id="safe" title="Keeping your stories safe" note={backupNote?.text ?? "Download a copy any time"}>
+        {backups && <BackupsPanel initial={backups} />}
+        {backup && (
+          <div className="stack">
+            <h3 className="fold-sub">A copy of your own</h3>
+            <p className="muted" style={{ margin: 0 }}>
+              One file with every story as an MP3, your family recordings, the book photos, and the words of every story. Open{" "}
+              <i>Read me</i> inside to browse and play it all. Keep it somewhere safe, like your computer or a cloud drive: it&apos;s
+              yours, whatever happens to the app.
+            </p>
+            <p className="small" style={{ margin: 0 }}>
+              {[
+                `${backup.stories} ${backup.stories === 1 ? "story" : "stories"}`,
+                `${backup.recordings} family ${backup.recordings === 1 ? "recording" : "recordings"}`,
+                `${backup.photos} book ${backup.photos === 1 ? "photo" : "photos"}`,
+                backup.bytes < 1024 * 1024 ? "under 1 MB" : `about ${Math.round(backup.bytes / (1024 * 1024))} MB`,
+              ].join(" · ")}
+            </p>
+            <div>
+              <a className="btn btn-sm" href="/api/export" download>
+                ⬇ Download everything
+              </a>
+            </div>
+            <p className="hint" style={{ margin: 0 }}>On an iPhone or iPad, it lands in the Files app, under Downloads.</p>
+          </div>
+        )}
+      </Fold>
+
+      {alerts && (
+        <Fold id="alerts" title="Problem alerts" note={alerts.configured ? `On, to ${alerts.to}` : "Off"}>
+          <AlertsPanel initial={alerts} />
+        </Fold>
       )}
 
       <section className="panel spread">

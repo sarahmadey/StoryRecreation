@@ -97,7 +97,7 @@ export async function alertBackupFailed(reason: string): Promise<boolean> {
       reason,
       "It will try again within the hour. Your stories are safe in the app; this is only about the copy kept elsewhere.",
     ],
-    link: { label: "See backups in the Grown-ups' corner", path: "/grownups" },
+    link: { label: "See backups in the Grown-ups' corner", path: "/grownups#safe" },
     quietFor: 20 * HOUR,
   });
 }
@@ -115,7 +115,7 @@ export async function checkVoiceCreditLow(): Promise<boolean> {
       `Only ${credits.left.toLocaleString()} of this month's ${credits.limit.toLocaleString()} ElevenLabs voice credits are left${tops ? `, until they top up on ${tops}` : ""}.`,
       "A six-minute story uses about 5,000. Shorter stories, or a top-up at elevenlabs.io, will see you through.",
     ],
-    link: { label: "See voice credits in the Grown-ups' corner", path: "/grownups" },
+    link: { label: "See voice credits in the Grown-ups' corner", path: "/grownups#engines" },
     quietFor: Infinity,
   });
 }

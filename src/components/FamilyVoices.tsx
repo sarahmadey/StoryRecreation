@@ -41,20 +41,19 @@ export function FamilyVoices({
   };
 
   return (
-    <section className="parchment stack" id="family-voices">
-      <div className="spread">
-        <h2 style={{ margin: 0 }}>Family voices</h2>
-        {!adding && (
-          <button className="btn btn-sm" onClick={() => setAdding(true)}>
-            ＋ Add a recording
-          </button>
-        )}
-      </div>
+    <div className="stack">
       <p className="muted" style={{ margin: 0 }}>
         Keep the voices you love, just as they are: a voicemail from Grandma, your children reading at four, a song at bedtime.
         A grown-up&apos;s recordings can also become a storytelling voice, so they can read any book, poem or letter aloud.
         Recordings stay private to your family.
       </p>
+      {!adding && (
+        <div>
+          <button className="btn btn-sm" onClick={() => setAdding(true)}>
+            ＋ Add a recording
+          </button>
+        </div>
+      )}
 
       {adding && (
         <KeepsakeAdder
@@ -124,7 +123,7 @@ export function FamilyVoices({
           </div>
         );
       })}
-    </section>
+    </div>
   );
 }
 

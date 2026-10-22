@@ -39,8 +39,8 @@ export function BackupsPanel({ initial }: { initial: BackupStatus }) {
   const latest = status.recent[0];
   const good = status.lastGood;
   return (
-    <section className="parchment stack">
-      <h2 style={{ margin: 0 }}>Automatic backups</h2>
+    <div className="stack">
+      <h3 className="fold-sub">Every night, automatically</h3>
       {!status.configured ? (
         <>
           <p className="muted" style={{ margin: 0 }}>
@@ -100,6 +100,6 @@ export function BackupsPanel({ initial }: { initial: BackupStatus }) {
         </>
       )}
       {error && <p className="notice notice-error">{error}</p>}
-    </section>
+    </div>
   );
 }

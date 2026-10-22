@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Cover } from "@/components/Books";
 import { useApi } from "@/components/Grownup";
 import { imageForPage } from "@/lib/shared/pages";
 import { formatClock } from "@/lib/shared/options";
 import type { Book, BookPage, Story, TimelinePage, VoiceLabel } from "@/lib/shared/types";
+import type { UpNext } from "@/lib/server/db";
 
 // The player follows one continuous audio file (narration, chimes and pauses
 // all baked in) using the page timeline, so it works on a lock screen or a
@@ -104,8 +106,25 @@ function pageAt(pages: TimelinePage[], t: number): number {
   return ans;
 }
 
-export function Player({ story, book, photos, narrator }: { story: Story; book: Book; photos: BookPage[]; narrator: VoiceLabel | null }) {
+export function Player({
+  story,
+  book,
+  photos,
+  narrator,
+  next,
+  autoplay,
+}: {
+  story: Story;
+  book: Book;
+  photos: BookPage[];
+  narrator: VoiceLabel | null;
+  /** What to hear when this one ends. */
+  next: UpNext;
+  /** Arrived from "Next" at the end of the last story: carry straight on. */
+  autoplay: boolean;
+}) {
   const api = useApi();
+  const router = useRouter();
   const timeline = story.timeline!;
   const pages = timeline.pages;
   const storyPages = pages.filter((p) => p.page > 0).length;
@@ -218,6 +237,43 @@ export function Player({ story, book, photos, narrator }: { story: Story; book: 
   }, [ended, seekTo]);
 
   const pause = useCallback(() => audio.current?.pause(), []);
+
+  // Carry straight on from the story before (the tap that got here lets it play).
+  useEffect(() => {
+    if (autoplay) play();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The classic's next chapter, when it isn't made yet: its name and length, and one tap to have it read.
+  const [nextChapter, setNextChapter] = useState<{ title: string; words: number } | null>(null);
+  const [making, setMaking] = useState(false);
+  const [nextError, setNextError] = useState<string | null>(null);
+  useEffect(() => {
+    if (next?.kind !== "chapter") return;
+    api
+      .get<{ chapters: { index: number; title: string; words: number }[] }>(`/api/classics/${next.gutenbergId}`)
+      .then((res) => setNextChapter(res.chapters[next.chapter] ?? null))
+      .catch(() => setNextChapter(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const readNextChapter = async () => {
+    if (next?.kind !== "chapter") return;
+    setMaking(true);
+    setNextError(null);
+    try {
+      const { classic: _done, ...settings } = story.settings;
+      const { id } = await api.post<{ id: string }>("/api/classics/read", {
+        gutenbergId: next.gutenbergId,
+        chapter: next.chapter,
+        emoji: book.notes,
+        settings,
+      });
+      router.push(`/stories/${id}`);
+    } catch (err) {
+      setNextError(err instanceof Error ? err.message : "The next chapter couldn't be opened.");
+      setMaking(false);
+    }
+  };
 
   const turned = () => {
     released.current.add(idx);
@@ -371,9 +427,28 @@ export function Player({ story, book, photos, narrator }: { story: Story; book: 
             <div className="turn-cue">
               <div>
                 <strong>✨ The End ✨</strong>
-                <p className="muted" style={{ marginTop: 8 }}>
-                  Sweet dreams.
-                </p>
+                {next?.kind === "story" ? (
+                  <div className="up-next">
+                    <span className="up-next-label">Up next</span>
+                    <Link className="btn" href={next.ready ? `/play/${next.id}?autoplay=1` : `/stories/${next.id}`}>
+                      ▶ {next.title}
+                    </Link>
+                  </div>
+                ) : next?.kind === "chapter" && nextChapter ? (
+                  <div className="up-next">
+                    <span className="up-next-label">
+                      Up next · {nextChapter.title} · about {Math.max(1, Math.round(nextChapter.words / 150))} min
+                    </span>
+                    <button className="btn" onClick={readNextChapter} disabled={making}>
+                      {making ? "Opening the book…" : "🎧 Read the next chapter"}
+                    </button>
+                    {nextError && <span className="up-next-label">{nextError}</span>}
+                  </div>
+                ) : (
+                  <p className="muted" style={{ marginTop: 8 }}>
+                    Sweet dreams.
+                  </p>
+                )}
               </div>
             </div>
           )}

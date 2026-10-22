@@ -1006,6 +1006,25 @@ export function queryCatalogue({
   return { rows, total };
 }
 
+/** What to hear when a story ends: the classic's next chapter (made already, or still to make), or the book's next story. */
+export type UpNext = { kind: "story"; id: string; title: string; ready: boolean } | { kind: "chapter"; gutenbergId: number; chapter: number } | null;
+
+export function upNext(householdId: string, story: Story): UpNext {
+  const rows = db()
+    .prepare("SELECT id, title, status, settings FROM stories WHERE household_id = ? AND book_id = ? ORDER BY created_at ASC")
+    .all(householdId, story.bookId) as Row[];
+  const classic = story.settings.source === "classic" ? story.settings.classic : undefined;
+  if (classic) {
+    // Made already (or being made): that one, rather than a second copy.
+    const made = rows.find((r) => r.status !== "error" && json<StorySettings>(r.settings)?.classic?.chapter === classic.chapter + 1);
+    return made
+      ? { kind: "story", id: made.id as string, title: made.title as string, ready: made.status === "ready" }
+      : { kind: "chapter", gutenbergId: classic.gutenbergId, chapter: classic.chapter + 1 };
+  }
+  const next = rows.slice(rows.findIndex((r) => r.id === story.id) + 1).find((r) => r.status === "ready");
+  return next ? { kind: "story", id: next.id as string, title: next.title as string, ready: true } : null;
+}
+
 /** The settings used last time a story was made for this book, for "another one tonight". */
 export function lastSettingsForBook(bookId: string, mode: StoryMode): StorySettings | null {
   const r = db()

@@ -2883,28 +2883,47 @@ code {
 .glance-warn {
   color: #f0b48a;
 }
+/* Title and how it stands on one line, what it's for beneath, and the arrow to open it. */
 .fold > summary {
   list-style: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: baseline;
-  gap: 12px;
+  column-gap: 12px;
+  row-gap: 2px;
   cursor: pointer;
 }
 .fold > summary::-webkit-details-marker {
   display: none;
 }
 .fold > summary h2 {
+  grid-column: 1;
+  grid-row: 1;
   margin: 0;
 }
 .fold-note {
-  margin-left: auto;
+  grid-column: 2;
+  grid-row: 1;
+  max-width: 40vw;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   text-align: right;
   font-size: 0.92rem;
   color: var(--ink-soft);
 }
+.fold-about {
+  grid-column: 1 / 3;
+  grid-row: 2;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  opacity: 0.85;
+}
 .fold > summary::after {
   content: "›";
-  flex: none;
+  grid-column: 3;
+  grid-row: 1 / span 2;
   align-self: center;
   font-size: 1.4rem;
   line-height: 1;
@@ -2924,15 +2943,14 @@ code {
   color: var(--ink);
 }
 @media (max-width: 520px) {
-  .fold > summary {
-    flex-wrap: wrap;
-    row-gap: 2px;
+  .fold > summary h2 {
+    font-size: 1.3rem;
   }
   .fold-note {
-    order: 3;
-    flex-basis: 100%;
-    margin-left: 0;
-    text-align: left;
+    font-size: 0.85rem;
+  }
+  .fold-about {
+    font-size: 0.85rem;
   }
 }
 
@@ -2949,4 +2967,42 @@ code {
   max-width: 34ch;
   font-size: 0.92rem;
   color: var(--text-soft);
+}
+
+/* Create: "make one like…" a story the family made before. */
+.like-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px dashed rgba(107, 63, 21, 0.35);
+  background: rgba(255, 252, 242, 0.45);
+}
+.like-list {
+  flex-basis: 100%;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.like-option {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(107, 63, 21, 0.25);
+  background: rgba(255, 252, 242, 0.6);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.like-option[aria-checked="true"] {
+  border-color: #a8792b;
+  background: linear-gradient(180deg, rgba(255, 236, 180, 0.9), rgba(240, 210, 140, 0.75));
 }

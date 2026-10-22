@@ -208,6 +208,13 @@ export function Studio({ initial, book, photos, status }: { initial: Story; book
               ▶ Listen now
             </Link>
           </div>
+          {story.mode === "create" && (
+            <div>
+              <Link href={`/create?like=${story.id}`} className="btn btn-ghost btn-sm">
+                ✨ Make another like this
+              </Link>
+            </div>
+          )}
           {narratorVoice && loadedVoices && (
             <div className="narrator-row">
               <span>

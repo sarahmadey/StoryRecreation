@@ -14,13 +14,14 @@ import type { AppStatus, FamilyVoice, Keepsake, Profile } from "@/lib/shared/typ
 import type { BackupStatus } from "@/lib/server/offsite";
 import type { AlertsStatus } from "@/lib/server/alerts";
 
-/** A section of the corner that opens when it's wanted: its title, and a word on how it stands. */
-function Fold({ id, title, note, children }: { id: string; title: string; note: React.ReactNode; children: React.ReactNode }) {
+/** A section of the corner that opens when it's wanted: its title, a word on how it stands, and a line on what it's for. */
+function Fold({ id, title, note, about, children }: { id: string; title: string; note: React.ReactNode; about: string; children: React.ReactNode }) {
   return (
     <details className="parchment fold" id={id}>
       <summary>
         <h2>{title}</h2>
         <span className="fold-note">{note}</span>
+        <span className="fold-about">{about}</span>
       </summary>
       <div className="stack fold-body">{children}</div>
     </details>
@@ -103,18 +104,18 @@ export function GrownupsView({
   const backupNote = !backups
     ? null
     : !backups.configured
-      ? { ok: false, text: "Nightly backups are off" }
+      ? { ok: false, text: "Nightly backups are off", short: "Backups off" }
       : backups.running
-        ? { ok: true, text: "Backing up now" }
+        ? { ok: true, text: "Backing up now", short: "Backing up" }
         : lastBackup && !lastBackup.ok
-          ? { ok: false, text: "The last backup didn't finish" }
+          ? { ok: false, text: "The last backup didn't finish", short: "Last one failed" }
           : backups.lastGood
-            ? { ok: true, text: backedUp(backups.lastGood.finishedAt ?? backups.lastGood.startedAt) }
-            : { ok: true, text: "First backup on its way" };
+            ? { ok: true, text: backedUp(backups.lastGood.finishedAt ?? backups.lastGood.startedAt), short: backedUp(backups.lastGood.finishedAt ?? backups.lastGood.startedAt) }
+            : { ok: true, text: "First backup on its way", short: "First one soon" };
   const enginesOk = status.storyteller && status.voices;
   const glance = [
     enginesOk || status.demoMode ? null : { id: "engines", ok: false, text: "The storyteller or voices aren't connected" },
-    backupNote && { id: "safe", ...backupNote },
+    backupNote && { id: "safe", ok: backupNote.ok, text: backupNote.text },
     alerts && { id: "alerts", ok: alerts.configured, text: alerts.configured ? "Problem alerts on" : "Problem alerts are off" },
     credits && { id: "engines", ok: credits.left > credits.limit * 0.1, text: `${credits.left.toLocaleString()} voice credits left` },
   ].filter((g): g is { id: string; ok: boolean; text: string } => Boolean(g));
@@ -160,7 +161,9 @@ export function GrownupsView({
       <Fold
         id="engines"
         title="The engines"
-        note={enginesOk ? "Storyteller and voices connected" : status.demoMode ? "Demo mode" : "Not connected"}
+        note={enginesOk ? "Connected" : status.demoMode ? "Demo mode" : "Not connected"}
+        about="What writes and reads your stories."
+
       >
         <div className="status-list">
           <div className="status-item">
@@ -198,7 +201,9 @@ export function GrownupsView({
       <Fold
         id="readers"
         title="Readers"
-        note={names.length ? (names.length > 3 ? `${names.slice(0, 3).join(", ")} and ${names.length - 3} more` : names.join(", ")) : "No readers yet"}
+        note={names.length ? (names.length > 3 ? `${names.slice(0, 3).join(", ")} +${names.length - 3}` : names.join(", ")) : "None yet"}
+        about="A card for each child who listens."
+
       >
         {editing ? (
           <ReaderEditor
@@ -242,7 +247,7 @@ export function GrownupsView({
         )}
       </Fold>
 
-      <Fold id="pin" title="Grown-up PIN" note={pinSet ? "On" : "Off: anyone can make stories"}>
+      <Fold id="pin" title="Grown-up PIN" note={pinSet ? "On" : "Off"} about="Keeps making stories for grown-ups.">
         <p className="muted" style={{ margin: 0 }}>
           With a PIN, children can listen to anything on the shelves, but making new stories (which uses credits) and changing
           settings needs a grown-up.
@@ -283,16 +288,19 @@ export function GrownupsView({
       <Fold
         id="family-voices"
         title="Family voices"
-        note={
-          keepsakes.length
-            ? `${keepsakes.length} ${keepsakes.length === 1 ? "recording" : "recordings"}${familyVoices.length ? ` · ${familyVoices.length} ${familyVoices.length === 1 ? "storyteller" : "storytellers"}` : ""}`
-            : "None yet"
-        }
+        note={keepsakes.length ? `${keepsakes.length} ${keepsakes.length === 1 ? "recording" : "recordings"}` : "None yet"}
+        about="Recordings of the voices you love."
+
       >
         <FamilyVoices keepsakes={keepsakes} familyVoices={familyVoices} canMakeVoices={status.voices || status.demoMode} />
       </Fold>
 
-      <Fold id="wardrobe" title="The voice wardrobe" note={designed.length ? `${designed.length} conjured ${designed.length === 1 ? "voice" : "voices"}` : "None yet"}>
+      <Fold
+        id="wardrobe"
+        title="The voice wardrobe"
+        note={designed.length ? `${designed.length} ${designed.length === 1 ? "voice" : "voices"}` : "None yet"}
+        about="Extra voices you've made for characters."
+      >
         <p className="muted" style={{ margin: 0 }}>
           Voices you conjure (a tiny squeaky mouse, an ancient sleepy dragon) join the cast for every future story. Voices you
           add to your ElevenLabs account from its Voice Library appear here automatically, too.
@@ -318,7 +326,7 @@ export function GrownupsView({
         )}
       </Fold>
 
-      <Fold id="safe" title="Keeping your stories safe" note={backupNote?.text ?? "Download a copy any time"}>
+      <Fold id="safe" title="Keeping your stories safe" note={backupNote?.short ?? ""} about="Nightly backups, and a copy to download.">
         {backups && <BackupsPanel initial={backups} />}
         {backup && (
           <div className="stack">
@@ -347,7 +355,7 @@ export function GrownupsView({
       </Fold>
 
       {alerts && (
-        <Fold id="alerts" title="Problem alerts" note={alerts.configured ? `On, to ${alerts.to}` : "Off"}>
+        <Fold id="alerts" title="Problem alerts" note={alerts.configured ? "On" : "Off"} about="An email when something needs you.">
           <AlertsPanel initial={alerts} />
         </Fold>
       )}

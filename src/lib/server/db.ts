@@ -1034,6 +1034,25 @@ export function upNext(householdId: string, story: Story): UpNext {
   return next ? { kind: "story", id: next.id as string, title: next.title as string, ready: true } : null;
 }
 
+/** Stories the family made (not read-alouds), with how each was made, newest first: for "make one like…". */
+export function madeStories(householdId: string, limit = 40, include?: string): { id: string; title: string; bookTitle: string; settings: StorySettings; createdAt: number }[] {
+  const rows = db()
+    .prepare(
+      `SELECT s.id, s.title, s.settings, s.created_at, b.title AS book_title FROM stories s JOIN books b ON b.id = s.book_id
+        WHERE s.household_id = ? AND s.mode = 'create' AND s.status != 'error' AND (s.id = ? OR s.id IN
+          (SELECT id FROM stories WHERE household_id = ? AND mode = 'create' AND status != 'error' ORDER BY created_at DESC LIMIT ?))
+        ORDER BY s.created_at DESC`,
+    )
+    .all(householdId, include ?? "", householdId, limit) as Row[];
+  return rows.map((r) => ({
+    id: r.id as string,
+    title: r.title as string,
+    bookTitle: r.book_title as string,
+    settings: json<StorySettings>(r.settings)!,
+    createdAt: r.created_at as number,
+  }));
+}
+
 /** The settings used last time a story was made for this book, for "another one tonight". */
 export function lastSettingsForBook(bookId: string, mode: StoryMode): StorySettings | null {
   const r = db()

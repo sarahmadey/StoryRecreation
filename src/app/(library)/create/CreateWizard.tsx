@@ -10,9 +10,26 @@ import { Steps, toTop } from "@/components/Steps";
 import { CreditNote } from "@/components/Credits";
 import type { PickedPhoto } from "@/lib/client/images";
 import { AGES, LENGTHS, MOODS, defaultSettings, estimateMinutes } from "@/lib/shared/options";
-import type { AgeBand, Book, LengthPreset, Mood, Profile, StorySettings } from "@/lib/shared/types";
+import type { AgeBand, Book, LengthPreset, Mood, Profile, StorySettings, VoiceLabel } from "@/lib/shared/types";
 
 type Source = "book" | "wild" | "idea";
+
+/** A story the family made, to make another like it. */
+interface PastStory {
+  id: string;
+  title: string;
+  bookTitle: string;
+  settings: StorySettings;
+  createdAt: number;
+  narrator: VoiceLabel | null;
+}
+
+/** How a story was made (storyteller, length, mood, sounds, who's in it), without what it was about. */
+function madeLike(story: PastStory): { source: Source; settings: StorySettings } {
+  const { description: _description, classic: _classic, text: _text, ...how } = story.settings;
+  const source: Source = how.source === "wild" || how.source === "idea" ? how.source : "book";
+  return { source, settings: defaultSettings({ ...how, source, description: "", chime: { ...how.chime, enabled: source === "book" } }) };
+}
 
 const LESSONS = ["Kindness", "Being brave", "Sharing", "Trying new things", "Patience", "Being yourself", "Friendship", "Saying sorry"];
 
@@ -30,18 +47,33 @@ export function CreateWizard({
   currentProfile,
   preselect,
   preselectSettings,
+  past,
+  like,
 }: {
   books: Book[];
   profiles: Profile[];
   currentProfile: Profile | null;
   preselect: Book | null;
   preselectSettings: StorySettings | null;
+  /** Stories the family has made, newest first, for "make one like…". */
+  past: PastStory[];
+  /** Arrived from "Make another like this" on a story's page. */
+  like: string | null;
 }) {
   const api = useApi();
   const router = useRouter();
   const voices = useVoices();
 
-  const initialSource: Source = preselect ? (preselect.kind === "wild" ? "wild" : preselect.kind === "idea" ? "idea" : "book") : "book";
+  const liked0 = like ? (past.find((s) => s.id === like) ?? null) : null;
+  const initialSource: Source = preselect
+    ? preselect.kind === "wild"
+      ? "wild"
+      : preselect.kind === "idea"
+        ? "idea"
+        : "book"
+    : liked0
+      ? madeLike(liked0).source
+      : "book";
   const [step, setStep] = useState(preselect ? 1 : 0);
   const goTo = (next: number) => {
     setStep(next);
@@ -51,16 +83,37 @@ export function CreateWizard({
   const [bookId, setBookId] = useState<string>(preselect?.id ?? "");
   const [title, setTitle] = useState("");
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
-  const [settings, setSettings] = useState<StorySettings>(() =>
+  // A fresh start: Storyhollow's own choices (or, for a book already chosen, how its last story was made).
+  const fresh = (src: Source) =>
     defaultSettings({
       ...(preselectSettings ?? {}),
-      source: initialSource,
+      source: src,
       age: preselectSettings?.age ?? ageBandFor(currentProfile?.age),
       heroes: preselectSettings?.heroes ?? (currentProfile ? [currentProfile.name] : []),
-      chime: preselectSettings?.chime ?? { enabled: initialSource === "book", style: "bell", gapSeconds: 3 },
+      chime: preselectSettings?.chime ?? { enabled: src === "book", style: "bell", gapSeconds: 3 },
       review: true,
-    }),
-  );
+    });
+  const [settings, setSettings] = useState<StorySettings>(() => (liked0 ? madeLike(liked0).settings : fresh(initialSource)));
+  // "Make one like…": which story it's like (if any), and whether the list to choose from is open.
+  const [likedId, setLikedId] = useState<string | null>(liked0?.id ?? null);
+  const [choosing, setChoosing] = useState(false);
+  const liked = likedId ? past.find((s) => s.id === likedId) : undefined;
+  const makeLike = (story: PastStory) => {
+    const l = madeLike(story);
+    setSource(l.source);
+    setSettings(l.settings);
+    setLikedId(story.id);
+    setChoosing(false);
+  };
+  const startFresh = () => {
+    setLikedId(null);
+    setChoosing(false);
+    setSettings(fresh(source));
+  };
+  const howItWasMade = (s: PastStory) =>
+    [s.narrator ? `${s.narrator.emoji} ${s.narrator.name}` : null, LENGTHS[s.settings.length].label, s.settings.heroes.join(" & ") || null]
+      .filter(Boolean)
+      .join(" · ");
   const [customHero, setCustomHero] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -138,6 +191,56 @@ export function CreateWizard({
       <div className="parchment stack" style={{ ["--gap" as string]: "26px" }}>
         {step === 0 && (
           <>
+            {past.length > 0 && (
+              <div className="like-panel">
+                {liked ? (
+                  <>
+                    <div>
+                      ✨ <b>Like &ldquo;{liked.title}&rdquo;</b>
+                      <div className="small muted">{howItWasMade(liked)}</div>
+                    </div>
+                    <div className="row">
+                      <button type="button" className="btn btn-quiet btn-sm" onClick={() => setChoosing(!choosing)}>
+                        Choose another
+                      </button>
+                      <button type="button" className="btn btn-quiet btn-sm" onClick={startFresh}>
+                        Start fresh
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      ✨ Make one like <b>&ldquo;{past[0].title}&rdquo;</b>?
+                      <div className="small muted">{howItWasMade(past[0])}</div>
+                    </div>
+                    <div className="row">
+                      <button type="button" className="btn btn-sm" onClick={() => makeLike(past[0])}>
+                        Yes, like that one
+                      </button>
+                      {past.length > 1 && (
+                        <button type="button" className="btn btn-quiet btn-sm" onClick={() => setChoosing(!choosing)}>
+                          Choose another
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+                {choosing && (
+                  <div className="like-list" role="radiogroup" aria-label="Make one like">
+                    {past.map((s) => (
+                      <button key={s.id} type="button" role="radio" aria-checked={s.id === likedId} className="like-option" onClick={() => makeLike(s)}>
+                        <b>{s.title}</b>
+                        <span className="small muted">
+                          {[s.bookTitle !== s.title ? s.bookTitle : null, howItWasMade(s)].filter(Boolean).join(" · ")}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="choices" style={{ ["--min" as string]: "180px" }} role="radiogroup" aria-label="Story source">
               {(
                 [
@@ -427,12 +530,25 @@ export function CreateWizard({
           ) : (
             <span />
           )}
-          {step < 3 && (
-            <button className="btn" type="button" onClick={() => goTo(step + 1)} disabled={step === 0 && !sourceReady}>
-              Next →
-            </button>
+          {step === 0 && liked ? (
+            <div className="row">
+              <button className="btn btn-ghost" type="button" onClick={() => goTo(1)} disabled={!sourceReady || Boolean(busy)}>
+                Change the details
+              </button>
+              <button className="btn" type="button" onClick={conjure} disabled={!sourceReady || Boolean(busy)}>
+                {busy ?? "✨ Make my story"}
+              </button>
+            </div>
+          ) : (
+            step < 3 && (
+              <button className="btn" type="button" onClick={() => goTo(step + 1)} disabled={step === 0 && !sourceReady}>
+                Next →
+              </button>
+            )
           )}
         </div>
+        {step === 0 && liked && sourceReady && <CreditNote needed={words.chars} />}
+        {step === 0 && error && <p className="notice notice-error">{error}</p>}
       </div>
     </>
   );

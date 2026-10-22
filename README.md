@@ -80,7 +80,9 @@ a brand-new tale for the very same pictures.
 ### 📚 The Library
 - A candlelit bookcase. Books stand face-out on shelves (Shadow Books, Picture Books, Tales from the Wild,
   Dreamed-Up Tales, The Classic Treasury, or any shelf you name), and each book holds all its stories.
-- Filter by child, ⭐ favorites or read-alouds, and search everything.
+- Look at the **books** on the bookcase or every **story** in a list. Arrange the books on shelves by kind, or
+  all together newest first or A to Z; filter by child, ⭐ favorites or read-alouds, and search everything.
+- To rename a book, move it to another shelf or take it off the shelves, open it and tap *Rename, move or remove*.
 - **Family accounts with reader cards:** one grown-up login per family, then a "Who's listening tonight?"
   card for each child (no passwords), so everyone finds their own favorites.
 - **Grown-up PIN** (optional): children can play anything on the shelves, but creating new stories, which

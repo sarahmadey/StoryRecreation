@@ -2703,3 +2703,30 @@ code {
 .words-picture .hint {
   margin: 0;
 }
+
+/* The Library: books on the bookcase or every story in a list, and how they're arranged. */
+.library-views {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.library-views .dark-chip {
+  flex: 1;
+  justify-content: center;
+  max-width: 220px;
+  font-size: 1.05rem;
+}
+.library-order {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.library-order .find-label {
+  margin: 0 4px 0 0;
+}
+.library-order .dark-chip {
+  padding: 5px 12px;
+  font-size: 0.9rem;
+}

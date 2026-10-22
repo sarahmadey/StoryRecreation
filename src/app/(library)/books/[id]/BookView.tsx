@@ -188,7 +188,7 @@ export function BookView({
           )}
           {!editing && (
             <button className="btn btn-quiet btn-sm" onClick={() => setEditing(true)} style={{ alignSelf: "flex-start" }}>
-              ✎ Rename or move shelf
+              ✎ Rename, move or remove
             </button>
           )}
         </div>

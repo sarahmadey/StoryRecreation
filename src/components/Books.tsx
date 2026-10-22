@@ -69,6 +69,8 @@ const STATUS: Record<string, { label: string; className: string } | undefined> =
 export function StoryCardView({ story, profileEmoji, inBook }: { story: StoryCard; profileEmoji?: string; inBook?: boolean }) {
   const ready = story.status === "ready";
   const status = STATUS[story.status];
+  // A chapter ("Part 1") is named by its book, with the chapter beneath, except on the book's own page.
+  const chapter = !inBook && story.bookKind === "classic" && story.title.toLowerCase() !== story.bookTitle.toLowerCase();
   const card = (
     <Link href={ready ? `/play/${story.id}` : `/stories/${story.id}`} className="story-card">
       <div className="story-thumb">
@@ -77,7 +79,7 @@ export function StoryCardView({ story, profileEmoji, inBook }: { story: StoryCar
       <div className="story-meta">
         <div className="story-title">
           {story.favorite && <span aria-label="Favorite">⭐ </span>}
-          {story.title}
+          {chapter ? story.bookTitle : story.title}
         </div>
         {story.narrator && (
           <div className="story-sub story-narrator">
@@ -86,8 +88,8 @@ export function StoryCardView({ story, profileEmoji, inBook }: { story: StoryCar
         )}
         <div className="story-sub">
           {[
-            // which book it's from, unless the title already says ("Part 1" on its own says nothing)
-            inBook || story.title.toLowerCase().includes(story.bookTitle.toLowerCase()) ? null : story.bookTitle,
+            // which book it's from (or, for a chapter, which chapter), unless the title already says
+            chapter ? story.title : inBook || story.title.toLowerCase().includes(story.bookTitle.toLowerCase()) ? null : story.bookTitle,
             story.mode === "read" ? "read aloud" : null,
             ready ? formatDuration(story.duration) : null,
           ]

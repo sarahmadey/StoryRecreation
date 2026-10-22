@@ -98,7 +98,8 @@ export function BookView({
         <div className="stack">
           <div>
             <div className="eyebrow">
-              {BOOK_KINDS[book.kind].emoji} {BOOK_KINDS[book.kind].label} · {book.shelf}
+              {/* The shelf says what kind of book it is, unless the family has put it on a shelf of their own. */}
+              {BOOK_KINDS[book.kind].emoji} {book.shelf === DEFAULT_SHELVES[book.kind] ? book.shelf : `${BOOK_KINDS[book.kind].label} · ${book.shelf}`}
             </div>
             {editing ? (
               <div className="stack" style={{ maxWidth: 460 }}>

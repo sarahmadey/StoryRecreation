@@ -1,18 +1,6 @@
 import { BookOnShelf } from "./Books";
+import { Plaque } from "./Plaque";
 import type { Book } from "@/lib/shared/types";
-
-/** A brass plaque for a shelf: engraved, the same width as every other, centred over its books. */
-function Plaque({ label }: { label: string }) {
-  return (
-    <h2 className="shelf-plaque" title={label}>
-      <span className="plaque">
-        <span className="plaque-name">
-          <span className="plaque-text">{label}</span>
-        </span>
-      </span>
-    </h2>
-  );
-}
 
 /**
  * The family's books standing face-out on a bookcase. Each kind of book has a brass plaque above its

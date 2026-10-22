@@ -15,6 +15,7 @@ import { gutenbergCover } from "@/lib/shared/gutenberg";
 import type { AppStatus, Book } from "@/lib/shared/types";
 import type { CataloguePage, Classic, Refinement, TOPICS } from "@/lib/server/classics";
 import type { FavoriteClassic } from "@/lib/server/db";
+import { Plaque } from "@/components/Plaque";
 
 type Tab = "classics" | "own" | "words";
 type Topic = (typeof TOPICS)[number];
@@ -636,18 +637,18 @@ export function ReadToMe({
 
               <section className="stack" style={{ ["--gap" as string]: "14px" }} aria-label="Books">
                 <div className="center">
-                  <h2 style={{ margin: 0 }}>
-                    {showingStarred ? "Your favorites" : searched ? `Books matching “${searched}”` : topicLabel}
-                    {refine ? ` · ${refine.label}` : ""}
-                  </h2>
-                  <p className="muted small" style={{ margin: "4px 0 0" }}>
+                  <Plaque label={showingStarred ? "Your favorites" : searched ? "Search results" : topicLabel} wide />
+                  <p className="muted small" style={{ margin: "-6px 0 0" }}>
                     {showingStarred
                       ? "The books anyone in the family has starred."
-                      : catalogue
-                        ? refine
-                          ? `${total.toLocaleString()} ${total === 1 ? "book" : "books"}`
-                          : `${total.toLocaleString()} ${total === 1 ? "book" : "books"} · Storyhollow's picks first (with ages), then the rest of the library.`
-                        : "Storyhollow's picks first (with ages), then the rest of the library."}
+                      : [
+                          searched ? `Books matching “${searched}”` : null,
+                          refine?.label ?? null,
+                          catalogue ? `${total.toLocaleString()} ${total === 1 ? "book" : "books"}` : null,
+                          refine || searched ? null : "Storyhollow's picks first (with ages), then the rest of the library.",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                     {searched && (
                       <>
                         {" "}

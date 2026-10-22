@@ -7,6 +7,7 @@ import { useApi } from "@/components/Grownup";
 import { Cover, StoryCardView } from "@/components/Books";
 import { BOOK_KINDS, DEFAULT_SHELVES, defaultSettings } from "@/lib/shared/options";
 import type { Book, BookPage, Profile, StoryCard, StorySettings } from "@/lib/shared/types";
+import { Plaque } from "@/components/Plaque";
 
 export function BookView({
   book,
@@ -131,7 +132,7 @@ export function BookView({
 
           {hasStories && (
             <div className="book-stories">
-              <div className="find-label">{stories.length === 1 ? "Your story" : `Your ${stories.length} stories`}</div>
+              <Plaque label={stories.length === 1 ? "Your story" : `Your ${stories.length} stories`} wide />
               <div className="story-list">
                 {stories.map((s) => (
                   <StoryCardView key={s.id} story={s} inBook profileEmoji={s.profileId ? emojiOf.get(s.profileId) : undefined} />
@@ -141,8 +142,8 @@ export function BookView({
           )}
 
           {canAdd && (
-            <div>
-              <div className="find-label">{hasStories ? "Add another story to this book" : "Make a story for this book"}</div>
+            <div className="book-make">
+              <Plaque label={hasStories ? "Add another story" : "Make a story for this book"} wide />
               <div className="make-cards">
                 {canCreate && (
                   <button type="button" className="make-card" onClick={quickStory} disabled={busy || !canMake}>
@@ -196,9 +197,7 @@ export function BookView({
 
       {pages.length > 0 && (
         <section className="section">
-          <div className="section-head">
-            <h2>The pages</h2>
-          </div>
+          <Plaque label="The pages" wide />
           <div className="page-strip">
             {pages.map((p) => (
               // eslint-disable-next-line @next/next/no-img-element

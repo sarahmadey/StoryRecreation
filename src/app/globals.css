@@ -2426,18 +2426,6 @@ body.lights-out-active {
 .section {
   margin-top: 46px;
 }
-.section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-.section-head h2 {
-  margin: 0;
-  color: var(--gold-1);
-}
 
 .empty {
   text-align: center;
@@ -2694,16 +2682,17 @@ code {
   max-width: 100%;
   padding: 0 calc(var(--gap) / 2 + 2px);
 }
-/* Each kind's plaque: an engraved brass plate with bevelled corners and a rivet at each end,
-   every one the same width, centred over its books, as in an old castle library. */
-.tier-group .shelf-plaque {
-  width: var(--plaque-w);
+/* Display titles are plaques (actions are the round gold buttons): an engraved brass plate with
+   bevelled corners and a rivet at each end, every one of a size the same width, centred, as in an
+   old castle library. Each kind of book on the bookcase has one; section titles use the wide size. */
+.shelf-plaque {
+  width: var(--plaque-w, 218px);
   max-width: 100%;
   margin: 10px auto 10px;
   font: inherit;
   filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.55));
 }
-.tier-group .plaque {
+.plaque {
   display: block;
   padding: 7px 18px 6px;
   clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 9px, 100% calc(100% - 9px), calc(100% - 9px) 100%, 9px 100%, 0 calc(100% - 9px), 0 9px);
@@ -2717,7 +2706,7 @@ code {
     inset 0 0 0 4px rgba(94, 63, 21, 0.45);
   text-align: center;
 }
-.tier-group .plaque-name {
+.plaque-name {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2730,14 +2719,14 @@ code {
   color: #3a2410;
   text-shadow: 0 1px 0 rgba(255, 240, 196, 0.75);
 }
-.tier-group .plaque-text {
+.plaque-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 /* small engraved diamonds either side of the name */
-.tier-group .plaque-name::before,
-.tier-group .plaque-name::after {
+.plaque-name::before,
+.plaque-name::after {
   content: "";
   flex: none;
   width: 5px;
@@ -2745,6 +2734,17 @@ code {
   transform: rotate(45deg);
   background: #6e4a1c;
   box-shadow: 0 1px 0 rgba(255, 240, 196, 0.6);
+}
+.shelf-plaque.wide {
+  --plaque-w: 300px;
+}
+.shelf-plaque.wide .plaque-name {
+  font-size: 1.1rem;
+}
+.section > .shelf-plaque,
+.book-stories > .shelf-plaque,
+.book-make > .shelf-plaque {
+  margin: 0 auto 16px;
 }
 /* A kind without a plaque (books arranged newest first or A to Z) starts right on the shelf. */
 .tier-group:not(:has(.shelf-plaque)) .tiers {

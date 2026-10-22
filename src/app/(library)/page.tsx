@@ -8,6 +8,7 @@ import { Greeting } from "@/components/Greeting";
 import { QuillArt, ReadArt, ShelfArt } from "@/components/Art";
 import { StoryCardView } from "@/components/Books";
 import { SetupNotice } from "@/components/SetupNotice";
+import { Plaque } from "@/components/Plaque";
 
 export default async function HallPage() {
   const ctx = await pageCtx();
@@ -70,9 +71,7 @@ export default async function HallPage() {
 
       {inProgress.length > 0 && (
         <section className="section">
-          <div className="section-head">
-            <h2>Still brewing</h2>
-          </div>
+          <Plaque label="Still brewing" wide />
           <div className="story-list">
             {inProgress.map((s) => (
               <StoryCardView key={s.id} story={s} profileEmoji={s.profileId ? emojiOf.get(s.profileId) : undefined} />
@@ -83,9 +82,7 @@ export default async function HallPage() {
 
       {recent.length > 0 && (
         <section className="section">
-          <div className="section-head">
-            <h2>Listen again</h2>
-          </div>
+          <Plaque label="Listen again" wide />
           <div className="story-list">
             {recent.map((s) => (
               <StoryCardView key={s.id} story={s} profileEmoji={s.profileId ? emojiOf.get(s.profileId) : undefined} />
@@ -96,9 +93,7 @@ export default async function HallPage() {
 
       {favorites.length > 0 && (
         <section className="section">
-          <div className="section-head">
-            <h2>⭐ Favorites</h2>
-          </div>
+          <Plaque label="Favorites" wide />
           <div className="story-list">
             {favorites.map((s) => (
               <StoryCardView key={s.id} story={s} profileEmoji={s.profileId ? emojiOf.get(s.profileId) : undefined} />
@@ -109,17 +104,15 @@ export default async function HallPage() {
 
       {newest.length > 0 && (
         <section className="section">
-          <div className="section-head">
-            <h2>Newest on the shelves</h2>
-            <Link href="/library" className="small">
-              See the whole library →
-            </Link>
-          </div>
+          <Plaque label="Newest on the shelves" wide />
           <div className="story-list">
             {newest.map((s) => (
               <StoryCardView key={s.id} story={s} profileEmoji={s.profileId ? emojiOf.get(s.profileId) : undefined} />
             ))}
           </div>
+          <p className="center small" style={{ margin: "14px 0 0" }}>
+            <Link href="/library">See the whole library →</Link>
+          </p>
         </section>
       )}
 

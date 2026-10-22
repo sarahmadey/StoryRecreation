@@ -526,6 +526,31 @@ test("sound effects are chosen for a finished script, made short, and land on th
   assert.ok(loudest(at, at + SAMPLE_RATE) <= 0.3, "and stays beneath the voices");
 });
 
+test("the words in a photo or screenshot are copied out exactly, a poem keeping its lines", async () => {
+  const { readWordsFromPictures } = await import("@/lib/server/storyteller");
+  soundJson = JSON.stringify({ title: "  The Owl  ", text: "  The owl looked up\nat the moon so bright,\n\nand hooted softly\nall through the night.  " });
+  const pictures = [
+    { data: Buffer.from("page one").toString("base64"), mediaType: "image/jpeg" as const },
+    { data: Buffer.from("page two").toString("base64"), mediaType: "image/png" as const },
+  ];
+  const words = await readWordsFromPictures(pictures);
+  assert.deepEqual(words, { title: "The Owl", text: "The owl looked up\nat the moon so bright,\n\nand hooted softly\nall through the night." });
+  const body = captured.findLast((c) => c.url.startsWith("/v1/messages"))!.body as Record<string, any>;
+  assert.equal(body.model, "claude-opus-5-5");
+  assert.equal(body.fallbacks, "default");
+  assert.equal(body.output_config.effort, "medium");
+  assert.deepEqual(Object.keys(body.output_config.format.schema.properties), ["title", "text"]);
+  assert.match(body.system, /exactly as written/);
+  const content = body.messages[0].content as { type: string; text?: string; source?: { media_type: string } }[];
+  assert.deepEqual(
+    content.map((b) => b.type === "image" ? b.source!.media_type : b.text),
+    ["Picture 1:", "image/jpeg", "Picture 2:", "image/png", "Copy out the words in these pictures."],
+  );
+
+  soundJson = JSON.stringify({ title: "", text: "" });
+  assert.deepEqual(await readWordsFromPictures(pictures.slice(0, 1)), { title: null, text: "" }, "no words, no title");
+});
+
 test("a Gutenberg text's title and author are read from its header", async () => {
   const { gutenbergHeader, CLASSICS } = await import("@/lib/server/classics");
   const raw = "\ufeffThe Project Gutenberg eBook of The Tale of Peter Rabbit\r\n\r\nTitle: The Tale of Peter Rabbit\r\n\r\nAuthor: Beatrix Potter\r\n\r\nRelease date: January 30, 2005 [eBook #14838]\r\n";

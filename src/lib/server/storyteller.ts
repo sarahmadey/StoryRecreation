@@ -466,6 +466,63 @@ export async function spotSoundEffects(script: StoryScript): Promise<SoundCue[]>
   }
 }
 
+// ---------------------------------------------------------- words in a picture
+
+const WORDS_SYSTEM = `You copy out the words in photos and screenshots for Storyhollow, a family app that reads them aloud to children. The pictures might show a poem, a letter or card, a page from a book, a note, a story a child wrote, or a screenshot of any of these.
+
+- Copy the words exactly as written: the same wording, spelling and punctuation. Don't correct, summarise, explain or add anything.
+- Keep a poem's shape: each line on its own line, and a blank line between verses. Join prose lines into paragraphs, with a blank line between paragraphs.
+- Several pictures are consecutive pages, in order: join them into one text.
+- Leave out what isn't part of the piece itself: a screenshot's time, battery, buttons, menus, usernames, likes and timestamps; page numbers and running headers.
+- Handwriting, a child's spelling or a faded page: give your best reading of what it says.
+- If the piece has a title, give it separately and leave it out of the text. Otherwise leave the title empty.
+- If there are no words to read, leave the text empty.`;
+
+const WORDS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["title", "text"],
+  properties: { title: { type: "string" }, text: { type: "string" } },
+} as const;
+
+/** The words in photos or screenshots of a poem, letter or page, copied out exactly so they can be read aloud. */
+export async function readWordsFromPictures(images: StoryImage[]): Promise<{ title: string | null; text: string }> {
+  const content: Anthropic.Beta.BetaContentBlockParam[] = images.flatMap((img, i) => [
+    ...(images.length > 1 ? [{ type: "text" as const, text: `Picture ${i + 1}:` }] : []),
+    { type: "image" as const, source: { type: "base64" as const, media_type: img.mediaType, data: img.data } },
+  ]);
+  content.push({ type: "text", text: images.length > 1 ? "Copy out the words in these pictures." : "Copy out the words in this picture." });
+  let message: Anthropic.Beta.BetaMessage;
+  try {
+    message = await anthropic().beta.messages.create({
+      model: config.storyModel,
+      max_tokens: 16000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: "medium", format: { type: "json_schema", schema: WORDS_SCHEMA } },
+      system: WORDS_SYSTEM,
+      messages: [{ role: "user", content }],
+    });
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) throw new StorytellerError("The Anthropic API key was not accepted.");
+    if (err instanceof Anthropic.RateLimitError) throw new StorytellerError("The storyteller is busy right now. Please try again in a minute.");
+    if (err instanceof Anthropic.APIError) throw new StorytellerError(`The storyteller hit a snag reading that (${err.status}). Please try again.`);
+    throw err;
+  }
+  if (message.stop_reason === "refusal") throw new StorytellerError("The storyteller couldn't read that picture. Try typing or pasting the words instead.");
+  if (message.stop_reason !== "end_turn") throw new StorytellerError("That was too much to read in one go. Try fewer pictures at a time.");
+  const out = message.content
+    .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+  try {
+    const { title, text } = JSON.parse(out) as { title: string; text: string };
+    return { title: title.trim() || null, text: text.trim() };
+  } catch {
+    throw new StorytellerError("The words came back jumbled. Please try again.");
+  }
+}
+
 function slug(s: string): string {
   return s
     .toLowerCase()

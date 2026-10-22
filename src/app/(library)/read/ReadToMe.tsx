@@ -7,7 +7,7 @@ import { Cover, StoryCardView, hueFor } from "@/components/Books";
 import { Steps, toTop } from "@/components/Steps";
 import { CreditNote, CreditsLeft, useCredits } from "@/components/Credits";
 import { PhotoPicker, VoicePicker, useVoices } from "@/components/Pickers";
-import type { PickedPhoto } from "@/lib/client/images";
+import { pickPhotos, type PickedPhoto } from "@/lib/client/images";
 import { DEFAULT_NARRATOR_ID } from "@/lib/shared/personas";
 import { defaultSettings } from "@/lib/shared/options";
 import { gutenbergCover } from "@/lib/shared/gutenberg";
@@ -151,6 +151,9 @@ export function ReadToMe({
   // own words
   const [wordsTitle, setWordsTitle] = useState("");
   const [words, setWords] = useState("");
+  const [reading, setReading] = useState(false);
+  const [readNote, setReadNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const picturesInput = useRef<HTMLInputElement>(null);
 
   const storytellerReady = status.storyteller || status.demoMode;
   const emojiOf = new Map(profiles.map((p) => [p.id, p.avatar]));
@@ -434,6 +437,36 @@ export function ReadToMe({
     }
   };
 
+  /** The words in a photo or screenshot, copied into the box (after anything already there) to check. */
+  const readPictures = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setReading(true);
+    setReadNote(null);
+    try {
+      const { photos, extra } = await pickPhotos(files, 6);
+      const form = new FormData();
+      photos.forEach((p) => {
+        form.append("pictures", p.file, p.file.name);
+        URL.revokeObjectURL(p.url);
+      });
+      const res = await api.form<{ title: string | null; text: string }>("/api/words", form);
+      if (!res.text) {
+        setReadNote({ ok: false, text: "No words could be found in that picture. A closer, brighter photo usually helps." });
+        return;
+      }
+      setWords((cur) => (cur.trim() ? `${cur.trimEnd()}\n\n${res.text}` : res.text));
+      if (res.title) setWordsTitle((cur) => cur.trim() || res.title!);
+      setReadNote({
+        ok: true,
+        text: `Here are the words${extra ? ` from the first ${photos.length} pictures` : ""}. Give them a quick read, and fix anything the picture made hard to make out.`,
+      });
+    } catch (err) {
+      setReadNote({ ok: false, text: err instanceof Error ? err.message : "That picture couldn't be read." });
+    } finally {
+      setReading(false);
+    }
+  };
+
   const minutes = (w: number) => Math.max(1, Math.round(w / 150));
   const wordCount = (t: string) => t.trim().split(/\s+/).filter(Boolean).length;
 
@@ -547,16 +580,19 @@ export function ReadToMe({
           <div className="chips read-tabs" role="tablist" style={{ justifyContent: "center" }}>
             {(
               [
-                ["classics", "📜", "The Classic Treasury"],
-                ["own", "📕", "A book we own"],
-                ["words", "✉️", "Our own words"],
+                ["classics", "📜", "The Classic Treasury", "Free classic books"],
+                ["own", "📕", "A book we own", "Photograph its pages"],
+                ["words", "✉️", "Our own words", "Write, paste or photograph"],
               ] as const
-            ).map(([t, emoji, label]) => (
+            ).map(([t, emoji, label, sub]) => (
               <button key={t} role="tab" aria-selected={tab === t} className="dark-chip" aria-pressed={tab === t} onClick={() => setTab(t)}>
                 <span className="tab-emoji" aria-hidden="true">
                   {emoji}
                 </span>
-                <span>{label}</span>
+                <span className="tab-text">
+                  <span>{label}</span>
+                  <span className="tab-sub">{sub}</span>
+                </span>
               </button>
             ))}
           </div>
@@ -776,15 +812,40 @@ export function ReadToMe({
           {tab === "words" && (
             <div className="parchment stack">
               <p className="muted" style={{ margin: 0 }}>
-                A poem, a letter from Grandma, a story your child dictated… paste it here and it will be read aloud.
+                A poem, a letter from Grandma, a birthday card, a story your child dictated… write it here, paste it in, or add a photo or
+                screenshot of it, and it will be read aloud.
               </p>
+              <div className="words-picture">
+                <input
+                  ref={picturesInput}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    void readPictures(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+                <button type="button" className="btn btn-ghost" onClick={() => picturesInput.current?.click()} disabled={reading}>
+                  {reading ? "✨ Reading the words…" : "📷 Add a photo or screenshot"}
+                </button>
+                <span className="hint">The words in it are copied out below for you to check.</span>
+              </div>
+              {readNote && <p className={`notice small ${readNote.ok ? "" : "notice-error"}`} style={{ margin: 0 }}>{readNote.text}</p>}
               <label className="field">
                 <span>Title</span>
                 <input className="input" value={wordsTitle} onChange={(e) => setWordsTitle(e.target.value)} placeholder="A Letter from Granny" />
               </label>
               <label className="field">
                 <span>The words</span>
-                <textarea className="textarea" style={{ minHeight: 220 }} value={words} onChange={(e) => setWords(e.target.value)} />
+                <textarea
+                  className="textarea"
+                  style={{ minHeight: 220 }}
+                  value={words}
+                  onChange={(e) => setWords(e.target.value)}
+                  placeholder="Write or paste the words here."
+                />
               </label>
               <div className="spread">
                 <span />

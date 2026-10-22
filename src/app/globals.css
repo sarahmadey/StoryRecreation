@@ -2682,3 +2682,24 @@ code {
   height: 100%;
   font-size: 1.8rem;
 }
+
+/* Read to Me's three kinds of reading, each with a line saying what it holds. */
+.read-tabs .tab-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.read-tabs .tab-sub {
+  font-size: 0.78em;
+  opacity: 0.75;
+}
+/* Our own words: a photo or screenshot of the words, read into the box below. */
+.words-picture {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.words-picture .hint {
+  margin: 0;
+}

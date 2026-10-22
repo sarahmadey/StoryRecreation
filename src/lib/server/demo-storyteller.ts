@@ -101,3 +101,19 @@ export function demoSoundCues(script: StoryScript): SoundCue[] {
       .map((p) => ({ page: p.page, line: 0, word: p.lines[0].text.replace(/\[[^\]]*\]/g, "").trim().split(/\s+/)[0] ?? "", sound: "a soft, twinkly chime", seconds: 1.5 })),
   );
 }
+
+/** In demo mode, the "words in a picture" are always the same little poem. */
+export function demoWordsFromPictures(pictures: number): { title: string | null; text: string } {
+  return {
+    title: "The Moon's Lullaby",
+    text: [
+      "Hush now, the moon is climbing high,",
+      "a silver boat across the sky.",
+      "",
+      "The owls are out, the fox is curled,",
+      "and sleep is coming to the world.",
+      "",
+      `(Pretend words, in demo mode, from ${pictures === 1 ? "your picture" : `your ${pictures} pictures`}.)`,
+    ].join("\n"),
+  };
+}

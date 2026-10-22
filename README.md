@@ -74,7 +74,8 @@ a brand-new tale for the very same pictures.
   Aesop, Grimm and more, plus a search of 70,000+ public-domain books (Project Gutenberg).
 - **A book we own:** photograph the pages and the storyteller transcribes the real words exactly, then reads
   them aloud with a chime per page.
-- **Our own words:** paste a poem, a letter from Granny, or a story your child dictated.
+- **Our own words:** write, paste, or add a photo or screenshot of a poem, a letter from Granny, a birthday card,
+  or a story your child dictated. The storyteller copies the words out of the picture for you to check first.
 
 ### 📚 The Library
 - A candlelit bookcase. Books stand face-out on shelves (Shadow Books, Picture Books, Tales from the Wild,

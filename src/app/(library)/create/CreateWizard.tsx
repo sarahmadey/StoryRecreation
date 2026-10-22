@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
@@ -47,9 +48,8 @@ export function CreateWizard({
     toTop();
   };
   const [source, setSource] = useState<Source>(initialSource);
-  const [bookId, setBookId] = useState<string | "new">(preselect?.id ?? (books.some((b) => b.pageCount > 0) ? "" : "new"));
+  const [bookId, setBookId] = useState<string>(preselect?.id ?? "");
   const [title, setTitle] = useState("");
-  const [kind, setKind] = useState<"shadow_book" | "picture_book">("shadow_book");
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [settings, setSettings] = useState<StorySettings>(() =>
     defaultSettings({
@@ -68,10 +68,10 @@ export function CreateWizard({
   const set = <K extends keyof StorySettings>(k: K, v: StorySettings[K]) => setSettings((s) => ({ ...s, [k]: v }));
 
   const physicalBooks = books.filter((b) => (b.kind === "shadow_book" || b.kind === "picture_book") && b.pageCount > 0);
-  const chosenBook = bookId && bookId !== "new" ? books.find((b) => b.id === bookId) : undefined;
+  const chosenBook = bookId ? books.find((b) => b.id === bookId) : undefined;
   const pageCount =
     source === "book"
-      ? chosenBook?.pageCount ?? photos.length
+      ? chosenBook?.pageCount ?? 0
       : source === "wild"
         ? Math.max(photos.length, settings.length === "short" ? 4 : settings.length === "long" ? 9 : 6)
         : settings.length === "short" ? 4 : settings.length === "long" ? 9 : 6;
@@ -83,7 +83,7 @@ export function CreateWizard({
 
   const sourceReady =
     source === "book"
-      ? (bookId && bookId !== "new") || (bookId === "new" && title.trim() && photos.length > 0)
+      ? Boolean(chosenBook && chosenBook.pageCount > 0)
       : source === "wild"
         ? (chosenBook && chosenBook.kind === "wild") || photos.length > 0
         : settings.description.trim().length >= 8;
@@ -106,7 +106,7 @@ export function CreateWizard({
         const fallbackTitle =
           source === "wild" ? "Our Adventure" : source === "idea" ? settings.description.split(/[.!?\n]/)[0].slice(0, 60) || "A Dreamed-Up Tale" : "My Book";
         form.set("title", title.trim() || fallbackTitle);
-        form.set("kind", source === "book" ? kind : source);
+        form.set("kind", source);
         if (settings.description) form.set("notes", settings.description);
         photos.forEach((p) => form.append("pages", p.file, p.file.name));
         id = (await api.form<{ id: string }>("/api/books", form)).id;
@@ -156,66 +156,36 @@ export function CreateWizard({
 
             {source === "book" && (
               <div className="stack">
-                {physicalBooks.length > 0 && (
-                  <div>
-                    <span className="label">Which book?</span>
-                    <div className="choices" style={{ ["--min" as string]: "120px" }}>
-                      {physicalBooks.map((b) => (
-                        <button
-                          key={b.id}
-                          type="button"
-                          className="choice"
-                          aria-pressed={bookId === b.id}
-                          onClick={() => setBookId(b.id)}
-                          style={{ padding: 10 }}
-                        >
-                          <div className="story-thumb" style={{ width: 66, height: 88 }}>
-                            <Cover id={b.id} title={b.title} kind={b.kind} coverUrl={b.coverUrl} showTitle={false} />
-                          </div>
-                          <span className="choice-title" style={{ fontSize: "1rem" }}>
-                            {b.title}
-                          </span>
-                          <span className="choice-sub">
-                            {b.pageCount} pages · {b.storyCount} stories
-                          </span>
-                        </button>
-                      ))}
-                      <button type="button" className="choice" aria-pressed={bookId === "new"} onClick={() => setBookId("new")}>
-                        <span className="choice-emoji">＋</span>
-                        <span className="choice-title">A new book</span>
-                        <span className="choice-sub">Photograph its pages</span>
+                <div>
+                  <span className="label">Which book?</span>
+                  <div className="choices" style={{ ["--min" as string]: "120px" }}>
+                    {physicalBooks.map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        className="choice"
+                        aria-pressed={bookId === b.id}
+                        onClick={() => setBookId(b.id)}
+                        style={{ padding: 10 }}
+                      >
+                        <div className="story-thumb" style={{ width: 66, height: 88 }}>
+                          <Cover id={b.id} title={b.title} kind={b.kind} coverUrl={b.coverUrl} showTitle={false} />
+                        </div>
+                        <span className="choice-title" style={{ fontSize: "1rem" }}>
+                          {b.title}
+                        </span>
+                        <span className="choice-sub">
+                          {b.pageCount} pages · {b.storyCount} stories
+                        </span>
                       </button>
-                    </div>
+                    ))}
+                    <Link className="choice" href="/books/new?then=create">
+                      <span className="choice-emoji">＋</span>
+                      <span className="choice-title">Add a book</span>
+                      <span className="choice-sub">Photograph its pages</span>
+                    </Link>
                   </div>
-                )}
-                {bookId === "new" && (
-                  <>
-                    <label className="field">
-                      <span>What's the book called?</span>
-                      <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Goodnight, Forest" />
-                    </label>
-                    <div>
-                      <span className="label">What kind of book is it?</span>
-                      <div className="chips">
-                        <button type="button" className="chip" aria-pressed={kind === "shadow_book"} onClick={() => setKind("shadow_book")}>
-                          🔦 Shadow book
-                        </button>
-                        <button type="button" className="chip" aria-pressed={kind === "picture_book"} onClick={() => setKind("picture_book")}>
-                          📕 Picture book
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <span className="label">The pages, in order</span>
-                      <p className="hint" style={{ marginTop: 0 }}>
-                        One photo per page: snap them here, or choose them all at once from your photos. For a shadow book,
-                        photograph each picture disc or slide (or its projection on the wall). It's fine if the old words are in
-                        the photos: the storyteller will write brand-new ones.
-                      </p>
-                      <PhotoPicker photos={photos} onChange={setPhotos} />
-                    </div>
-                  </>
-                )}
+                </div>
               </div>
             )}
 

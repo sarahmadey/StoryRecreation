@@ -680,6 +680,10 @@ button.back-link {
   cursor: pointer;
   transition: transform 0.15s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
+/* A choice that's a link (to add a book) looks like the others. */
+a.choice {
+  text-decoration: none;
+}
 .choice:hover {
   transform: translateY(-2px);
   border-color: rgba(168, 121, 43, 0.7);

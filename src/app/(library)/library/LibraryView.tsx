@@ -109,7 +109,7 @@ export function LibraryView({
           <div className="eyebrow">Every book, every story</div>
           <h1 style={{ margin: 0 }}>The Library</h1>
         </div>
-        <Link href="/create" className="btn">
+        <Link href="/books/new" className="btn">
           ＋ Add a book
         </Link>
       </div>

@@ -72,8 +72,8 @@ a brand-new tale for the very same pictures.
   chapters 1 and 2). Add *character voices* so the dialogue is acted out.
 - **The Classic Treasury:** Peter Rabbit, Winnie-the-Pooh, The Velveteen Rabbit, The Wind in the Willows,
   Aesop, Grimm and more, plus a search of 70,000+ public-domain books (Project Gutenberg).
-- **A book we own:** photograph the pages and the storyteller transcribes the real words exactly, then reads
-  them aloud with a chime per page.
+- **A book we own:** choose a book you've added (photographed once, under *Add a book*) and the storyteller
+  transcribes the real words exactly, then reads them aloud with a chime per page.
 - **Our own words:** write, paste, or add a photo or screenshot of a poem, a letter from Granny, a birthday card,
   or a story your child dictated. The storyteller copies the words out of the picture for you to check first.
 
@@ -114,12 +114,13 @@ humming placeholder voices.
 
 ### Your first shadow book story
 1. Sign up and add a reader card for each child.
-2. **Create → A book we own → A new book.** Name it and choose *Shadow book*.
-3. Photograph each picture **in order**: the slide or disc itself, or its projection on the wall. One
-   photo per page. The ← → buttons reorder pages.
+2. **Library → ＋ Add a book.** Name it, choose *Shadow book*, and photograph each picture **in order**: the
+   slide or disc itself, or its projection on the wall. One photo per page. The ← → buttons reorder pages.
+   (Adding a book is always done here, once; Create and Read to Me send you here and bring you back.)
+3. On the book's page, tap **🎨 Choose the details** (or **🎧 Read the book's own words** to hear it as printed).
 4. Choose the length, mood and voices. Leave *Let me read it before the voices record it* on the first time.
 5. Read the script, swap any voice, then press **Record the story**. After a minute or two, press **Listen**.
-6. Tomorrow, open the book and tap **✨ A new story tonight**.
+6. Tomorrow, open the book and tap **✨ Quick new story**. When a story ends, *Up next* offers the next one.
 
 ---
 

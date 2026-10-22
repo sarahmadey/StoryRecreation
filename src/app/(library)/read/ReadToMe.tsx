@@ -7,8 +7,8 @@ import { useApi } from "@/components/Grownup";
 import { Cover, hueFor } from "@/components/Books";
 import { Steps, toTop } from "@/components/Steps";
 import { CreditNote, CreditsLeft, useCredits } from "@/components/Credits";
-import { PhotoPicker, VoicePicker, useVoices } from "@/components/Pickers";
-import { pickPhotos, type PickedPhoto } from "@/lib/client/images";
+import { VoicePicker, useVoices } from "@/components/Pickers";
+import { pickPhotos } from "@/lib/client/images";
 import { DEFAULT_NARRATOR_ID } from "@/lib/shared/personas";
 import { defaultSettings } from "@/lib/shared/options";
 import { gutenbergCover } from "@/lib/shared/gutenberg";
@@ -144,9 +144,7 @@ export function ReadToMe({
   const openRef = useRef<HTMLDivElement>(null);
 
   // own book
-  const [bookId, setBookId] = useState<string>(preselectBook ?? ownBooks[0]?.id ?? "new");
-  const [newTitle, setNewTitle] = useState("");
-  const [photos, setPhotos] = useState<PickedPhoto[]>([]);
+  const [bookId, setBookId] = useState<string>(preselectBook ?? ownBooks[0]?.id ?? "");
   const [checkFirst, setCheckFirst] = useState(false);
 
   // own words
@@ -166,7 +164,7 @@ export function ReadToMe({
     }
   };
   // The book chosen so far, and who read it last time.
-  const bookKey = tab === "classics" ? (open ? `classic:${open.gid}` : null) : tab === "own" && bookId !== "new" ? `book:${bookId}` : null;
+  const bookKey = tab === "classics" ? (open ? `classic:${open.gid}` : null) : tab === "own" && bookId ? `book:${bookId}` : null;
   const usual = bookKey ? lastReaders[bookKey] : undefined;
   // Once per book: whoever read it last (so a story keeps its voice from chapter to chapter), or the family's usual choice.
   const pickedFor = useRef<string | null>(null);
@@ -401,15 +399,7 @@ export function ReadToMe({
     setBusy("Opening your book…");
     setError(null);
     try {
-      let id = bookId;
-      if (bookId === "new") {
-        const form = new FormData();
-        form.set("title", newTitle.trim() || "Our Book");
-        form.set("kind", "picture_book");
-        photos.forEach((p) => form.append("pages", p.file, p.file.name));
-        id = (await api.form<{ id: string }>("/api/books", form)).id;
-      }
-      const res = await api.post<{ id: string }>("/api/stories", { bookId: id, mode: "read", settings: baseSettings("book_read") });
+      const res = await api.post<{ id: string }>("/api/stories", { bookId, mode: "read", settings: baseSettings("book_read") });
       router.push(`/stories/${res.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "That didn't work.");
@@ -492,15 +482,7 @@ export function ReadToMe({
               about: null,
               credits: null,
             }
-          : photos.length > 0
-            ? {
-                thumb: <span className="chosen-emoji">📷</span>,
-                title: newTitle.trim() || "Our Book",
-                sub: `${photos.length} photographed ${photos.length === 1 ? "page" : "pages"}, with page-turn chimes`,
-                about: null,
-                credits: null,
-              }
-            : null
+          : null
         : words.trim().length >= 10
           ? {
               thumb: <span className="chosen-emoji">✉️</span>,
@@ -762,8 +744,8 @@ export function ReadToMe({
           {tab === "own" && (
             <div className="parchment stack">
               <p className="muted" style={{ margin: 0 }}>
-                Photograph the pages of a book you own, and your storyteller will read its real words aloud, with a chime to turn
-                each page. (For your family's own listening.)
+                Choose a book you&apos;ve photographed, and your storyteller will read its real words aloud, with a chime to turn
+                each page. (For your family&apos;s own listening.)
               </p>
               <div className="choices" style={{ ["--min" as string]: "120px" }}>
                 {ownBooks.map((b) => (
@@ -776,20 +758,12 @@ export function ReadToMe({
                     </span>
                   </button>
                 ))}
-                <button type="button" className="choice" aria-pressed={bookId === "new"} onClick={() => setBookId("new")}>
-                  <span className="choice-emoji">📷</span>
-                  <span className="choice-title">Photograph a book</span>
-                </button>
+                <Link className="choice" href="/books/new?then=read">
+                  <span className="choice-emoji">＋</span>
+                  <span className="choice-title">Add a book</span>
+                  <span className="choice-sub">Photograph its pages</span>
+                </Link>
               </div>
-              {bookId === "new" && (
-                <>
-                  <label className="field">
-                    <span>Book title</span>
-                    <input className="input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="The Snail Who Wanted to Fly" />
-                  </label>
-                  <PhotoPicker photos={photos} onChange={setPhotos} />
-                </>
-              )}
               <label className="toggle">
                 <input type="checkbox" checked={checkFirst} onChange={(e) => setCheckFirst(e.target.checked)} />
                 <span>
@@ -800,7 +774,7 @@ export function ReadToMe({
               {!storytellerReady && <p className="notice small">Reading your own pages needs the storyteller (an Anthropic key).</p>}
               <div className="spread">
                 <span />
-                <button className="btn" type="button" onClick={toStoryteller} disabled={!storytellerReady || (bookId === "new" && photos.length === 0)}>
+                <button className="btn" type="button" onClick={toStoryteller} disabled={!storytellerReady || !bookId}>
                   Next: the storyteller →
                 </button>
               </div>

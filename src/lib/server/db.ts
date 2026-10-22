@@ -456,6 +456,15 @@ export function createBook(
   return id;
 }
 
+/** Classic books whose cover is still only on Project Gutenberg's site. */
+export function classicsWithoutCovers(): { householdId: string; id: string; sourceRef: string }[] {
+  return (
+    db()
+      .prepare("SELECT household_id, id, source_ref FROM books WHERE kind = 'classic' AND cover_path IS NULL AND source_ref IS NOT NULL")
+      .all() as Row[]
+  ).map((r) => ({ householdId: r.household_id as string, id: r.id as string, sourceRef: r.source_ref as string }));
+}
+
 export function updateBook(
   householdId: string,
   id: string,

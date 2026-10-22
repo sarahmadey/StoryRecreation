@@ -4,6 +4,7 @@ import { createBook, createStory, findBookBySource } from "@/lib/server/db";
 import { loadClassic } from "@/lib/server/classics";
 import { sanitizeSettings } from "@/lib/server/settings";
 import { startWriting } from "@/lib/server/jobs";
+import { keepClassicCover } from "@/lib/server/covers";
 
 /** Put a classic on the family's shelf and prepare a chapter to be read aloud. */
 export const POST = route(async (req: Request) => {
@@ -23,15 +24,18 @@ export const POST = route(async (req: Request) => {
   const chapter = classic.chapters[chapterIndex];
   if (!chapter) throw new HttpError(404, "That chapter wasn't found.");
 
-  const bookId =
-    findBookBySource(ctx.household.id, "classic", String(gid))?.id ??
-    createBook(ctx.household.id, {
+  let bookId = findBookBySource(ctx.household.id, "classic", String(gid))?.id;
+  if (!bookId) {
+    bookId = createBook(ctx.household.id, {
       title: classic.title,
       author: classic.author,
       kind: "classic",
       sourceRef: String(gid),
       notes: body.emoji?.slice(0, 8) ?? null,
     });
+    // Its cover is kept with it, in the background.
+    void keepClassicCover(ctx.household.id, bookId, gid);
+  }
   const title = classic.chapters.length > 1 ? `${chapter.title}` : classic.title;
   const id = createStory(ctx.household.id, {
     bookId,

@@ -44,6 +44,17 @@ export async function saveImage(householdId: string, folder: string, file: File)
   return rel;
 }
 
+/** Save an image the app fetched itself (a classic's cover), returning its household-relative path. */
+export async function saveImageBytes(householdId: string, folder: string, bytes: Buffer, type: string): Promise<string> {
+  const ext = IMAGE_TYPES[type];
+  if (!ext) throw new HttpError(400, "Images need to be JPEG, PNG, WebP or GIF.");
+  const rel = `${folder}/${randomUUID()}${ext}`;
+  const full = resolveHouseholdPath(householdId, rel);
+  await fs.promises.mkdir(path.dirname(full), { recursive: true });
+  await fs.promises.writeFile(full, bytes);
+  return rel;
+}
+
 export const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 
 /** Save an uploaded recording (the browser has already turned it into an MP3). */

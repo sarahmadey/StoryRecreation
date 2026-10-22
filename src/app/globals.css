@@ -756,6 +756,7 @@ button.back-link {
 .dark-chip[aria-pressed="true"] {
   color: #2a1709;
   background: linear-gradient(#f5dc9a, #dcae55);
+  border-color: #a8792b;
 }
 
 /* ------------------------------------------------------------------ doorways */
@@ -986,22 +987,22 @@ button.back-link {
   }
   /* Read to Me's three ways in, side by side */
   .read-tabs {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
     gap: 8px;
   }
-  .read-tabs .dark-chip {
-    flex-direction: column;
-    justify-content: center;
+  .read-tabs .choice {
+    padding: 10px 6px;
     gap: 2px;
-    padding: 8px 6px;
-    border-radius: 16px;
-    font-size: 0.85rem;
-    line-height: 1.2;
-    text-align: center;
   }
-  .read-tabs .tab-emoji {
-    font-size: 1.3rem;
+  .read-tabs .choice-emoji {
+    font-size: 1.4rem;
+  }
+  .read-tabs .choice-title {
+    font-size: 0.95rem;
+    line-height: 1.15;
+  }
+  .read-tabs .choice-sub {
+    font-size: 0.74rem;
+    line-height: 1.2;
   }
   .topic-chips .dark-chip {
     flex: none;
@@ -2605,15 +2606,29 @@ code {
   font-size: 1.8rem;
 }
 
-/* Read to Me's three kinds of reading, each with a line saying what it holds. */
-.read-tabs .tab-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+/* Choice cards on the dark page (Read to Me's three kinds of reading): the same cards as on parchment,
+   in the page's own colours until chosen. */
+.choices.on-dark .choice {
+  border-color: rgba(220, 174, 85, 0.3);
+  background: rgba(42, 27, 17, 0.6);
+  color: var(--text);
 }
-.read-tabs .tab-sub {
-  font-size: 0.78em;
-  opacity: 0.75;
+.choices.on-dark .choice:hover {
+  border-color: rgba(220, 174, 85, 0.6);
+}
+.choices.on-dark .choice .choice-sub {
+  color: var(--text-faint);
+}
+.choices.on-dark .choice[aria-pressed="true"] {
+  color: var(--ink);
+  border-color: #a8792b;
+  background: linear-gradient(180deg, rgba(255, 236, 180, 0.95), rgba(240, 210, 140, 0.88));
+}
+.choices.on-dark .choice[aria-pressed="true"] .choice-sub {
+  color: var(--ink-soft);
+}
+.read-tabs {
+  grid-template-columns: repeat(3, 1fr);
 }
 /* Our own words: a photo or screenshot of the words, read into the box below. */
 .words-picture {

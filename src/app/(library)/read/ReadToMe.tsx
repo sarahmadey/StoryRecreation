@@ -577,7 +577,7 @@ export function ReadToMe({
 
       {step === 0 && (
         <>
-          <div className="chips read-tabs" role="tablist" style={{ justifyContent: "center" }}>
+          <div className="choices on-dark read-tabs" role="tablist">
             {(
               [
                 ["classics", "📜", "The Classic Treasury", "Free classic books"],
@@ -585,14 +585,12 @@ export function ReadToMe({
                 ["words", "✉️", "Our own words", "Write, paste or photograph"],
               ] as const
             ).map(([t, emoji, label, sub]) => (
-              <button key={t} role="tab" aria-selected={tab === t} className="dark-chip" aria-pressed={tab === t} onClick={() => setTab(t)}>
-                <span className="tab-emoji" aria-hidden="true">
+              <button key={t} role="tab" aria-selected={tab === t} className="choice" aria-pressed={tab === t} onClick={() => setTab(t)}>
+                <span className="choice-emoji" aria-hidden="true">
                   {emoji}
                 </span>
-                <span className="tab-text">
-                  <span>{label}</span>
-                  <span className="tab-sub">{sub}</span>
-                </span>
+                <span className="choice-title">{label}</span>
+                <span className="choice-sub">{sub}</span>
               </button>
             ))}
           </div>

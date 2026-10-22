@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
-import { Cover, StoryCardView, hueFor } from "@/components/Books";
+import { Cover, hueFor } from "@/components/Books";
 import { Steps, toTop } from "@/components/Steps";
 import { CreditNote, CreditsLeft, useCredits } from "@/components/Credits";
 import { PhotoPicker, VoicePicker, useVoices } from "@/components/Pickers";
@@ -11,7 +12,7 @@ import { pickPhotos, type PickedPhoto } from "@/lib/client/images";
 import { DEFAULT_NARRATOR_ID } from "@/lib/shared/personas";
 import { defaultSettings } from "@/lib/shared/options";
 import { gutenbergCover } from "@/lib/shared/gutenberg";
-import type { AppStatus, Book, Profile, StoryCard } from "@/lib/shared/types";
+import type { AppStatus, Book } from "@/lib/shared/types";
 import type { CataloguePage, Classic, Refinement, TOPICS } from "@/lib/server/classics";
 import type { FavoriteClassic } from "@/lib/server/db";
 
@@ -83,8 +84,7 @@ export function ReadToMe({
   classics,
   topics,
   ownBooks,
-  readAlouds,
-  profiles,
+  readAloudCount,
   status,
   preselectBook,
   preselectClassic,
@@ -95,10 +95,10 @@ export function ReadToMe({
   classics: Classic[];
   topics: readonly Topic[];
   ownBooks: Book[];
-  readAlouds: StoryCard[];
+  /** How many read-alouds the family has made (they're kept in the Library). */
+  readAloudCount: number;
   /** The storyteller who last read each book ("classic:<id>" or "book:<id>"). */
   lastReaders: Record<string, string>;
-  profiles: Profile[];
   status: AppStatus;
   preselectBook: string | null;
   preselectClassic: number | null;
@@ -156,7 +156,6 @@ export function ReadToMe({
   const picturesInput = useRef<HTMLInputElement>(null);
 
   const storytellerReady = status.storyteller || status.demoMode;
-  const emojiOf = new Map(profiles.map((p) => [p.id, p.avatar]));
 
   const savedReader = () => {
     try {
@@ -858,17 +857,11 @@ export function ReadToMe({
         </>
       )}
 
-      {step === 0 && readAlouds.length > 0 && (
-        <section className="section">
-          <div className="section-head">
-            <h2>Read-alouds on your shelves</h2>
-          </div>
-          <div className="story-list">
-            {readAlouds.map((s) => (
-              <StoryCardView key={s.id} story={s} profileEmoji={s.profileId ? emojiOf.get(s.profileId) : undefined} />
-            ))}
-          </div>
-        </section>
+      {step === 0 && readAloudCount > 0 && (
+        <p className="faint small center">
+          🎧 {readAloudCount === 1 ? "The read-aloud you've made is" : `The ${readAloudCount} read-alouds you've made are`} in the Library.{" "}
+          <Link href="/library?show=read-alouds">See them ›</Link>
+        </p>
       )}
     </div>
   );

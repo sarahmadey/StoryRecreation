@@ -5,8 +5,10 @@ import { LibraryView } from "./LibraryView";
 
 export const metadata = { title: "The Library" };
 
-export default async function LibraryPage() {
+export default async function LibraryPage(props: PageProps<"/library">) {
   const ctx = await pageCtx();
+  // From Read to Me: "See them" opens the read-alouds.
+  const readAlouds = (await props.searchParams).show === "read-alouds";
   return (
     <main className="page">
       <LibraryView
@@ -14,6 +16,7 @@ export default async function LibraryPage() {
         stories={await storyCards(ctx.household.id)}
         profiles={listProfiles(ctx.household.id)}
         currentProfileId={ctx.profile?.id ?? null}
+        showReadAlouds={readAlouds}
       />
     </main>
   );

@@ -26,15 +26,18 @@ export function LibraryView({
   stories,
   profiles,
   currentProfileId,
+  showReadAlouds = false,
 }: {
   books: Book[];
   stories: StoryCard[];
   profiles: Profile[];
   currentProfileId: string | null;
+  /** Open on the list of read-alouds (from Read to Me). */
+  showReadAlouds?: boolean;
 }) {
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>(showReadAlouds ? "read" : "all");
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<View>("books");
+  const [view, setView] = useState<View>(showReadAlouds ? "stories" : "books");
   const [order, setOrder] = useState<Order>("kind");
   const [storyOrder, setStoryOrder] = useState<Exclude<Order, "kind">>("newest");
 
@@ -42,12 +45,13 @@ export function LibraryView({
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(SAVED) ?? "{}") as { view?: View; order?: Order; storyOrder?: Order };
-      if (saved.view === "books" || saved.view === "stories") setView(saved.view);
+      if (!showReadAlouds && (saved.view === "books" || saved.view === "stories")) setView(saved.view);
       if (ORDERS.some((o) => o.id === saved.order)) setOrder(saved.order!);
       if (saved.storyOrder === "newest" || saved.storyOrder === "az") setStoryOrder(saved.storyOrder);
     } catch {
       // ignore
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const remember = (next: { view?: View; order?: Order; storyOrder?: Order }) => {
     try {

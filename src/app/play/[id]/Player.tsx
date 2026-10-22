@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Cover } from "@/components/Books";
 import { useApi } from "@/components/Grownup";
+import { keepForOffline } from "@/components/Offline";
 import { imageForPage } from "@/lib/shared/pages";
 import { formatClock } from "@/lib/shared/options";
 import type { Book, BookPage, Story, TimelinePage, VoiceLabel } from "@/lib/shared/types";
@@ -131,6 +132,7 @@ export function Player({
   const audio = useRef<HTMLAudioElement>(null);
   const released = useRef(new Set<number>());
   const counted = useRef(false);
+  const saved = useRef(false);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
 
   const [playing, setPlaying] = useState(false);
@@ -376,6 +378,18 @@ export function Player({
         onPlay={() => {
           setPlaying(true);
           setEnded(false);
+          // The first time it plays, it's saved on the phone for listening without signal.
+          if (!saved.current) {
+            saved.current = true;
+            const images = pages.map((p) => imageForPage(p.page, photos, story.settings.source, storyPages));
+            void keepForOffline({
+              id: story.id,
+              title: story.title,
+              book: book.title,
+              audioUrl: story.audioUrl!,
+              images: [...new Set([book.coverUrl, ...images].filter((src): src is string => Boolean(src)))],
+            });
+          }
         }}
         onPause={() => {
           setPlaying(false);

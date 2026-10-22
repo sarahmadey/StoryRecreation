@@ -9,6 +9,7 @@ import { GrownupProvider } from "@/components/Grownup";
 import { Motes } from "@/components/Art";
 import { TestCopyBanner } from "@/components/TestCopyBanner";
 import { KeyboardFix } from "@/components/KeyboardFix";
+import { ServiceWorker } from "@/components/Offline";
 import { appName } from "@/lib/server/config";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Motes />
           <TestCopyBanner />
           <KeyboardFix />
+          <ServiceWorker />
           <div className="app">{children}</div>
         </GrownupProvider>
       </body>

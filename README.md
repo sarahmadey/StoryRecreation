@@ -188,6 +188,12 @@ Android, *Install app*. It opens full-screen with its own icon, the camera works
 audio keeps playing on the lock screen, and every update arrives instantly with no app store review. If you
 later want App Store distribution, wrap the same code with Capacitor; nothing needs rewriting.
 
+**Does it work without signal?**
+The stories you've listened to, yes. Each story is saved on the phone the first time it plays (its recording,
+page and pictures; the 25 most recent are kept), so in the car or on a plane it opens and plays as usual.
+A page that wasn't saved shows *No signal just now* with the saved stories to choose from. Making new
+stories needs a connection. Signing out removes everything saved on the phone.
+
 **Accounts?**
 Built in as a *family account* (one grown-up email and password) with *reader cards* for each child, like a
 streaming service's profile picker. Books and stories belong to the family, each story remembers who it

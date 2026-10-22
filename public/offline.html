@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1b110a" />
+    <title>No signal · Storyhollow</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(120% 60% at 50% 0%, #3a2414, #140c07 70%);
+        color: #f3e6c8;
+        font: 17px/1.5 "Lora", Georgia, serif;
+        display: flex;
+        justify-content: center;
+      }
+      main { width: 100%; max-width: 560px; padding: max(48px, env(safe-area-inset-top)) 20px 40px; text-align: center; }
+      .moon { font-size: 3rem; }
+      h1 { font: 400 2rem/1.2 "IM Fell English", Georgia, serif; color: #f6dc98; margin: 8px 0 6px; }
+      p { color: #d2bd97; margin: 0 0 22px; }
+      ul { list-style: none; padding: 0; margin: 0 0 26px; text-align: left; }
+      li a {
+        display: block;
+        margin-bottom: 10px;
+        padding: 14px 16px;
+        border-radius: 14px;
+        border: 1px solid rgba(220, 174, 85, 0.3);
+        background: rgba(42, 27, 17, 0.7);
+        color: #f3e6c8;
+        text-decoration: none;
+      }
+      li b { display: block; font: 400 1.15rem "IM Fell English", Georgia, serif; }
+      li span { font-size: 0.9rem; color: #a08a69; }
+      button {
+        font: inherit;
+        padding: 10px 26px;
+        border: 0;
+        border-radius: 999px;
+        background: linear-gradient(#f5dc9a, #dcae55);
+        color: #2a1709;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="moon">🌙</div>
+      <h1>No signal just now</h1>
+      <p id="lead">The stories you've listened to on this phone still play.</p>
+      <ul id="stories"></ul>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </main>
+    <script>
+      // The stories the player saved on this phone (newest first).
+      var saved = [];
+      try { saved = JSON.parse(localStorage.getItem("storyhollow:offline") || "[]"); } catch (e) {}
+      var list = document.getElementById("stories");
+      saved.forEach(function (s) {
+        var li = document.createElement("li");
+        var a = document.createElement("a");
+        a.href = "/play/" + encodeURIComponent(s.id);
+        var b = document.createElement("b");
+        b.textContent = s.title;
+        var span = document.createElement("span");
+        span.textContent = s.book && s.book !== s.title ? s.book : "";
+        a.appendChild(b);
+        a.appendChild(span);
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+      if (!saved.length) {
+        document.getElementById("lead").textContent =
+          "Once you've listened to a story with a connection, it will be here to play next time there's no signal.";
+      }
+    </script>
+  </body>
+</html>

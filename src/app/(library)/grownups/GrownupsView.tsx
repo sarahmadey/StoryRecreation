@@ -9,6 +9,7 @@ import { FamilyVoices } from "@/components/FamilyVoices";
 import { BackupsPanel } from "@/components/BackupsPanel";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { CreditMeter, useCredits } from "@/components/Credits";
+import { forgetOffline } from "@/components/Offline";
 import type { AppStatus, FamilyVoice, Keepsake, Profile } from "@/lib/shared/types";
 import type { BackupStatus } from "@/lib/server/offsite";
 import type { AlertsStatus } from "@/lib/server/alerts";
@@ -361,6 +362,7 @@ export function GrownupsView({
           onClick={() =>
             act(async () => {
               await api.post("/api/auth/logout");
+              await forgetOffline();
               window.location.href = "/welcome";
             })
           }

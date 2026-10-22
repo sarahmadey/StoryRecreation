@@ -275,79 +275,82 @@ export function CreateWizard({
               </div>
             )}
             {past.length > 0 && (
-              <div className="like-panel">
-                {liked ? (
-                  <>
-                    <div>
-                      {source === "book" && chosenBook && chosenBook.id !== liked.bookId ? (
-                        <>
-                          ✨ <b>A new &ldquo;{chosenBook.title}&rdquo; story</b>, like &ldquo;{liked.title}&rdquo;
-                        </>
-                      ) : (
-                        <>
-                          ✨ <b>Like &ldquo;{liked.title}&rdquo;</b>
-                        </>
-                      )}
-                      <div className="small muted">{howItWasMade(liked)}</div>
-                    </div>
-                    <div className="row">
-                      <button type="button" className="btn btn-quiet btn-sm" onClick={() => setChoosing(!choosing)}>
-                        Choose another
-                      </button>
-                      <button type="button" className="btn btn-quiet btn-sm" onClick={startFresh}>
-                        Start fresh
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      {forChosen && chosenBook ? (
-                        <>
-                          ✨ Or make it like the last &ldquo;{chosenBook.title}&rdquo; story, <b>&ldquo;{suggestion.title}&rdquo;</b>?
-                        </>
-                      ) : (
-                        <>
-                          ✨ Or make {source === "book" && chosenBook ? "it" : "one"} like <b>&ldquo;{suggestion.title}&rdquo;</b>?
-                        </>
-                      )}
-                      <div className="small muted">{howItWasMade(suggestion)}</div>
-                    </div>
-                    <div className="row">
-                      <button type="button" className="btn btn-sm" onClick={() => makeLike(suggestion)}>
-                        Yes, like that one
-                      </button>
-                      {past.length > 1 && (
+              <div>
+                <span className="label">Quick create</span>
+                <div className="like-panel">
+                  {liked ? (
+                    <>
+                      <div>
+                        {source === "book" && chosenBook && chosenBook.id !== liked.bookId ? (
+                          <>
+                            <b>A new &ldquo;{chosenBook.title}&rdquo; story</b>, like &ldquo;{liked.title}&rdquo;
+                          </>
+                        ) : (
+                          <>
+                            <b>Like &ldquo;{liked.title}&rdquo;</b>
+                          </>
+                        )}
+                        <div className="small muted">{howItWasMade(liked)}</div>
+                      </div>
+                      <div className="row">
                         <button type="button" className="btn btn-quiet btn-sm" onClick={() => setChoosing(!choosing)}>
                           Choose another
                         </button>
-                      )}
+                        <button type="button" className="btn btn-quiet btn-sm" onClick={startFresh}>
+                          Start fresh
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        {forChosen && chosenBook ? (
+                          <>
+                            Make it like the last &ldquo;{chosenBook.title}&rdquo; story, <b>&ldquo;{suggestion.title}&rdquo;</b>?
+                          </>
+                        ) : (
+                          <>
+                            Make {source === "book" && chosenBook ? "it" : "one"} like <b>&ldquo;{suggestion.title}&rdquo;</b>?
+                          </>
+                        )}
+                        <div className="small muted">{howItWasMade(suggestion)}</div>
+                      </div>
+                      <div className="row">
+                        <button type="button" className="btn btn-sm" onClick={() => makeLike(suggestion)}>
+                          Yes, like that one
+                        </button>
+                        {past.length > 1 && (
+                          <button type="button" className="btn btn-quiet btn-sm" onClick={() => setChoosing(!choosing)}>
+                            Choose another
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  {choosing && past.length > 8 && (
+                    <input
+                      className="input like-search"
+                      type="search"
+                      value={likeQuery}
+                      onChange={(e) => setLikeQuery(e.target.value)}
+                      placeholder={`🔍 Find one of your ${past.length} stories`}
+                      aria-label="Find a story"
+                    />
+                  )}
+                  {choosing && (
+                    <div className="like-list" role="radiogroup" aria-label="Make one like">
+                      {lq && likeOptions.length === 0 && <p className="small muted" style={{ margin: 0 }}>No story or book by that name.</p>}
+                      {likeOptions.map((s) => (
+                        <button key={s.id} type="button" role="radio" aria-checked={s.id === likedId} className="like-option" onClick={() => makeLike(s)}>
+                          <b>{s.title}</b>
+                          <span className="small muted">
+                            {[s.bookTitle !== s.title ? s.bookTitle : null, howItWasMade(s)].filter(Boolean).join(" · ")}
+                          </span>
+                        </button>
+                      ))}
                     </div>
-                  </>
-                )}
-                {choosing && past.length > 8 && (
-                  <input
-                    className="input like-search"
-                    type="search"
-                    value={likeQuery}
-                    onChange={(e) => setLikeQuery(e.target.value)}
-                    placeholder={`🔍 Find one of your ${past.length} stories`}
-                    aria-label="Find a story"
-                  />
-                )}
-                {choosing && (
-                  <div className="like-list" role="radiogroup" aria-label="Make one like">
-                    {lq && likeOptions.length === 0 && <p className="small muted" style={{ margin: 0 }}>No story or book by that name.</p>}
-                    {likeOptions.map((s) => (
-                      <button key={s.id} type="button" role="radio" aria-checked={s.id === likedId} className="like-option" onClick={() => makeLike(s)}>
-                        <b>{s.title}</b>
-                        <span className="small muted">
-                          {[s.bookTitle !== s.title ? s.bookTitle : null, howItWasMade(s)].filter(Boolean).join(" · ")}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </>

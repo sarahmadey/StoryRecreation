@@ -150,7 +150,7 @@ export function BookView({
                   <button type="button" className="make-card" onClick={quickStory} disabled={busy || !canMake}>
                     <span className="make-card-emoji">✨</span>
                     <span>
-                      <b>{busy ? "Summoning the storyteller…" : "Quick new story"}</b>
+                      <b>{busy ? "Summoning the storyteller…" : "Quick create"}</b>
                       <span className="small">
                         One tap: a brand-new story {book.kind === "idea" ? "on the same idea" : "for these pictures"}
                         {lastCreate ? ", with the same voices and length as last time" : ""}.

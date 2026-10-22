@@ -120,8 +120,8 @@ humming placeholder voices.
 3. On the book's page, tap **🎨 Choose the details** (or **🎧 Read the book's own words** to hear it as printed).
 4. Choose the length, mood and voices. Leave *Let me read it before the voices record it* on the first time.
 5. Read the script, swap any voice, then press **Record the story**. After a minute or two, press **Listen**.
-6. Tomorrow, open the book and tap **✨ Quick new story**. When a story ends, *Up next* offers the next one.
-7. To make one like a story you've made before, open Create and choose the book: the box at the bottom offers
+6. Tomorrow, open the book and tap **✨ Quick create**. When a story ends, *Up next* offers the next one.
+7. To make one like a story you've made before, open Create and choose the book: *Quick create* at the bottom offers
    the last story made for it (*Choose another* lists, and searches, every story you've made). Its storyteller,
    length, mood, sounds and characters are filled in, so it's one tap; *Start fresh* clears them. **Make another
    like this** on a story's page does the same, with its book already chosen.

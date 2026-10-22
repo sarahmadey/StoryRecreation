@@ -191,56 +191,6 @@ export function CreateWizard({
       <div className="parchment stack" style={{ ["--gap" as string]: "26px" }}>
         {step === 0 && (
           <>
-            {past.length > 0 && (
-              <div className="like-panel">
-                {liked ? (
-                  <>
-                    <div>
-                      ✨ <b>Like &ldquo;{liked.title}&rdquo;</b>
-                      <div className="small muted">{howItWasMade(liked)}</div>
-                    </div>
-                    <div className="row">
-                      <button type="button" className="btn btn-quiet btn-sm" onClick={() => setChoosing(!choosing)}>
-                        Choose another
-                      </button>
-                      <button type="button" className="btn btn-quiet btn-sm" onClick={startFresh}>
-                        Start fresh
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      ✨ Make one like <b>&ldquo;{past[0].title}&rdquo;</b>?
-                      <div className="small muted">{howItWasMade(past[0])}</div>
-                    </div>
-                    <div className="row">
-                      <button type="button" className="btn btn-sm" onClick={() => makeLike(past[0])}>
-                        Yes, like that one
-                      </button>
-                      {past.length > 1 && (
-                        <button type="button" className="btn btn-quiet btn-sm" onClick={() => setChoosing(!choosing)}>
-                          Choose another
-                        </button>
-                      )}
-                    </div>
-                  </>
-                )}
-                {choosing && (
-                  <div className="like-list" role="radiogroup" aria-label="Make one like">
-                    {past.map((s) => (
-                      <button key={s.id} type="button" role="radio" aria-checked={s.id === likedId} className="like-option" onClick={() => makeLike(s)}>
-                        <b>{s.title}</b>
-                        <span className="small muted">
-                          {[s.bookTitle !== s.title ? s.bookTitle : null, howItWasMade(s)].filter(Boolean).join(" · ")}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             <div className="choices" style={{ ["--min" as string]: "180px" }} role="radiogroup" aria-label="Story source">
               {(
                 [
@@ -278,7 +228,7 @@ export function CreateWizard({
                           {b.title}
                         </span>
                         <span className="choice-sub">
-                          {b.pageCount} pages · {b.storyCount} stories
+                          {b.pageCount} {b.pageCount === 1 ? "page" : "pages"} · {b.storyCount} {b.storyCount === 1 ? "story" : "stories"}
                         </span>
                       </button>
                     ))}
@@ -330,6 +280,55 @@ export function CreateWizard({
                   <span>A title (optional)</span>
                   <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="The storyteller will choose one" />
                 </label>
+              </div>
+            )}
+            {past.length > 0 && (
+              <div className="like-panel">
+                {liked ? (
+                  <>
+                    <div>
+                      ✨ <b>Like &ldquo;{liked.title}&rdquo;</b>
+                      <div className="small muted">{howItWasMade(liked)}</div>
+                    </div>
+                    <div className="row">
+                      <button type="button" className="btn btn-quiet btn-sm" onClick={() => setChoosing(!choosing)}>
+                        Choose another
+                      </button>
+                      <button type="button" className="btn btn-quiet btn-sm" onClick={startFresh}>
+                        Start fresh
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      ✨ Or make one like <b>&ldquo;{past[0].title}&rdquo;</b>?
+                      <div className="small muted">{howItWasMade(past[0])}</div>
+                    </div>
+                    <div className="row">
+                      <button type="button" className="btn btn-sm" onClick={() => makeLike(past[0])}>
+                        Yes, like that one
+                      </button>
+                      {past.length > 1 && (
+                        <button type="button" className="btn btn-quiet btn-sm" onClick={() => setChoosing(!choosing)}>
+                          Choose another
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+                {choosing && (
+                  <div className="like-list" role="radiogroup" aria-label="Make one like">
+                    {past.map((s) => (
+                      <button key={s.id} type="button" role="radio" aria-checked={s.id === likedId} className="like-option" onClick={() => makeLike(s)}>
+                        <b>{s.title}</b>
+                        <span className="small muted">
+                          {[s.bookTitle !== s.title ? s.bookTitle : null, howItWasMade(s)].filter(Boolean).join(" · ")}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </>

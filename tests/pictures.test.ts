@@ -59,6 +59,23 @@ test("money is shown rounded up, so it's never less than it can cost", async () 
   assert.equal(formatMoney(1_234_567), "$1.24");
 });
 
+test("waits are told in plain words: about how long, and when it's taking longer than usual", async () => {
+  const { aboutTime, drawingSeconds, planningSeconds, timeLeft } = await import("@/lib/shared/art");
+  assert.equal(aboutTime(5), "a few seconds");
+  assert.equal(aboutTime(32), "about 30 seconds");
+  assert.equal(aboutTime(70), "about a minute");
+  assert.equal(aboutTime(125), "about 2 minutes");
+  assert.equal(drawingSeconds(3, false, true), 50, "sketches, two at a time");
+  assert.equal(drawingSeconds(8, true, true), 125, "the cover on its own, then the pages two at a time");
+  assert.equal(drawingSeconds(8, true, false), 3, "stand-ins are quick");
+  assert.equal(planningSeconds(true), 30);
+  const start = 1_000_000;
+  assert.equal(timeLeft(start, 60, start + 15_000), "about 50 seconds left");
+  assert.equal(timeLeft(start, 60, start + 70_000), "almost done");
+  assert.equal(timeLeft(start, 60, start + 100_000), "taking a little longer than usual");
+  assert.equal(timeLeft(start, 60, start - 5_000), "about a minute left", "a clock a little behind the server's");
+});
+
 test("prices: Claude by the token, pictures by the picture, with a fair guess before any stories are written", async () => {
   const { claudeCost, picturePrice, pictureCost, writeCostGuess, planCostGuess } = await import("@/lib/server/prices");
   assert.equal(claudeCost("claude-opus-5-5", { input_tokens: 1000, output_tokens: 2000 }), 1000 * 4 + 2000 * 20);
@@ -231,10 +248,14 @@ test("drawing a book: the cover first, then each page from the chosen sketch and
   const purchase = recordSpend(household, { storyId: story, service: "pictures", kind: "draw", what: "Drew the book", approved });
   assert.ok(startDrawing(story, [0, 1, 2, 3], purchase));
   assert.equal(startDrawing(story, [1], purchase), false, "one job at a time");
+  const { startedAt, ...job } = getStoryArt(story)!.job!;
+  assert.deepEqual(job, { kind: "drawing", targets: [0, 1, 2, 3], total: 4, finished: [], seconds: 75 }, "the family can see what's being drawn, and about how long it takes");
+  assert.ok(Math.abs(Date.now() - startedAt) < 5_000);
   await untilDrawn(story);
 
   const art = getStoryArt(story)!;
   assert.equal(art.error, null);
+  assert.equal(art.job, null, "done: nothing at work");
   assert.ok(art.cover && art.pages.every(Boolean), "the cover and every page are drawn");
   for (const rel of [art.cover!, ...(art.pages as string[])]) assert.ok(fs.existsSync(path.join(householdDir(household), rel)));
   assert.deepEqual(getPurchase(purchase), { approved, spent: DRAWN * 4, pictures: 4 }, "what it really cost, within what was approved");
@@ -299,7 +320,10 @@ test("without the illustrator's key, the pictures are free stand-ins", async () 
   const { household, story } = await pictureBook("Stand-in Sketches");
   const purchase = recordSpend(household, { storyId: story, service: "pictures", kind: "sketch", what: "x", approved: 0, standIn: true });
   startSketches(story, "mia", purchase, 3);
+  const job = getStoryArt(story)!.job!;
+  assert.deepEqual([job.kind, job.characterId, job.total, job.seconds], ["sketching", "mia", 3, 3], "stand-ins take a moment");
   await untilDrawn(story);
+  assert.equal(getStoryArt(story)!.job, null);
   const mia = getStoryArt(story)!.characters.find((c) => c.id === "mia")!;
   assert.equal(mia.sketches.length, 3);
   assert.ok(mia.sketches.every((p) => p.endsWith(".svg")));

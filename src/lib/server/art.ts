@@ -9,9 +9,9 @@ import { picturePrice } from "./prices";
 import { addToPurchase, getPurchase, recordSpend } from "./spending";
 import { planPictures, StorytellerError, type PicturePlan } from "./storyteller";
 import { demoPicturePlan } from "./demo-storyteller";
-import { ART_STYLES, DEFAULT_ART_STYLE } from "@/lib/shared/art";
+import { ART_STYLES, DEFAULT_ART_STYLE, drawingSeconds, planningSeconds } from "@/lib/shared/art";
 import { MOODS } from "@/lib/shared/options";
-import type { ArtCharacter, ArtStyle, Mood, StoryArt } from "@/lib/shared/types";
+import type { ArtCharacter, ArtJob, ArtStyle, Mood, StoryArt } from "@/lib/shared/types";
 
 // Picture books. After a story is written, the storyteller plans its pictures
 // (who's in them, what they look like, what each page shows). The family
@@ -28,14 +28,20 @@ const busy = (globalForArt.__storyhollowArt ??= new Set<string>());
 export const artBusy = (storyId: string) => busy.has(storyId);
 
 export function newArt(style: ArtStyle, pages: number): StoryArt {
-  return { style, status: "idle", progress: null, error: null, characters: [], coverScene: "", scenes: [], cover: null, pages: Array(pages).fill(null) };
+  return { style, status: "idle", progress: null, error: null, characters: [], coverScene: "", scenes: [], cover: null, pages: Array(pages).fill(null), job: null };
 }
 
-/** Run the illustrator in the background, one job per story at a time. False when it's already busy. */
-function launchArt(storyId: string, status: StoryArt["status"], step: string, fn: () => Promise<void>): boolean {
+/**
+ * Run the illustrator in the background, one job per story at a time. The job says what it's
+ * making and about how long it takes, so the family can see it at work. False when it's already busy.
+ */
+function launchArt(storyId: string, step: string, job: Omit<ArtJob, "finished" | "startedAt">, fn: () => Promise<void>): boolean {
   if (busy.has(storyId)) return false;
   busy.add(storyId);
-  changeStoryArt(storyId, (a) => a && { ...a, status, error: null, progress: { step, done: 0, total: 1 } });
+  changeStoryArt(
+    storyId,
+    (a) => a && { ...a, status: job.kind, error: null, progress: { step, done: 0, total: job.total }, job: { ...job, finished: [], startedAt: Date.now() } },
+  );
   fn()
     .catch((err) => {
       console.error(`[art] ${storyId}`, err);
@@ -44,13 +50,17 @@ function launchArt(storyId: string, status: StoryArt["status"], step: string, fn
     })
     .finally(() => {
       busy.delete(storyId);
-      changeStoryArt(storyId, (a) => a && { ...a, status: "idle", progress: null });
+      changeStoryArt(storyId, (a) => a && { ...a, status: "idle", progress: null, job: null });
     });
   return true;
 }
 
 const progress = (storyId: string, step: string, done: number, total: number) =>
   changeStoryArt(storyId, (a) => a && { ...a, progress: { step, done, total } });
+
+/** One of the job's pictures is finished (made, or given up on), with any change to the pictures it brings. */
+const finished = (storyId: string, n: number, change: (a: StoryArt) => StoryArt = (a) => a) =>
+  changeStoryArt(storyId, (a) => a && change({ ...a, job: a.job ? { ...a.job, finished: [...a.job.finished, n] } : a.job }));
 
 /** Run `n` tasks, `width` at a time. */
 async function inTurns(n: number, width: number, task: (i: number) => Promise<void>) {
@@ -189,7 +199,8 @@ export function startPictureBook(storyId: string, style: ArtStyle): boolean {
   changeStoryArt(storyId, () => newArt(style, story.script!.pages.length));
   if (had) void removeDir(path.join(storyDir(story.householdId, storyId), "art"));
   if (!story.settings.pictures || story.settings.artStyle !== style) updateStory(storyId, { settings: { ...story.settings, pictures: true, artStyle: style } });
-  return launchArt(storyId, "planning", "Reading the story", () => plan(storyId));
+  const seconds = planningSeconds(Boolean(config.anthropicKey) || !config.demoMode);
+  return launchArt(storyId, "Reading the story", { kind: "planning", total: 1, seconds }, () => plan(storyId));
 }
 
 /** A new story that's to be a picture book has just been written. */
@@ -227,7 +238,8 @@ async function plan(storyId: string) {
 
 /** Sketch a character a few times, to choose between, on an approved purchase. */
 export function startSketches(storyId: string, characterId: string, purchaseId: string, count: number): boolean {
-  return launchArt(storyId, "sketching", "Sketching", () => sketch(storyId, characterId, purchaseId, count));
+  const job = { kind: "sketching" as const, characterId, total: count, seconds: drawingSeconds(count, false, illustratorReady()) };
+  return launchArt(storyId, "Sketching", job, () => sketch(storyId, characterId, purchaseId, count));
 }
 
 async function sketch(storyId: string, characterId: string, purchaseId: string, count: number) {
@@ -249,10 +261,12 @@ async function sketch(storyId: string, characterId: string, purchaseId: string, 
           standIn: { heading: c.name, caption: c.look || `What ${c.name} looks like`, style: art.style, seed: `${storyId}-${c.id}-${Date.now()}-${i}` },
         })
       : "That's all the approved purchase covers.";
-    if (typeof pic === "string") failures.push(pic);
-    else {
+    if (typeof pic === "string") {
+      failures.push(pic);
+      finished(storyId, i);
+    } else {
       const rel = await savePicture(story.householdId, storyId, `sketch-${c.id}`, pic);
-      changeStoryArt(storyId, (a) => a && { ...a, characters: a.characters.map((x) => (x.id === characterId ? { ...x, sketches: [...x.sketches, rel] } : x)) });
+      finished(storyId, i, (a) => ({ ...a, characters: a.characters.map((x) => (x.id === characterId ? { ...x, sketches: [...x.sketches, rel] } : x)) }));
     }
     progress(storyId, `Sketching ${c.name}`, ++done, count);
   });
@@ -266,7 +280,8 @@ async function sketch(storyId: string, characterId: string, purchaseId: string, 
 /** Draw the cover (0) and the given pages, on an approved purchase. */
 export function startDrawing(storyId: string, targets: number[], purchaseId: string, note?: string): boolean {
   const step = targets.length === 1 ? (targets[0] === 0 ? "Drawing the cover" : `Drawing page ${targets[0]}`) : "Drawing the book";
-  return launchArt(storyId, "drawing", step, () => draw(storyId, targets, purchaseId, note));
+  const job = { kind: "drawing" as const, targets, total: targets.length, seconds: drawingSeconds(targets.length, targets.includes(0), illustratorReady()) };
+  return launchArt(storyId, step, job, () => draw(storyId, targets, purchaseId, note));
 }
 
 /** What still needs drawing: the cover (0) and any page without a picture. */
@@ -319,11 +334,11 @@ async function draw(storyId: string, targets: number[], purchaseId: string, note
     if (typeof pic === "string") {
       failed.push(target);
       firstProblem ||= pic;
+      finished(storyId, target);
     } else {
       const rel = await savePicture(householdId, storyId, target === 0 ? "cover" : `page-${String(target).padStart(2, "0")}`, pic);
       let replaced: string | null = null;
-      changeStoryArt(storyId, (a) => {
-        if (!a) return a;
+      finished(storyId, target, (a) => {
         replaced = target === 0 ? a.cover : (a.pages[target - 1] ?? null);
         if (target === 0) return { ...a, cover: rel };
         const pages = [...a.pages];
@@ -369,6 +384,6 @@ export function settleLostArt(storyId: string) {
   if (!art || art.status === "idle" || busy.has(storyId)) return;
   changeStoryArt(
     storyId,
-    (a) => a && { ...a, status: "idle", progress: null, error: "The illustrator was interrupted. Anything finished is kept: carry on when you're ready." },
+    (a) => a && { ...a, status: "idle", progress: null, job: null, error: "The illustrator was interrupted. Anything finished is kept: carry on when you're ready." },
   );
 }

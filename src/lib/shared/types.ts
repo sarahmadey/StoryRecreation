@@ -204,6 +204,21 @@ export interface ArtScene {
   characters: string[];
 }
 
+/** What the illustrator is doing right now, so the family can see it at work and how long it takes. */
+export interface ArtJob {
+  kind: "planning" | "sketching" | "drawing";
+  /** Sketching: who. */
+  characterId?: string;
+  /** Drawing: the cover (0) and the pages being drawn. */
+  targets?: number[];
+  /** How many pictures it makes, and which are finished (sketch numbers, or the cover and page numbers). */
+  total: number;
+  finished: number[];
+  startedAt: number;
+  /** About how long it takes, in seconds. */
+  seconds: number;
+}
+
 /** A picture book's pictures. Pictures are file URLs (paths, in the database); stand-ins are .svg. */
 export interface StoryArt {
   style: ArtStyle;
@@ -217,6 +232,8 @@ export interface StoryArt {
   cover: string | null;
   /** One picture per page (index = page - 1), null until drawn. */
   pages: (string | null)[];
+  /** While the illustrator works. */
+  job?: ArtJob | null;
 }
 
 export interface Story {

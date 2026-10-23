@@ -1,31 +1,129 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApi } from "@/components/Grownup";
 import { PurchaseDialog, type PurchaseOffer } from "@/components/Purchase";
+import { PictureViewer, type ViewerItem } from "@/components/PictureViewer";
+import { Spinner, WaitLine, WaitPill, useNow } from "@/components/Waiting";
 import { shrinkImage } from "@/lib/client/images";
 import { StylePicker, bookEstimate } from "@/components/PictureBook";
-import { ART_STYLES, DEFAULT_ART_STYLE, SKETCHES, bookPictures, formatMoney, isStandIn } from "@/lib/shared/art";
-import type { AppStatus, ArtCharacter, ArtStyle, Story } from "@/lib/shared/types";
+import { ART_STYLES, DEFAULT_ART_STYLE, SKETCHES, aboutTime, bookPictures, drawingSeconds, formatMoney, isStandIn, planningSeconds, timeLeft } from "@/lib/shared/art";
+import type { AppStatus, ArtCharacter, ArtJob, ArtStyle, Story, StoryArt } from "@/lib/shared/types";
 
 // A story's pictures, in the studio: meet the characters as sketches and
 // choose the right ones, then draw the book. Everything that costs money
-// shows its price first and asks a grown-up for the family PIN.
+// shows its price first and asks a grown-up for the family PIN. Whatever the
+// illustrator is making shows where it will appear, with about how long it takes.
 
 /** A purchase of pictures, for the dialog: the price comes from the app's status, and is free while the pictures are stand-ins. */
 function useOffers(story: Story, status: AppStatus, onStory: (s: Story) => void) {
   const api = useApi();
   const [offer, setOffer] = useState<PurchaseOffer | null>(null);
-  const offerPictures = (what: string, pictures: number, url: string, body: object) =>
+  const offerPictures = (what: string, pictures: number, seconds: number, url: string, body: object) =>
     setOffer({
       what,
       pictures,
       each: status.picturePrice,
       real: status.illustrator,
+      seconds,
       buy: async (approval) => onStory((await api.post<{ story: Story }>(url, { ...body, approval })).story),
     });
   const dialog = offer && <PurchaseDialog offer={offer} onDone={() => setOffer(null)} />;
   return { offerPictures, dialog };
+}
+
+/** The cover (0) or a page in a drawing job: being drawn now, waiting its turn, or not in it. */
+function drawingNow(job: ArtJob | null | undefined, target: number): "drawing" | "waiting" | null {
+  if (job?.kind !== "drawing" || !job.targets?.includes(target) || job.finished.includes(target)) return null;
+  // The cover comes first, on its own; then the pages, two at a time, in order.
+  const left = job.targets.filter((t) => !job.finished.includes(t));
+  if (left.includes(0)) return target === 0 ? "drawing" : "waiting";
+  return left.indexOf(target) < 2 ? "drawing" : "waiting";
+}
+
+/** What a drawing job makes, in words. */
+const drawingWhat = (job: ArtJob, art: StoryArt) => {
+  const targets = job.targets ?? [];
+  if (targets.length !== 1) return "Drawing the book";
+  const t = targets[0];
+  const redraw = Boolean(t === 0 ? art.cover : art.pages[t - 1]) && !job.finished.includes(t);
+  return `${redraw ? "Redrawing" : "Drawing"} ${t === 0 ? "the cover" : `page ${t}`}`;
+};
+
+const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+
+/** Whether enough of the element with this id to see is on screen, between the header and the menu at the bottom. */
+function useOnScreen(id: string | null, again: unknown): boolean {
+  // Assumed on screen until the browser says otherwise, so the note doesn't flash up over the work itself.
+  const [on, setOn] = useState(true);
+  useEffect(() => {
+    if (!id) return;
+    const el = document.getElementById(id);
+    if (!el) return setOn(false);
+    const io = new IntersectionObserver(([e]) => setOn(e.intersectionRect.height >= Math.min(100, e.boundingClientRect.height * 0.6)), {
+      rootMargin: "-80px 0px -100px 0px",
+      threshold: [0, 0.1, 0.25, 0.5, 0.75, 1],
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [id, again]);
+  return on;
+}
+
+type PillNote = { text: string; target: string; done?: boolean; problem?: boolean };
+
+/**
+ * A note that stays in view while the illustrator works, wherever the family scrolls, and says when it's done.
+ * It steps aside while the work itself is on screen, and tapping it goes there.
+ */
+function ArtPill({ art }: { art: StoryArt }) {
+  const job = art.job ?? null;
+  const key = job ? `${job.kind}:${job.startedAt}` : null;
+  // The job last seen, to tell when it finishes; then a word that it's done, for a little while.
+  const [seen, setSeen] = useState<{ key: string | null; job: ArtJob | null }>({ key, job });
+  const [after, setAfter] = useState<PillNote | null>(null);
+  if (seen.key !== key) {
+    setSeen({ key, job });
+    setAfter(seen.job && !job ? finishedNote(seen.job, art) : null);
+  }
+  useEffect(() => {
+    if (!after) return;
+    const t = setTimeout(() => setAfter(null), after.problem ? 12_000 : 8_000);
+    return () => clearTimeout(t);
+  }, [after]);
+
+  const note = job ? workingNote(job, art) : after;
+  const onScreen = useOnScreen(note?.target ?? null, key);
+  if (!note || onScreen) return null;
+  const go = () => {
+    scrollTo(note.target);
+    if (!job) setAfter(null);
+  };
+  return <WaitPill text={note.text} done={note.done} problem={note.problem} onClick={go} />;
+}
+
+/** What the illustrator is doing, for the note, and where its work shows. */
+function workingNote(job: ArtJob, art: StoryArt): PillNote {
+  if (job.kind === "planning") return { text: "Planning the pictures…", target: "art-wait" };
+  if (job.kind === "sketching") {
+    const name = art.characters.find((c) => c.id === job.characterId)?.name ?? "the character";
+    return { text: `Sketching ${name} · ${job.finished.length} of ${job.total}`, target: `art-wait-${job.characterId}` };
+  }
+  if (job.total === 1) return { text: `${drawingWhat(job, art)}…`, target: `art-page-${job.targets?.[0] ?? 0}` };
+  return { text: `Drawing the book · ${job.finished.length} of ${job.total}`, target: "art-wait" };
+}
+
+/** That the illustrator has finished (or run into trouble), for the note, and where to see it. */
+function finishedNote(job: ArtJob, art: StoryArt): PillNote {
+  if (art.error) return { text: "⚠️ Something went wrong with the pictures. Take a look", target: "art-panel", done: true, problem: true };
+  if (job.kind === "planning") return { text: "✓ The pictures are planned: meet the characters", target: "art-chars", done: true };
+  if (job.kind === "sketching") {
+    const name = art.characters.find((c) => c.id === job.characterId)?.name ?? "the character";
+    return { text: `✓ The sketches of ${name} are ready`, target: `art-char-${job.characterId}`, done: true };
+  }
+  const targets = job.targets ?? [];
+  if (targets.length === 1) return { text: `✓ ${targets[0] === 0 ? "The cover" : `Page ${targets[0]}`} is ready`, target: `art-page-${targets[0]}`, done: true };
+  return { text: "✓ The pictures are ready", target: "art-book", done: true };
 }
 
 export function Pictures({
@@ -52,10 +150,15 @@ export function Pictures({
   const [skipSketches, setSkipSketches] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [viewing, setViewing] = useState<{ items: ViewerItem[]; start: number } | null>(null);
+  // A child's drawing on its way up: it's shrunk on the phone first, which can take a moment.
+  const [adding, setAdding] = useState<string | null>(null);
   const { offerPictures, dialog } = useOffers(story, status, onStory);
   const each = status.picturePrice;
   const pages = story.script?.pages.length ?? 0;
   const working = Boolean(art && art.status !== "idle");
+  const job = art?.job ?? null;
+  const planSeconds = planningSeconds(status.storyteller || !status.demoMode);
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -75,10 +178,18 @@ export function Pictures({
       onStory((await api.post<{ story: Story }>(`/api/stories/${story.id}/art`, { style })).story);
     });
 
+  // The note that follows the page stays in the same place whatever the panel shows, so it can tell when a job finishes.
+  const withPill = (panel: React.ReactNode) => (
+    <>
+      {art && <ArtPill art={art} />}
+      {panel}
+    </>
+  );
+
   // ------------------------------------------------------------ not yet a picture book
   if (!art) {
-    return (
-      <div className="parchment stack pictures">
+    return withPill(
+      <div className="parchment stack pictures" id="art-panel">
         <h2 style={{ margin: 0 }}>📖 Make it a picture book</h2>
         <p className="muted" style={{ margin: 0 }}>
           The illustrator draws a cover and a picture for every page. First you&apos;ll meet the main characters as sketches, and choose how they
@@ -88,40 +199,59 @@ export function Pictures({
         {error && <p className="notice notice-error">{error}</p>}
         <div>
           <button className="btn" onClick={() => plan(false)} disabled={busy}>
-            {busy ? "Opening the sketchbook…" : "✨ Plan the pictures"}
+            {busy ? (
+              <>
+                <Spinner /> Opening the sketchbook…
+              </>
+            ) : (
+              "✨ Plan the pictures"
+            )}
           </button>
         </div>
         <p className="small purchase-terms" style={{ margin: 0 }}>
-          Planning is storyteller time, about {formatMoney(planPrice)}. Drawing the book comes after, about {formatMoney(bookEstimate(pages, each))}
+          Planning takes {aboutTime(planSeconds)} and is storyteller time, about {formatMoney(planPrice)}. Drawing the book comes after, about{" "}
+          {formatMoney(bookEstimate(pages, each))}
           {status.illustrator ? "" : " once the illustrator is set up (stand-in pictures are free until then)"}, and asks a grown-up first.
         </p>
-      </div>
+      </div>,
     );
   }
 
   // ------------------------------------------------------------ planning
   if (art.status === "planning" || !art.scenes.length) {
-    return (
-      <div className="parchment stack pictures">
+    return withPill(
+      <div className="parchment stack pictures" id="art-panel">
         <h2 style={{ margin: 0 }}>📖 The pictures</h2>
         {art.status === "planning" ? (
-          <p className="muted" style={{ margin: 0 }}>
-            ✏️ The illustrator is reading the story and planning the pictures…
-          </p>
+          <WaitLine
+            id="art-wait"
+            what="Reading the story and planning the pictures"
+            done={0}
+            total={1}
+            startedAt={job?.startedAt ?? 0}
+            seconds={job?.seconds ?? 0}
+            note="You can leave this page; the characters will be waiting."
+          />
         ) : (
           <>
             {art.error && <p className="notice notice-error">{art.error}</p>}
             <div>
               <button className="btn" onClick={() => plan(false)} disabled={busy}>
-                ✨ Plan the pictures again
+                {busy ? (
+                  <>
+                    <Spinner /> Opening the sketchbook…
+                  </>
+                ) : (
+                  "✨ Plan the pictures again"
+                )}
               </button>
             </div>
             <p className="small purchase-terms" style={{ margin: 0 }}>
-              Planning is storyteller time, about {formatMoney(planPrice)}.
+              Planning takes {aboutTime(planSeconds)} and is storyteller time, about {formatMoney(planPrice)}.
             </p>
           </>
         )}
-      </div>
+      </div>,
     );
   }
 
@@ -131,6 +261,12 @@ export function Pictures({
   const todo = (art.cover ? 0 : 1) + art.pages.filter((p) => !p).length;
   const drawn = bookPictures(art.pages.length) - todo;
   const standIns = [art.cover, ...art.pages].some((p) => isStandIn(p)) || art.characters.some((c) => c.sketches.some(isStandIn));
+  const sketchSeconds = drawingSeconds(SKETCHES, false, status.illustrator);
+  const bookSeconds = drawingSeconds(todo, !art.cover, status.illustrator);
+  const pictureAt = (t: number) => (t === 0 ? art.cover : (art.pages[t - 1] ?? null));
+  // A redraw shows on its own picture; anything else being drawn shows here too.
+  const redrawing = job?.kind === "drawing" && job.total === 1 && Boolean(pictureAt(job.targets?.[0] ?? 0));
+  const drawingBook = job?.kind === "drawing" && !redrawing;
 
   const saveLook = async (c: ArtCharacter) => {
     const look = looks[c.id];
@@ -141,21 +277,50 @@ export function Pictures({
   const sketch = (c: ArtCharacter) =>
     run(async () => {
       await saveLook(c);
-      offerPictures(`${c.sketches.length ? "More sketches of" : "Sketches of"} ${c.name} (${SKETCHES} tries)`, SKETCHES, `/api/stories/${story.id}/art/sketch`, {
-        characterId: c.id,
-      });
+      offerPictures(
+        `${c.sketches.length ? "More sketches of" : "Sketches of"} ${c.name} (${SKETCHES} tries)`,
+        SKETCHES,
+        sketchSeconds,
+        `/api/stories/${story.id}/art/sketch`,
+        { characterId: c.id },
+      );
     });
 
   const choose = (c: ArtCharacter, index: number) =>
     run(async () => onStory((await api.patch<{ story: Story }>(`/api/stories/${story.id}/art`, { choose: { characterId: c.id, index } })).story));
 
+  /** A character's drawing and sketches, big: swipe between them, and choose one from there. */
+  const viewSketches = (c: ArtCharacter, start: number) => {
+    const items: ViewerItem[] = [
+      ...(c.drawing ? [{ src: c.drawing, caption: `Our drawing of ${c.name}` }] : []),
+      ...c.sketches.map((src, i) => ({
+        src,
+        caption: `${c.name}, sketch ${i + 1} of ${c.sketches.length}`,
+        action: {
+          label: c.chosen === i ? `Chosen for ${c.name}` : `Choose this one for ${c.name}`,
+          done: c.chosen === i,
+          onClick: () => {
+            setViewing(null);
+            void choose(c, i);
+          },
+        },
+      })),
+    ];
+    setViewing({ items, start: (c.drawing ? 1 : 0) + start });
+  };
+
   const addDrawing = (c: ArtCharacter, file: File | undefined) =>
     run(async () => {
       if (!file) return;
-      const form = new FormData();
-      form.set("characterId", c.id);
-      form.set("picture", await shrinkImage(file));
-      onStory((await api.form<{ story: Story }>(`/api/stories/${story.id}/art/drawing`, form)).story);
+      setAdding(c.id);
+      try {
+        const form = new FormData();
+        form.set("characterId", c.id);
+        form.set("picture", await shrinkImage(file));
+        onStory((await api.form<{ story: Story }>(`/api/stories/${story.id}/art/drawing`, form)).story);
+      } finally {
+        setAdding(null);
+      }
     });
 
   const changeStyle = (s: ArtStyle) =>
@@ -168,14 +333,15 @@ export function Pictures({
     offerPictures(
       drawn === 0 ? `The cover and ${art.pages.length} pages of “${story.title}”` : `The ${todo} ${todo === 1 ? "picture" : "pictures"} still to draw`,
       todo,
+      bookSeconds,
       `/api/stories/${story.id}/art/draw`,
       {},
     );
 
   const isHero = (c: ArtCharacter) => heroes.some((h) => h.toLowerCase() === c.name.toLowerCase());
 
-  return (
-    <div className="parchment stack pictures" style={{ ["--gap" as string]: "20px" }}>
+  return withPill(
+    <div className="parchment stack pictures" id="art-panel" style={{ ["--gap" as string]: "20px" }}>
       <div className="spread">
         <h2 style={{ margin: 0 }}>📖 The pictures</h2>
         <span className="small muted">
@@ -184,84 +350,108 @@ export function Pictures({
       </div>
       {error && <p className="notice notice-error">{error}</p>}
       {art.error && !working && <p className="notice notice-error">{art.error}</p>}
-      {working && art.progress && (
-        <div className="art-progress" role="status">
-          <div className="credit-meter" aria-hidden="true">
-            <span style={{ width: `${Math.round((art.progress.done / Math.max(1, art.progress.total)) * 100)}%` }} />
-          </div>
-          <div className="small">
-            ✏️ {art.progress.step}
-            {art.progress.total > 1 ? ` (${art.progress.done} of ${art.progress.total})` : "…"}
-          </div>
-        </div>
-      )}
 
-      <section className="stack" style={{ ["--gap" as string]: "12px" }}>
+      <section className="stack" id="art-chars" style={{ ["--gap" as string]: "12px" }}>
         <h3 style={{ margin: 0 }}>Meet the characters</h3>
         <p className="small muted" style={{ margin: 0 }}>
           Sketch each one and choose the right one together. Every page is drawn from the sketch you choose, so they look the same all the way
           through.
         </p>
-        {mains.map((c) => (
-          <div className="cast-card art-character" key={c.id}>
-            <div className="cast-name">{c.name}</div>
-            <label className="field" style={{ marginTop: 6 }}>
-              <span className="small">What {c.name} looks like</span>
-              <textarea
-                className="textarea"
-                rows={2}
-                value={looks[c.id] ?? c.look}
-                onChange={(e) => setLooks((l) => ({ ...l, [c.id]: e.target.value }))}
-                onBlur={() => void saveLook(c).catch((err) => setError(err instanceof Error ? err.message : "That didn't save."))}
-                placeholder={
-                  isHero(c) ? `Describe ${c.name} in words: curly brown hair, freckles, a brand-new gap in a big smile…` : `Big, small, what colors, what they wear…`
-                }
-              />
-            </label>
-            {isHero(c) && <p className="small faint" style={{ margin: "4px 0 0" }}>Described in words, so photos of your children are never sent anywhere.</p>}
-            {(c.sketches.length > 0 || c.drawing) && (
-              <div className="sketches" role="radiogroup" aria-label={`Sketches of ${c.name}`}>
-                {c.drawing && (
-                  <figure className="sketch drawing">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={c.drawing} alt={`A drawing of ${c.name}`} />
-                    <figcaption>Our drawing</figcaption>
-                  </figure>
-                )}
-                {c.sketches.map((url, i) => (
-                  <button
-                    key={url}
-                    type="button"
-                    className="sketch"
-                    role="radio"
-                    aria-checked={c.chosen === i}
-                    aria-label={`Sketch ${i + 1}`}
-                    onClick={() => choose(c, i)}
-                    disabled={busy}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt="" />
-                  </button>
-                ))}
-              </div>
-            )}
-            {c.sketches.length > 0 && c.chosen === null && <p className="small" style={{ margin: "6px 0 0" }}>Which one is {c.name}? Tap to choose.</p>}
-            <div className="row" style={{ marginTop: 10 }}>
-              <button className="btn btn-sm" onClick={() => sketch(c)} disabled={busy || working}>
-                ✏️ {c.sketches.length ? "Sketch again" : `Sketch ${c.name}`} · {status.illustrator ? formatMoney(each * SKETCHES) : "free"}
-              </button>
-              <label className={`btn btn-ghost btn-sm ${busy || working ? "disabled" : ""}`}>
-                📷 {c.drawing ? "A different drawing" : "Use our own drawing"}
-                <input type="file" accept="image/*" hidden disabled={busy || working} onChange={(e) => addDrawing(c, e.target.files?.[0])} />
+        {mains.map((c) => {
+          const sketching = job?.kind === "sketching" && job.characterId === c.id ? job : null;
+          const coming = sketching ? Math.max(0, sketching.total - sketching.finished.length) : 0;
+          return (
+            <div className="cast-card art-character" id={`art-char-${c.id}`} key={c.id}>
+              <div className="cast-name">{c.name}</div>
+              <label className="field" style={{ marginTop: 6 }}>
+                <span className="small">What {c.name} looks like</span>
+                <textarea
+                  className="textarea"
+                  rows={2}
+                  value={looks[c.id] ?? c.look}
+                  onChange={(e) => setLooks((l) => ({ ...l, [c.id]: e.target.value }))}
+                  onBlur={() => void saveLook(c).catch((err) => setError(err instanceof Error ? err.message : "That didn't save."))}
+                  placeholder={
+                    isHero(c) ? `Describe ${c.name} in words: curly brown hair, freckles, a brand-new gap in a big smile…` : `Big, small, what colors, what they wear…`
+                  }
+                />
               </label>
+              {isHero(c) && <p className="small faint" style={{ margin: "4px 0 0" }}>Described in words, so photos of your children are never sent anywhere.</p>}
+              {(c.sketches.length > 0 || c.drawing || coming > 0) && (
+                <div className="sketches" role="group" aria-label={`Sketches of ${c.name}`}>
+                  {c.drawing && (
+                    <button type="button" className="sketch drawing" aria-label={`Our drawing of ${c.name}: see it big`} onClick={() => viewSketches(c, -1)}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={c.drawing} alt="" />
+                      <span className="sketch-caption">Our drawing</span>
+                    </button>
+                  )}
+                  {c.sketches.map((url, i) => (
+                    <button
+                      key={url}
+                      type="button"
+                      className={`sketch ${c.chosen === i ? "chosen" : ""}`}
+                      aria-label={`Sketch ${i + 1}${c.chosen === i ? ", chosen" : ""}: see it big`}
+                      onClick={() => viewSketches(c, i)}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt="" />
+                    </button>
+                  ))}
+                  {Array.from({ length: coming }, (_, i) => (
+                    <div className="sketch working" key={`coming-${i}`} aria-hidden="true">
+                      <span>✏️</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {sketching && (
+                <WaitLine
+                  id={`art-wait-${c.id}`}
+                  what={`Sketching ${c.name}`}
+                  done={sketching.finished.length}
+                  total={sketching.total}
+                  startedAt={sketching.startedAt}
+                  seconds={sketching.seconds}
+                  note="You can leave this page; the sketches will be waiting."
+                />
+              )}
+              {!sketching && c.sketches.length > 0 && (
+                <p className="small" style={{ margin: "6px 0 0" }}>
+                  {c.chosen === null ? `Which one is ${c.name}? Tap a sketch to see it big, and choose.` : "Tap a sketch to see it big."}
+                </p>
+              )}
+              <div className="row" style={{ marginTop: 10 }}>
+                <button className="btn btn-sm" onClick={() => sketch(c)} disabled={busy || working}>
+                  {sketching ? (
+                    <>
+                      <Spinner /> Sketching…
+                    </>
+                  ) : (
+                    <>
+                      ✏️ {c.sketches.length ? "Sketch again" : `Sketch ${c.name}`} · {status.illustrator ? formatMoney(each * SKETCHES) : "free"}
+                    </>
+                  )}
+                </button>
+                <label className={`btn btn-ghost btn-sm ${busy || working ? "disabled" : ""}`}>
+                  {adding === c.id ? (
+                    <>
+                      <Spinner /> Adding the drawing…
+                    </>
+                  ) : (
+                    <>📷 {c.drawing ? "A different drawing" : "Use our own drawing"}</>
+                  )}
+                  <input type="file" accept="image/*" hidden disabled={busy || working} onChange={(e) => addDrawing(c, e.target.files?.[0])} />
+                </label>
+              </div>
+              {c.drawing && !c.sketches.length && !sketching && (
+                <p className="small faint" style={{ margin: "6px 0 0" }}>
+                  The sketches will be made from the drawing, keeping its colors, shapes and funny details.
+                </p>
+              )}
             </div>
-            {c.drawing && !c.sketches.length && (
-              <p className="small faint" style={{ margin: "6px 0 0" }}>
-                The sketches will be made from the drawing, keeping its colors, shapes and funny details.
-              </p>
-            )}
-          </div>
-        ))}
+          );
+        })}
         {others.length > 0 && (
           <details className="art-others">
             <summary className="small">
@@ -285,7 +475,7 @@ export function Pictures({
         )}
       </section>
 
-      <section className="stack" style={{ ["--gap" as string]: "12px" }}>
+      <section className="stack" id="art-book" style={{ ["--gap" as string]: "12px" }}>
         <h3 style={{ margin: 0 }}>The book</h3>
         <div className="art-cover-row">
           <PagePicture story={story} status={status} page={0} onStory={onStory} />
@@ -293,7 +483,7 @@ export function Pictures({
             <div className="small">
               {drawn === 0 ? `A cover and ${art.pages.length} pages to draw.` : `${drawn} of ${bookPictures(art.pages.length)} pictures drawn.`}
             </div>
-            {drawn === 0 && (
+            {drawn === 0 && !drawingBook && (
               <div>
                 <span className="small muted">Style: </span>
                 {(Object.keys(ART_STYLES) as ArtStyle[]).map((s) => (
@@ -303,14 +493,38 @@ export function Pictures({
                 ))}
               </div>
             )}
+            {drawingBook && job && (
+              <WaitLine
+                id="art-wait"
+                what={drawingWhat(job, art)}
+                done={job.finished.length}
+                total={job.total}
+                startedAt={job.startedAt}
+                seconds={job.seconds}
+                note={`${job.total > 1 && job.targets?.includes(0) ? "The cover first, so the pages can match it, then two pages at a time. " : ""}You can leave this page; the pictures will be waiting.`}
+              />
+            )}
             {todo > 0 && (
               <div>
                 <button className="btn" onClick={drawBook} disabled={busy || working || (unchosen.length > 0 && !skipSketches)}>
-                  🎨 {drawn === 0 ? "Draw the book" : `Draw the ${todo} still to do`} · {status.illustrator ? formatMoney(each * todo) : "free"}
+                  {drawingBook ? (
+                    <>
+                      <Spinner /> Drawing…
+                    </>
+                  ) : (
+                    <>
+                      🎨 {drawn === 0 ? "Draw the book" : `Draw the ${todo} still to do`} · {status.illustrator ? formatMoney(each * todo) : "free"}
+                    </>
+                  )}
                 </button>
               </div>
             )}
-            {todo > 0 && unchosen.length > 0 && !skipSketches && (
+            {todo > 0 && !drawingBook && (
+              <p className="small muted" style={{ margin: 0 }}>
+                Takes {aboutTime(bookSeconds)}.
+              </p>
+            )}
+            {todo > 0 && unchosen.length > 0 && !skipSketches && !drawingBook && (
               <p className="small" style={{ margin: 0 }}>
                 First choose a sketch for {unchosen.map((c) => c.name).join(" and ")}, so they look the same on every page.{" "}
                 <button type="button" className="link-button" onClick={() => setSkipSketches(true)}>
@@ -318,7 +532,7 @@ export function Pictures({
                 </button>
               </p>
             )}
-            {todo === 0 && <p className="small muted" style={{ margin: 0 }}>Every picture is drawn. Tap ↻ beside a page to redraw it.</p>}
+            {todo === 0 && <p className="small muted" style={{ margin: 0 }}>Every picture is drawn. Tap one to see it big, or ↻ beside a page to redraw it.</p>}
             <p className="small purchase-terms" style={{ margin: 0 }}>
               {status.illustrator
                 ? `Pictures for this story so far: ${formatMoney(spent, "nothing yet")}.`
@@ -329,8 +543,9 @@ export function Pictures({
           </div>
         </div>
       </section>
+      {viewing && <PictureViewer items={viewing.items} start={viewing.start} onClose={() => setViewing(null)} />}
       {dialog}
-    </div>
+    </div>,
   );
 }
 
@@ -338,6 +553,7 @@ export function Pictures({
 export function PagePicture({ story, status, page, onStory }: { story: Story; status: AppStatus; page: number; onStory: (s: Story) => void }) {
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState("");
+  const [viewing, setViewing] = useState<{ items: ViewerItem[]; start: number } | null>(null);
   const { offerPictures, dialog } = useOffers(story, status, (s) => {
     setAsking(false);
     setNote("");
@@ -348,18 +564,53 @@ export function PagePicture({ story, status, page, onStory }: { story: Story; st
   const url = cover ? art.cover : art.pages[page - 1];
   const scene = cover ? art.coverScene : (art.scenes.find((s) => s.page === page)?.scene ?? "");
   const working = art.status !== "idle";
+  const now = drawingNow(art.job, page);
+  const job = art.job;
+  const single = Boolean(job && job.total === 1);
+  const clock = useNow(Boolean(now) && single, job?.startedAt ?? 0);
+
+  /** Every picture drawn so far, big, starting from this one. */
+  const view = () => {
+    const all = [art.cover, ...art.pages].flatMap((src, i) => (src ? [{ src, caption: i === 0 ? "The cover" : `Page ${i} of ${art.pages.length}`, page: i }] : []));
+    setViewing({ items: all, start: Math.max(0, all.findIndex((x) => x.page === page)) });
+  };
+
   return (
-    <div className={`script-pic page-picture ${cover ? "art-cover" : ""}`}>
+    <div className={`script-pic page-picture ${cover ? "art-cover" : ""}`} id={`art-page-${page}`}>
       {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={cover ? `The cover of ${story.title}` : `Page ${page}`} loading="lazy" />
+        <div className={`picture-frame ${now ? "redrawing" : ""}`}>
+          <button type="button" className="picture-open" onClick={view} aria-label={`${cover ? "The cover" : `Page ${page}`}: see it big`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={cover ? `The cover of ${story.title}` : `Page ${page}`} loading="lazy" />
+          </button>
+          {now && (
+            <div className="picture-working">
+              <Spinner />
+              <b>{now === "drawing" ? "Redrawing…" : "Waiting its turn"}</b>
+              {now === "drawing" && single && job && <span>{timeLeft(job.startedAt, job.seconds, clock)}</span>}
+            </div>
+          )}
+        </div>
       ) : (
-        <div className="picture-to-be small">
-          <b>{cover ? "The cover, to be drawn" : "To be drawn"}</b>
+        <div className={`picture-to-be small ${now === "drawing" ? "working" : now === "waiting" ? "queued" : ""}`}>
+          {now ? (
+            <b className="row" style={{ gap: 8 }}>
+              {now === "drawing" ? (
+                <>
+                  <Spinner /> {cover ? "Drawing the cover…" : "Drawing…"}
+                </>
+              ) : (
+                "⏳ Waiting its turn"
+              )}
+            </b>
+          ) : (
+            <b>{cover ? "The cover, to be drawn" : "To be drawn"}</b>
+          )}
           <span>{scene}</span>
+          {now === "drawing" && single && job && <span className="faint">{timeLeft(job.startedAt, job.seconds, clock)}</span>}
         </div>
       )}
-      {url && !asking && (
+      {url && !asking && !now && (
         <button type="button" className="btn btn-quiet btn-sm" onClick={() => setAsking(true)} disabled={working}>
           ↻ Redraw
         </button>
@@ -371,7 +622,12 @@ export function PagePicture({ story, status, page, onStory }: { story: Story; st
             <button
               type="button"
               className="btn btn-sm"
-              onClick={() => offerPictures(cover ? "Redraw the cover" : `Redraw page ${page}`, 1, `/api/stories/${story.id}/art/draw`, { pages: [page], note })}
+              onClick={() =>
+                offerPictures(cover ? "Redraw the cover" : `Redraw page ${page}`, 1, drawingSeconds(1, cover, status.illustrator), `/api/stories/${story.id}/art/draw`, {
+                  pages: [page],
+                  note,
+                })
+              }
               disabled={working}
             >
               ↻ Redraw · {status.illustrator ? formatMoney(status.picturePrice) : "free"}
@@ -382,6 +638,7 @@ export function PagePicture({ story, status, page, onStory }: { story: Story; st
           </div>
         </div>
       )}
+      {viewing && <PictureViewer items={viewing.items} start={viewing.start} onClose={() => setViewing(null)} />}
       {dialog}
     </div>
   );

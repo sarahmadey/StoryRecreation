@@ -41,6 +41,9 @@ a brand-new tale for the very same pictures.
   the right one together, or photograph your child's own drawing and the sketches are made from it.
 - **The same on every page.** The cover is drawn first, then every page from the chosen sketches and the cover,
   so the characters and colors stay the same all the way through. Redraw any page, with a note about what to change.
+- **You can see it working.** Whatever the illustrator is making shows where it will appear, with how many are
+  ready and about how long is left, and a note follows you down the page until it's done (it's fine to leave, too).
+  Tap any sketch or picture to see it full size, and swipe between them.
 - **Children are described, never photographed:** the illustrator works from words like "curly hair and a
   brand-new gap in a big smile", so photos of your children are never sent anywhere.
 - **Living pictures:** while a story plays, its picture drifts slowly, and a little touch the storyteller chose
@@ -142,11 +145,13 @@ humming placeholder voices.
 6. Tomorrow, open the book and tap **✨ Quick create**. When a story ends, *Up next* offers the next one.
 7. For a picture book, choose **Just an idea**, describe it (the sillier the what-ifs, the better), and switch on
    **📖 Make it a picture book**. Once it's written, meet the characters on the story's page: sketch each one,
-   choose together, then **Draw the book**. Each of those shows its price and asks for the family PIN.
-8. To make one like a story you've made before, open Create and choose the book: *Quick create* at the bottom offers
-   the last story made for it (*Choose another* lists, and searches, every story you've made). Its storyteller,
-   length, mood, sounds and characters are filled in, so it's one tap; *Start fresh* clears them. **Make another
-   like this** on a story's page does the same, with its book already chosen.
+   tap the sketches to see them big and choose together, then **Draw the book**. Each of those shows its price and
+   how long it takes, and asks for the family PIN.
+8. To make one like a story you've made before, open Create: *Quick create* at the bottom offers the last story
+   made for the book you choose, or the last of the kind you choose (*Choose another* lists, and searches, every
+   story you've made). Its storyteller, length, mood, sounds and characters are filled in, so it's one tap; *Start
+   fresh* clears them. It's for the start: once you begin describing your own idea or adding photos, it steps
+   aside. **Make another like this** on a story's page does the same, with its book already chosen.
 9. Create and Read to Me show your 6 most recent books, with a search and *See all* for the rest; once you pick
    one it folds to a single line, with *Change*.
 

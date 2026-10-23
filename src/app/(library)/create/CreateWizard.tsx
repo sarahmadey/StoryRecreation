@@ -27,9 +27,12 @@ interface PastStory {
 }
 
 /** How a story was made (storyteller, length, mood, sounds, who's in it), without what it was about. */
+/** What a story was made from: a book, something seen, or an idea. */
+const sourceOf = (story: PastStory): Source => (story.settings.source === "wild" || story.settings.source === "idea" ? story.settings.source : "book");
+
 function madeLike(story: PastStory): { source: Source; settings: StorySettings } {
   const { description: _description, classic: _classic, text: _text, ...how } = story.settings;
-  const source: Source = how.source === "wild" || how.source === "idea" ? how.source : "book";
+  const source = sourceOf(story);
   return { source, settings: defaultSettings({ ...how, source, description: "", chime: { ...how.chime, enabled: source === "book" } }) };
 }
 
@@ -124,9 +127,18 @@ export function CreateWizard({
     setChoosing(false);
     setSettings(fresh(source));
   };
-  // The story to suggest: the last one made for the chosen book, else the last book story, else the last of any kind.
+  // The story to suggest: the last one made for the chosen book; with no book chosen yet, the last book story (or the last of any
+  // kind); for something seen or an idea, the last of the same kind.
   const forChosen = source === "book" && chosenBook ? past.find((s) => s.bookId === chosenBook.id) : undefined;
-  const suggestion = forChosen ?? (source === "book" ? past.find((s) => s.settings.source === "book") : undefined) ?? past[0];
+  const sameKind = past.find((s) => sourceOf(s) === source);
+  const suggestion = forChosen ?? (source !== "book" ? sameKind : chosenBook ? undefined : (sameKind ?? past[0]));
+  // Quick create is for the start. Once the family is into their own story's details it only distracts, so it steps aside,
+  // unless they've already chosen a story to make it like.
+  const begun =
+    source === "book"
+      ? Boolean(chosenBook && !forChosen)
+      : Boolean(title.trim() || settings.description.trim() || (source === "wild" ? photos.length > 0 : settings.pictures));
+  const quick = Boolean(liked) || (!begun && Boolean(suggestion));
   const lq = likeQuery.trim().toLowerCase();
   const likeOptions = lq ? past.filter((s) => s.title.toLowerCase().includes(lq) || s.bookTitle.toLowerCase().includes(lq)) : past;
   const howItWasMade = (s: PastStory) =>
@@ -309,7 +321,7 @@ export function CreateWizard({
                 {settings.pictures && <StylePicker value={settings.artStyle ?? DEFAULT_ART_STYLE} onChange={(s) => set("artStyle", s)} />}
               </div>
             )}
-            {past.length > 0 && (
+            {quick && (
               <div>
                 <span className="label">Quick create</span>
                 <div className="like-panel">
@@ -336,7 +348,7 @@ export function CreateWizard({
                         </button>
                       </div>
                     </>
-                  ) : (
+                  ) : suggestion ? (
                     <>
                       <div>
                         {forChosen && chosenBook ? (
@@ -345,7 +357,7 @@ export function CreateWizard({
                           </>
                         ) : (
                           <>
-                            Make {source === "book" && chosenBook ? "it" : "one"} like <b>&ldquo;{suggestion.title}&rdquo;</b>?
+                            Make one like <b>&ldquo;{suggestion.title}&rdquo;</b>?
                           </>
                         )}
                         <div className="small muted">{howItWasMade(suggestion)}</div>
@@ -361,7 +373,7 @@ export function CreateWizard({
                         )}
                       </div>
                     </>
-                  )}
+                  ) : null}
                   {choosing && past.length > 8 && (
                     <input
                       className="input like-search"

@@ -3055,7 +3055,7 @@ code {
   overflow: hidden;
   border: 2px solid rgba(107, 63, 21, 0.25);
   background: #fffaf0;
-  cursor: pointer;
+  cursor: zoom-in;
 }
 .sketch img {
   display: block;
@@ -3063,11 +3063,11 @@ code {
   height: 100%;
   object-fit: cover;
 }
-.sketch[aria-checked="true"] {
+.sketch.chosen {
   border-color: #a8792b;
   box-shadow: 0 0 0 3px rgba(220, 174, 85, 0.6);
 }
-.sketch[aria-checked="true"]::after {
+.sketch.chosen::after {
   content: "✓";
   position: absolute;
   top: 6px;
@@ -3082,10 +3082,9 @@ code {
   background: radial-gradient(circle at 35% 30%, #b84459, #6b1f2b);
 }
 .sketch.drawing {
-  cursor: default;
   border-style: dashed;
 }
-.sketch.drawing figcaption {
+.sketch-caption {
   position: absolute;
   inset: auto 0 0;
   padding: 2px 4px;
@@ -3145,10 +3144,251 @@ label.btn.disabled {
   cursor: pointer;
   color: var(--ink-soft);
 }
-.art-progress {
+/* A sketch on its way: a soft shimmer where it will appear. */
+.sketch.working {
+  display: grid;
+  place-items: center;
+  cursor: default;
+  border-style: dashed;
+  font-size: 1.4rem;
+}
+.sketch.working,
+.picture-to-be.working {
+  background: linear-gradient(100deg, rgba(255, 250, 240, 0.6) 30%, rgba(245, 220, 154, 0.75) 50%, rgba(255, 250, 240, 0.6) 70%) 0 0 / 300% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+.sketch.working span {
+  animation: sketching 1.2s ease-in-out infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@keyframes sketching {
+  0%,
+  100% {
+    transform: translate(-6px, 3px) rotate(-8deg);
+  }
+  50% {
+    transform: translate(6px, -3px) rotate(8deg);
+  }
+}
+.picture-to-be.working {
+  border-style: solid;
+  border-color: rgba(168, 121, 43, 0.55);
+  color: var(--ink);
+}
+.picture-to-be.queued {
+  opacity: 0.85;
+}
+
+/* A picture being redrawn: the old one, dimmed, with a word on top. */
+.picture-frame {
+  position: relative;
+}
+.picture-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.picture-open img {
+  display: block;
+  width: 100%;
+}
+.picture-frame.redrawing img {
+  filter: saturate(0.4) brightness(0.75);
+}
+.picture-working {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #fff8e6;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+.picture-working .spinner {
+  width: 26px;
+  height: 26px;
+}
+
+/* Something at work: a little turning ring, in the color of the words around it. */
+.spinner {
+  display: inline-block;
+  flex: none;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.btn .spinner {
+  margin-right: 4px;
+}
+
+/* What's at work, how far along, and about how long is left. */
+.wait-line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(168, 121, 43, 0.4);
+  background: rgba(255, 244, 214, 0.7);
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.wait-line > .spinner {
+  margin-top: 3px;
+  color: #a8792b;
+}
+.wait-note {
+  margin-top: 2px;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.purchase-time {
+  margin-top: 8px;
+  color: var(--ink-soft);
+}
+
+/* A note that follows the page while the illustrator works: above the menu on phones, and out of the test copy's label. */
+.wait-pill {
+  position: fixed;
+  z-index: 40;
+  right: 24px;
+  bottom: calc(max(10px, var(--safe-bottom)) + 14px);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  max-width: min(360px, calc(100vw - 48px));
+  padding: 9px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(220, 174, 85, 0.55);
+  background: rgba(26, 16, 10, 0.94);
+  color: var(--gold-1);
+  font: 600 0.88rem/1.3 var(--font-body);
+  text-align: left;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  animation: pill-in 0.25s ease;
+}
+.wait-pill.done {
+  border-color: rgba(120, 190, 120, 0.6);
+  color: #d8f5c8;
+}
+.wait-pill.problem {
+  border-color: rgba(224, 122, 98, 0.7);
+  color: #ffd9cc;
+}
+@keyframes pill-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@media (max-width: 760px) {
+  .wait-pill {
+    right: 12px;
+    bottom: calc(max(10px, var(--safe-bottom)) + 84px);
+    max-width: calc(100vw - 136px);
+  }
+}
+
+/* A picture, full size. */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--safe-top) + 56px) max(12px, var(--safe-right)) calc(var(--safe-bottom) + 16px) max(12px, var(--safe-left));
+  background: rgba(8, 5, 3, 0.97);
+  backdrop-filter: blur(6px);
+  animation: fade-in 0.2s ease;
+}
+.viewer figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+}
+.viewer img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 190px);
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  background: #fffaf0;
+  touch-action: pinch-zoom;
+}
+.viewer figcaption {
+  color: var(--gold-1);
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  text-align: center;
+}
+.viewer-close {
+  position: fixed;
+  top: calc(var(--safe-top) + 10px);
+  right: max(12px, var(--safe-right));
+}
+.viewer-step {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.6rem;
+}
+.viewer-prev {
+  left: max(10px, var(--safe-left));
+}
+.viewer-next {
+  right: max(10px, var(--safe-right));
+}
+@media (max-width: 640px) {
+  /* On a phone, a swipe goes between pictures; the arrows sit low, out of the picture's way. */
+  .viewer-step {
+    top: auto;
+    bottom: calc(var(--safe-bottom) + 14px);
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .sketch.working,
+  .sketch.working span,
+  .picture-to-be.working {
+    animation-duration: 3s;
+  }
+  .wait-pill,
+  .viewer {
+    animation: none;
+  }
 }
 
 /* Spending, in the Grown-ups' corner. */

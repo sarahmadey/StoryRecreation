@@ -92,7 +92,15 @@ export function Studio({
   };
   const canPicture = story.mode === "create" && story.settings.source === "idea" && Boolean(story.script);
   const pictures = canPicture && (
-    <Pictures story={story} status={status} spent={spent} planPrice={planPrice} heroes={story.settings.heroes} onStory={onArt} />
+    <Pictures
+      story={story}
+      status={status}
+      spent={spent}
+      planPrice={planPrice}
+      heroes={story.settings.heroes}
+      listen={story.status === "ready" && story.audioUrl ? `/play/${story.id}` : null}
+      onStory={onArt}
+    />
   );
 
   const run = async (fn: () => Promise<unknown>) => {
@@ -465,6 +473,15 @@ export function Studio({
             </div>
           )}
         </div>
+      )}
+
+      {/* Read to the end of the words: what's next is listening. */}
+      {story.status === "ready" && story.audioUrl && !editing && (
+        <p className="center">
+          <Link href={`/play/${story.id}`} className="btn btn-lg">
+            ▶ Listen now
+          </Link>
+        </p>
       )}
 
       {!working && (

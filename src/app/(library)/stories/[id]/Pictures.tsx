@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useApi } from "@/components/Grownup";
 import { PurchaseDialog, type PurchaseOffer } from "@/components/Purchase";
@@ -143,6 +144,7 @@ export function Pictures({
   spent,
   planPrice,
   heroes,
+  listen,
   onStory,
 }: {
   story: Story;
@@ -152,6 +154,8 @@ export function Pictures({
   /** About what planning the pictures costs (storyteller time). */
   planPrice: number;
   heroes: string[];
+  /** Where to hear it with its pictures, once it's recorded: after looking them over, that's what's next. */
+  listen: string | null;
   onStory: (s: Story) => void;
 }) {
   const api = useApi();
@@ -592,6 +596,20 @@ export function Pictures({
           </div>
         </div>
       </section>
+      {listen && (
+        <div className="center stack pictures-listen" style={{ ["--gap" as string]: "8px" }}>
+          <div>
+            <Link href={listen} className="btn btn-lg">
+              ▶ Listen now
+            </Link>
+          </div>
+          {todo > 0 && !working && (
+            <p className="small muted" style={{ margin: 0 }}>
+              Pages without their picture yet show the book&apos;s cover instead.
+            </p>
+          )}
+        </div>
+      )}
       {viewing && <PictureViewer items={viewing.items} start={viewing.start} onClose={() => setViewing(null)} />}
       {dialog}
     </div>,

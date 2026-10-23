@@ -3409,6 +3409,11 @@ label.btn.disabled {
   margin: 4px 0 0;
   color: #8a2a1c;
 }
+/* After looking the pictures over, listening is what's next. */
+.pictures-listen {
+  padding-top: 18px;
+  border-top: 1px solid rgba(107, 63, 21, 0.2);
+}
 
 /* A picture being redrawn: the old one, dimmed, with a word on top. */
 .picture-frame {

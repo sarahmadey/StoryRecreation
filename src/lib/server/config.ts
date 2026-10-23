@@ -45,6 +45,11 @@ export const config = {
   get illustratorBaseUrl(): string {
     return (process.env.GEMINI_BASE_URL?.trim() || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
   },
+  /** How long to wait before trying a picture that didn't come once more (a busy Google often isn't, a few seconds later). Changeable for tests. */
+  get illustratorRetryPauseMs(): number {
+    const v = process.env.ART_RETRY_PAUSE_MS?.trim();
+    return v && Number.isFinite(Number(v)) ? Number(v) : 8000;
+  },
   /** For a picture model the app doesn't know the price of: dollars per picture, e.g. "0.08". */
   get picturePriceOverride(): number | null {
     const v = Number(process.env.PICTURE_PRICE);

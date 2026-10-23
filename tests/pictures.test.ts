@@ -16,15 +16,19 @@ const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 
 let mode: "ok" | "forbidden" | "blocked" = "ok";
 const asked: { headers: http.IncomingHttpHeaders; url: string; body: Record<string, any> }[] = [];
+// A picture whose prompt has one of these in it comes back empty, once (as Google's sometimes do).
+const emptyOnce = new Set<string>();
 let server: http.Server;
 
 before(async () => {
   process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "storyhollow-pictures-test-"));
+  process.env.ART_RETRY_PAUSE_MS = "0";
   server = http.createServer((req, res) => {
     let raw = "";
     req.on("data", (c) => (raw += c));
     req.on("end", () => {
-      asked.push({ headers: req.headers, url: req.url ?? "", body: JSON.parse(raw || "{}") });
+      const body = JSON.parse(raw || "{}");
+      asked.push({ headers: req.headers, url: req.url ?? "", body });
       res.setHeader("Content-Type", "application/json");
       if (mode === "forbidden") {
         res.statusCode = 403;
@@ -32,6 +36,12 @@ before(async () => {
       }
       if (mode === "blocked") {
         return res.end(JSON.stringify({ promptFeedback: { blockReason: "SAFETY" }, usageMetadata: { promptTokenCount: 500 } }));
+      }
+      const prompt: string = body.contents?.[0]?.parts?.at(-1)?.text ?? "";
+      const empty = [...emptyOnce].find((k) => prompt.includes(k));
+      if (empty) {
+        emptyOnce.delete(empty);
+        return res.end(JSON.stringify({ candidates: [{ content: { parts: [] }, finishReason: "OTHER" }], usageMetadata: { promptTokenCount: 500 } }));
       }
       res.end(
         JSON.stringify({
@@ -49,6 +59,8 @@ after(() => server.close());
 
 /** What one picture from the fake Google costs on Nano Banana 2.1: 1,680 tokens out at $30 a million, 3,000 in at 50¢ a million. */
 const DRAWN = 1680 * 30 + 3000 * 0.5;
+/** What an empty reply costs: the 500 tokens it read. */
+const EMPTY = 500 * 0.5;
 
 test("money is shown rounded up, so it's never less than it can cost", async () => {
   const { formatMoney } = await import("@/lib/shared/art");
@@ -256,7 +268,11 @@ test("drawing a book: the cover first, then each page from the chosen sketch and
   assert.ok(startDrawing(story, [0, 1, 2, 3], purchase));
   assert.equal(startDrawing(story, [1], purchase), false, "one job at a time");
   const { startedAt, ...job } = getStoryArt(story)!.job!;
-  assert.deepEqual(job, { kind: "drawing", targets: [0, 1, 2, 3], total: 4, finished: [], seconds: 75 }, "the family can see what's being drawn, and about how long it takes");
+  assert.deepEqual(
+    job,
+    { kind: "drawing", targets: [0, 1, 2, 3], total: 4, finished: [], seconds: 75, purchaseId: purchase },
+    "the family can see what's being drawn, and about how long it takes (and it can carry on after a restart)",
+  );
   assert.ok(Math.abs(Date.now() - startedAt) < 5_000);
   await untilDrawn(story);
 
@@ -281,6 +297,72 @@ test("drawing a book: the cover first, then each page from the chosen sketch and
     assert.equal(parts(page).filter((p) => p.inlineData).length, 2, "each page: Gwendolyn's sketch and the cover");
     assert.match(parts(page).at(-1)!.text!, /Gwendolyn looks exactly like reference picture 1.*Mia: curly hair/);
   }
+  assert.ok(
+    asked.flatMap(parts).every((p) => !p.inlineData || p.inlineData.mimeType === "image/jpeg"),
+    "the reference pictures go small, as JPEGs, so they're quick and never too big for one request",
+  );
+});
+
+test("a picture that doesn't come is tried again by itself, within the same approval", async () => {
+  process.env.GEMINI_API_KEY = "test-google-key";
+  mode = "ok";
+  asked.length = 0;
+  const { getStoryArt } = await import("@/lib/server/db");
+  const { startDrawing } = await import("@/lib/server/art");
+  const { recordSpend, getPurchase } = await import("@/lib/server/spending");
+  const { picturePrice } = await import("@/lib/server/prices");
+  const { household, story } = await pictureBook("Try Again");
+  emptyOnce.add("front cover");
+  emptyOnce.add("page 2 of");
+  const approved = picturePrice() * 4;
+  const purchase = recordSpend(household, { storyId: story, service: "pictures", kind: "draw", what: "Drew the book", approved });
+  startDrawing(story, [0, 1, 2, 3], purchase);
+  await untilDrawn(story);
+
+  const art = getStoryArt(story)!;
+  assert.equal(art.error, null, "nothing for the family to do");
+  assert.ok(art.cover && art.pages.every(Boolean), "every picture is drawn in the end");
+  assert.equal(asked.length, 6, "the cover and page 2 were each tried once more");
+  const prompt = (i: number) => asked[i].body.contents[0].parts.at(-1).text as string;
+  assert.ok(/front cover/.test(prompt(0)) && /front cover/.test(prompt(1)), "the cover again straight away, so the pages can match it");
+  assert.deepEqual(getPurchase(purchase), { approved, spent: DRAWN * 4 + EMPTY * 2, pictures: 4 }, "on the same purchase, with the empty replies counted");
+});
+
+test("after a restart, the illustrator carries on where it stopped, on the same purchase", async () => {
+  process.env.GEMINI_API_KEY = "test-google-key";
+  mode = "ok";
+  asked.length = 0;
+  const { getStoryArt, changeStoryArt } = await import("@/lib/server/db");
+  const { resumeLostArt } = await import("@/lib/server/art");
+  const { recordSpend, getPurchase } = await import("@/lib/server/spending");
+  const { picturePrice } = await import("@/lib/server/prices");
+  const { household, story } = await pictureBook("Carry On");
+  const approved = picturePrice() * 4;
+  const purchase = recordSpend(household, { storyId: story, service: "pictures", kind: "draw", what: "Drew the book", approved });
+  // What a restart leaves behind: the cover drawn, the pages not, and the job still marked as at work.
+  changeStoryArt(
+    story,
+    (a) =>
+      a && {
+        ...a,
+        status: "drawing",
+        cover: a.characters[0].sketches[0],
+        job: { kind: "drawing", targets: [0, 1, 2, 3], total: 4, finished: [0], startedAt: Date.now() - 60_000, seconds: 75, purchaseId: purchase },
+      },
+  );
+  resumeLostArt(story);
+  await untilDrawn(story);
+  const art = getStoryArt(story)!;
+  assert.equal(art.error, null);
+  assert.ok(art.pages.every(Boolean), "the pages are drawn");
+  assert.equal(asked.length, 3, "just the pages still to draw");
+  assert.equal(getPurchase(purchase)!.pictures, 3);
+
+  // A job from before jobs were kept this way is settled, for the family to carry on.
+  changeStoryArt(story, (a) => a && { ...a, status: "drawing", job: null });
+  resumeLostArt(story);
+  assert.equal(getStoryArt(story)!.status, "idle");
+  assert.match(getStoryArt(story)!.error ?? "", /interrupted/);
 });
 
 test("the illustrator never draws more than the purchase covers, and a refusal or a bad key is said plainly", async () => {
@@ -297,7 +379,8 @@ test("the illustrator never draws more than the purchase covers, and a refusal o
   await untilDrawn(short.story);
   const art = getStoryArt(short.story)!;
   assert.equal([art.cover, ...art.pages].filter(Boolean).length, 2);
-  assert.match(art.error ?? "", /couldn't be drawn\. That's all the approved purchase covers\./);
+  assert.match(art.error ?? "", /couldn't be drawn\. That's all the approved purchase covers\. It wasn't charged\./);
+  assert.deepEqual(art.problem, { kind: "drawing", targets: [2] }, "the problem is shown with the picture it's about");
   assert.equal(getPurchase(purchase)!.pictures, 2);
 
   mode = "forbidden";
@@ -314,6 +397,7 @@ test("the illustrator never draws more than the purchase covers, and a refusal o
   startSketches(shy.story, "fairy", p3, 3);
   await untilDrawn(shy.story);
   assert.match(getStoryArt(shy.story)!.error ?? "", /wouldn't draw this one/);
+  assert.deepEqual(getStoryArt(shy.story)!.problem, { kind: "sketching", characterId: "fairy" });
   assert.deepEqual(getPurchase(p3), { approved: picturePrice() * 3, spent: 500 * 0.5 * 3, pictures: 0 }, "what a picture-less reply cost is still counted");
   mode = "ok";
 });

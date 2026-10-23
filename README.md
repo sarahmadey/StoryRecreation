@@ -43,7 +43,11 @@ a brand-new tale for the very same pictures.
   so the characters and colors stay the same all the way through. Redraw any page, with a note about what to change.
 - **You can see it working.** Whatever the illustrator is making shows where it will appear, with how many are
   ready and about how long is left, and a note follows you down the page until it's done (it's fine to leave, too).
-  Tap any sketch or picture to see it full size, and swipe between them.
+  *The book* shows the cover and every page at a glance. Tap any sketch or picture to see it full size, and swipe
+  between them.
+- **It finishes what you approved.** A picture that doesn't come for a passing reason (Google busy, an empty reply)
+  is tried again by itself, on the same purchase. If the app restarts midway (an update, say), it carries on where
+  it stopped. If a picture still can't be drawn, it says why right beside it, and whether that cost anything.
 - **Children are described, never photographed:** the illustrator works from words like "curly hair and a
   brand-new gap in a big smile", so photos of your children are never sent anywhere.
 - **Living pictures:** while a story plays, its picture drifts slowly, and a little touch the storyteller chose

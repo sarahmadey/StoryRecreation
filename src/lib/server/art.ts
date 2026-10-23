@@ -2,16 +2,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { config } from "./config";
-import { changeStoryArt, getBook, getStoryArt, getStoryById, updateBook, updateStory } from "./db";
+import { changeStoryArt, getBook, getStoryArt, getStoryById, storiesWithArtAtWork, updateBook, updateStory } from "./db";
 import { mediaTypeFor, removeDir, removeHouseholdFile, resolveHouseholdPath, storyDir } from "./files";
-import { drawPicture, IllustratorError, illustratorReady, REFERENCE_TYPES, type Picture, type PictureRequest, type Reference } from "./illustrator";
+import { drawPicture, IllustratorError, illustratorReady, REFERENCE_TYPES, smallReference, type Picture, type PictureRequest, type Reference } from "./illustrator";
 import { picturePrice } from "./prices";
 import { addToPurchase, getPurchase, recordSpend } from "./spending";
 import { planPictures, StorytellerError, type PicturePlan } from "./storyteller";
 import { demoPicturePlan } from "./demo-storyteller";
-import { ART_STYLES, DEFAULT_ART_STYLE, drawingSeconds, planningSeconds } from "@/lib/shared/art";
+import { ART_STYLES, DEFAULT_ART_STYLE, drawingSeconds, formatMoney, planningSeconds } from "@/lib/shared/art";
 import { MOODS } from "@/lib/shared/options";
-import type { ArtCharacter, ArtJob, ArtStyle, Mood, StoryArt } from "@/lib/shared/types";
+import type { ArtCharacter, ArtJob, ArtProblem, ArtStyle, Mood, StoryArt } from "@/lib/shared/types";
 
 // Picture books. After a story is written, the storyteller plans its pictures
 // (who's in them, what they look like, what each page shows). The family
@@ -31,6 +31,16 @@ export function newArt(style: ArtStyle, pages: number): StoryArt {
   return { style, status: "idle", progress: null, error: null, characters: [], coverScene: "", scenes: [], cover: null, pages: Array(pages).fill(null), job: null };
 }
 
+/** A job that ended with some of its pictures not made: what went wrong, and which ones. */
+class MissedPictures extends IllustratorError {
+  constructor(
+    message: string,
+    public problem: ArtProblem,
+  ) {
+    super(message);
+  }
+}
+
 /**
  * Run the illustrator in the background, one job per story at a time. The job says what it's
  * making and about how long it takes, so the family can see it at work. False when it's already busy.
@@ -40,13 +50,24 @@ function launchArt(storyId: string, step: string, job: Omit<ArtJob, "finished" |
   busy.add(storyId);
   changeStoryArt(
     storyId,
-    (a) => a && { ...a, status: job.kind, error: null, progress: { step, done: 0, total: job.total }, job: { ...job, finished: [], startedAt: Date.now() } },
+    (a) =>
+      a && {
+        ...a,
+        status: job.kind,
+        error: null,
+        problem: null,
+        progress: { step, done: 0, total: job.total },
+        job: { ...job, finished: [], startedAt: Date.now() },
+      },
   );
   fn()
     .catch((err) => {
       console.error(`[art] ${storyId}`, err);
       const message = err instanceof IllustratorError || err instanceof StorytellerError ? err.message : "The illustrator hit a snag. Please try again.";
-      changeStoryArt(storyId, (a) => a && { ...a, error: message });
+      const finishedSoFar = getStoryArt(storyId)?.job?.finished ?? [];
+      const problem: ArtProblem =
+        err instanceof MissedPictures ? err.problem : { kind: job.kind, characterId: job.characterId, targets: job.targets?.filter((t) => !finishedSoFar.includes(t)) };
+      changeStoryArt(storyId, (a) => a && { ...a, error: message, problem });
     })
     .finally(() => {
       busy.delete(storyId);
@@ -95,17 +116,64 @@ class Budget {
 
 const pictureBudget = (purchaseId: string) => new Budget(purchaseId, illustratorReady() ? picturePrice() : 0);
 
+/** A picture that didn't come: why, what the attempts still cost, and whether trying again might help. */
+interface Missed {
+  problem: string;
+  cost: number;
+  retry: boolean;
+}
+
+const OVER_BUDGET: Missed = { problem: "That's all the approved purchase covers.", cost: 0, retry: false };
+
+const isMissed = (p: Picture | Missed): p is Missed => "problem" in p;
+
 /** Draw one picture on the budget (its price already taken), settling what it cost. A problem comes back as words. */
-async function drawWithin(budget: Budget, req: PictureRequest): Promise<Picture | string> {
+async function drawWithin(budget: Budget, req: PictureRequest): Promise<Picture | Missed> {
   try {
     const pic = await drawPicture(req);
     budget.settle(pic.cost, 1);
     return pic;
   } catch (err) {
     budget.settle(err instanceof IllustratorError ? err.cost : 0, 0);
-    if (err instanceof IllustratorError) return err.message;
+    if (err instanceof IllustratorError) return { problem: err.message, cost: err.cost, retry: err.retry };
     throw err;
   }
+}
+
+/** Which of the job's pictures are waiting to be tried once more. */
+const setRetrying = (storyId: string, change: (retrying: number[]) => number[]) =>
+  changeStoryArt(storyId, (a) => a && { ...a, job: a.job && { ...a.job, retrying: change(a.job.retrying ?? []) } });
+
+/**
+ * A picture that didn't come: remembered with what all its attempts cost, then either given up on, or (for a
+ * passing reason, the first time) left waiting to be tried once more.
+ */
+function miss(storyId: string, missed: Map<number, Missed>, tried: Set<number>, n: number, m: Missed) {
+  missed.set(n, { ...m, cost: (missed.get(n)?.cost ?? 0) + m.cost });
+  if (m.retry && !tried.has(n)) setRetrying(storyId, (r) => [...r, n]);
+  else finished(storyId, n);
+}
+
+/**
+ * Try the pictures that didn't come for a passing reason once more, one at a time after a short pause,
+ * within the same approved purchase: the family asked for them, and shouldn't have to ask again.
+ */
+async function tryAgain(storyId: string, missed: Map<number, Missed>, tried: Set<number>, draw: (n: number) => Promise<void>) {
+  const again = [...missed].filter(([n, m]) => m.retry && !tried.has(n)).map(([n]) => n);
+  if (!again.length) return;
+  await new Promise((r) => setTimeout(r, config.illustratorRetryPauseMs));
+  for (const n of again) {
+    tried.add(n);
+    setRetrying(storyId, (r) => r.filter((x) => x !== n));
+    await draw(n);
+  }
+}
+
+/** What missed pictures cost: "They weren't charged." or what Google charged for the empty replies. */
+function chargedFor(missed: Missed[]): string {
+  const cost = missed.reduce((n, m) => n + m.cost, 0);
+  if (cost > 0) return ` Google charged about ${formatMoney(cost)} for the tries that came back without a picture.`;
+  return missed.length > 1 ? " They weren't charged." : " It wasn't charged.";
 }
 
 const EXTENSIONS: Record<string, string> = { "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/svg+xml": ".svg" };
@@ -125,7 +193,7 @@ async function reference(householdId: string, rel: string | null, label: string)
   const mime = mediaTypeFor(rel);
   if (!REFERENCE_TYPES.has(mime)) return null;
   try {
-    return { data: await fs.promises.readFile(resolveHouseholdPath(householdId, rel)), mime, label };
+    return await smallReference({ data: await fs.promises.readFile(resolveHouseholdPath(householdId, rel)), mime, label });
   } catch {
     return null;
   }
@@ -199,9 +267,16 @@ export function startPictureBook(storyId: string, style: ArtStyle): boolean {
   changeStoryArt(storyId, () => newArt(style, story.script!.pages.length));
   if (had) void removeDir(path.join(storyDir(story.householdId, storyId), "art"));
   if (!story.settings.pictures || story.settings.artStyle !== style) updateStory(storyId, { settings: { ...story.settings, pictures: true, artStyle: style } });
-  const seconds = planningSeconds(Boolean(config.anthropicKey) || !config.demoMode);
-  return launchArt(storyId, "Reading the story", { kind: "planning", total: 1, seconds }, () => plan(storyId));
+  return startPlanning(storyId);
 }
+
+const startPlanning = (storyId: string) =>
+  launchArt(
+    storyId,
+    "Reading the story",
+    { kind: "planning", total: 1, seconds: planningSeconds(Boolean(config.anthropicKey) || !config.demoMode) },
+    () => plan(storyId),
+  );
 
 /** A new story that's to be a picture book has just been written. */
 export function planPicturesAfterWriting(storyId: string) {
@@ -238,7 +313,7 @@ async function plan(storyId: string) {
 
 /** Sketch a character a few times, to choose between, on an approved purchase. */
 export function startSketches(storyId: string, characterId: string, purchaseId: string, count: number): boolean {
-  const job = { kind: "sketching" as const, characterId, total: count, seconds: drawingSeconds(count, false, illustratorReady()) };
+  const job = { kind: "sketching" as const, characterId, purchaseId, total: count, seconds: drawingSeconds(count, false, illustratorReady()) };
   return launchArt(storyId, "Sketching", job, () => sketch(storyId, characterId, purchaseId, count));
 }
 
@@ -249,10 +324,11 @@ async function sketch(storyId: string, characterId: string, purchaseId: string, 
   if (!story || !art || !c) return;
   const budget = pictureBudget(purchaseId);
   const drawing = await reference(story.householdId, c.drawing, `a child's drawing of ${c.name}`);
-  const failures: string[] = [];
+  const missed = new Map<number, Missed>();
+  const tried = new Set<number>();
   let done = 0;
   progress(storyId, `Sketching ${c.name}`, 0, count);
-  await inTurns(count, 2, async (i) => {
+  const one = async (i: number) => {
     const pic = budget.take()
       ? await drawWithin(budget, {
           prompt: characterPrompt(c, art.style, Boolean(drawing)),
@@ -260,18 +336,22 @@ async function sketch(storyId: string, characterId: string, purchaseId: string, 
           aspect: "1:1",
           standIn: { heading: c.name, caption: c.look || `What ${c.name} looks like`, style: art.style, seed: `${storyId}-${c.id}-${Date.now()}-${i}` },
         })
-      : "That's all the approved purchase covers.";
-    if (typeof pic === "string") {
-      failures.push(pic);
-      finished(storyId, i);
-    } else {
-      const rel = await savePicture(story.householdId, storyId, `sketch-${c.id}`, pic);
-      finished(storyId, i, (a) => ({ ...a, characters: a.characters.map((x) => (x.id === characterId ? { ...x, sketches: [...x.sketches, rel] } : x)) }));
+      : OVER_BUDGET;
+    if (isMissed(pic)) {
+      console.warn(`[art] ${storyId}: a sketch of ${c.name} didn't come: ${pic.problem}`);
+      return miss(storyId, missed, tried, i, pic);
     }
+    missed.delete(i);
+    const rel = await savePicture(story.householdId, storyId, `sketch-${c.id}`, pic);
+    finished(storyId, i, (a) => ({ ...a, characters: a.characters.map((x) => (x.id === characterId ? { ...x, sketches: [...x.sketches, rel] } : x)) }));
     progress(storyId, `Sketching ${c.name}`, ++done, count);
-  });
-  if (failures.length) {
-    throw new IllustratorError(failures.length === count ? failures[0] : `${count - failures.length} of ${count} sketches were made. ${failures[0]}`);
+  };
+  await inTurns(count, 2, one);
+  await tryAgain(storyId, missed, tried, one);
+  if (missed.size) {
+    const why = [...missed.values()];
+    const made = count - missed.size;
+    throw new MissedPictures(`${made ? `${made} of ${count} sketches were made. ` : ""}${why[0].problem}${chargedFor(why)}`, { kind: "sketching", characterId });
   }
 }
 
@@ -280,7 +360,14 @@ async function sketch(storyId: string, characterId: string, purchaseId: string, 
 /** Draw the cover (0) and the given pages, on an approved purchase. */
 export function startDrawing(storyId: string, targets: number[], purchaseId: string, note?: string): boolean {
   const step = targets.length === 1 ? (targets[0] === 0 ? "Drawing the cover" : `Drawing page ${targets[0]}`) : "Drawing the book";
-  const job = { kind: "drawing" as const, targets, total: targets.length, seconds: drawingSeconds(targets.length, targets.includes(0), illustratorReady()) };
+  const job = {
+    kind: "drawing" as const,
+    targets,
+    purchaseId,
+    note,
+    total: targets.length,
+    seconds: drawingSeconds(targets.length, targets.includes(0), illustratorReady()),
+  };
   return launchArt(storyId, step, job, () => draw(storyId, targets, purchaseId, note));
 }
 
@@ -305,8 +392,8 @@ async function draw(storyId: string, targets: number[], purchaseId: string, note
   }
   let cover = await reference(householdId, art.cover, "the book's cover");
 
-  const failed: number[] = [];
-  let firstProblem = "";
+  const missed = new Map<number, Missed>();
+  const tried = new Set<number>();
   let done = 0;
   const total = targets.length;
   const drawOne = async (target: number) => {
@@ -330,40 +417,49 @@ async function draw(storyId: string, targets: number[], purchaseId: string, note
             seed: `${storyId}-${target}-${Date.now()}`,
           }),
         )
-      : "That's all the approved purchase covers.";
-    if (typeof pic === "string") {
-      failed.push(target);
-      firstProblem ||= pic;
-      finished(storyId, target);
-    } else {
-      const rel = await savePicture(householdId, storyId, target === 0 ? "cover" : `page-${String(target).padStart(2, "0")}`, pic);
-      let replaced: string | null = null;
-      finished(storyId, target, (a) => {
-        replaced = target === 0 ? a.cover : (a.pages[target - 1] ?? null);
-        if (target === 0) return { ...a, cover: rel };
-        const pages = [...a.pages];
-        pages[target - 1] = rel;
-        return { ...a, pages };
-      });
-      // A redrawn picture replaces the old one.
-      if (replaced) await removeHouseholdFile(householdId, replaced).catch(() => undefined);
-      if (target === 0) {
-        cover = REFERENCE_TYPES.has(pic.mime) ? { data: pic.bytes, mime: pic.mime, label: "the book's cover" } : null;
-        if (!pic.standIn) await coverTheBook(householdId, story.bookId, pic);
-      }
+      : OVER_BUDGET;
+    if (isMissed(pic)) {
+      console.warn(`[art] ${storyId}: ${label} wasn't drawn: ${pic.problem}`);
+      return miss(storyId, missed, tried, target, pic);
+    }
+    missed.delete(target);
+    const rel = await savePicture(householdId, storyId, target === 0 ? "cover" : `page-${String(target).padStart(2, "0")}`, pic);
+    let replaced: string | null = null;
+    finished(storyId, target, (a) => {
+      replaced = target === 0 ? a.cover : (a.pages[target - 1] ?? null);
+      if (target === 0) return { ...a, cover: rel };
+      const pages = [...a.pages];
+      pages[target - 1] = rel;
+      return { ...a, pages };
+    });
+    // A redrawn picture replaces the old one.
+    if (replaced) await removeHouseholdFile(householdId, replaced).catch(() => undefined);
+    if (target === 0) {
+      cover = REFERENCE_TYPES.has(pic.mime) ? await smallReference({ data: pic.bytes, mime: pic.mime, label: "the book's cover" }) : null;
+      if (!pic.standIn) await coverTheBook(householdId, story.bookId, pic);
     }
     progress(storyId, `Drawing ${label}`, ++done, total);
   };
 
-  // The cover first, so every page can match its colors and style; then the pages, two at a time.
+  // The cover first, so every page can match its colors and style (tried again straight away if it didn't come);
+  // then the pages, two at a time, and once more for any that didn't come for a passing reason.
   const pages = targets.filter((t) => t !== 0);
-  if (targets.includes(0)) await drawOne(0);
+  if (targets.includes(0)) {
+    await drawOne(0);
+    await tryAgain(storyId, missed, tried, drawOne);
+  }
   await inTurns(pages.length, 2, (i) => drawOne(pages[i]));
+  await tryAgain(storyId, missed, tried, drawOne);
 
-  if (failed.length) {
-    const which = failed.sort((a, b) => a - b).map((t) => (t === 0 ? "the cover" : `page ${t}`));
+  if (missed.size) {
+    const failed = [...missed.keys()].sort((a, b) => a - b);
+    const which = failed.map((t) => (t === 0 ? "the cover" : `page ${t}`));
     const list = which.length > 1 ? `${which.slice(0, -1).join(", ")} and ${which.at(-1)}` : which[0];
-    throw new IllustratorError(`${list.charAt(0).toUpperCase()}${list.slice(1)} couldn't be drawn. ${firstProblem} You can try again below.`);
+    const why = [...missed.values()];
+    throw new MissedPictures(`${list.charAt(0).toUpperCase()}${list.slice(1)} couldn't be drawn. ${why[0].problem}${chargedFor(why)}`, {
+      kind: "drawing",
+      targets: failed,
+    });
   }
 }
 
@@ -378,12 +474,32 @@ async function coverTheBook(householdId: string, bookId: string, pic: Picture) {
   updateBook(householdId, bookId, { coverPath: rel });
 }
 
-/** A restart stops the illustrator mid-job: whatever it finished is kept, and the family can carry on. */
-export function settleLostArt(storyId: string) {
+/**
+ * A restart (an update to the app, say) stops the illustrator mid-job. What it finished is kept, and it carries
+ * on by itself: sketches and pictures on the purchase the family approved, within what's left of it, and the
+ * planning from the start. A job from before jobs were kept this way is settled, for the family to carry on.
+ */
+export function resumeLostArt(storyId: string) {
   const art = getStoryArt(storyId);
   if (!art || art.status === "idle" || busy.has(storyId)) return;
+  const job = art.job;
+  const left = job ? (job.targets ?? []).filter((t) => !job.finished.includes(t)) : [];
+  const resumed =
+    job?.kind === "planning"
+      ? startPlanning(storyId)
+      : job?.kind === "sketching" && job.purchaseId && job.characterId && job.total > job.finished.length
+        ? startSketches(storyId, job.characterId, job.purchaseId, job.total - job.finished.length)
+        : job?.kind === "drawing" && job.purchaseId && left.length
+          ? startDrawing(storyId, left, job.purchaseId, job.note)
+          : false;
+  if (resumed) return console.log(`[art] ${storyId}: carrying on with the ${job!.kind} after a restart`);
   changeStoryArt(
     storyId,
     (a) => a && { ...a, status: "idle", progress: null, job: null, error: "The illustrator was interrupted. Anything finished is kept: carry on when you're ready." },
   );
+}
+
+/** When the app starts, the illustrator carries on with whatever a restart stopped. */
+export function resumeLostArtSoon() {
+  setTimeout(() => storiesWithArtAtWork().forEach(resumeLostArt), 3_000).unref();
 }

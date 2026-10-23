@@ -2,7 +2,7 @@ import { apiCtx, HttpError, readJson, requireGrownup, route } from "@/lib/server
 import { deleteStory, getStory, updateStory } from "@/lib/server/db";
 import { removeDir, storyDir } from "@/lib/server/files";
 import { isRunning } from "@/lib/server/jobs";
-import { artBusy, settleLostArt } from "@/lib/server/art";
+import { artBusy, resumeLostArt } from "@/lib/server/art";
 import { pictureSpendForStory } from "@/lib/server/spending";
 import type { StoryScript } from "@/lib/shared/types";
 
@@ -21,7 +21,7 @@ export const GET = route(async (_req: Request, ctx: RouteContext<"/api/stories/[
     story = getStory(c.household.id, id)!;
   }
   if (story.art && story.art.status !== "idle" && !artBusy(id)) {
-    settleLostArt(id);
+    resumeLostArt(id);
     story = getStory(c.household.id, id)!;
   }
   return Response.json({ story, running: isRunning(id), pictureSpend: pictureSpendForStory(id) });

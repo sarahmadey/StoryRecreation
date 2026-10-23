@@ -214,9 +214,22 @@ export interface ArtJob {
   /** How many pictures it makes, and which are finished (sketch numbers, or the cover and page numbers). */
   total: number;
   finished: number[];
+  /** Pictures that didn't come the first time, waiting to be tried once more. */
+  retrying?: number[];
   startedAt: number;
   /** About how long it takes, in seconds. */
   seconds: number;
+  /** The approved purchase it's drawn on, so it can carry on by itself after a restart. */
+  purchaseId?: string;
+  /** Drawing: the family's note about what to change. */
+  note?: string;
+}
+
+/** What the illustrator's last problem was with, so it's shown there: the planning, a character's sketches, or the pictures not drawn. */
+export interface ArtProblem {
+  kind: ArtJob["kind"];
+  characterId?: string;
+  targets?: number[];
 }
 
 /** A picture book's pictures. Pictures are file URLs (paths, in the database); stand-ins are .svg. */
@@ -226,6 +239,8 @@ export interface StoryArt {
   status: "idle" | "planning" | "sketching" | "drawing";
   progress: StoryProgress | null;
   error: string | null;
+  /** What `error` is about. */
+  problem?: ArtProblem | null;
   characters: ArtCharacter[];
   coverScene: string;
   scenes: ArtScene[];

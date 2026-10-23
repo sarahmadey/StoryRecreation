@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { pageCtx } from "@/lib/server/auth";
 import { getBook, getStory, listPages } from "@/lib/server/db";
 import { appStatus } from "@/lib/server/config";
-import { artBusy, settleLostArt } from "@/lib/server/art";
+import { artBusy, resumeLostArt } from "@/lib/server/art";
 import { planCostGuess } from "@/lib/server/prices";
 import { pictureSpendForStory, writeCosts } from "@/lib/server/spending";
 import { Studio } from "./Studio";
@@ -13,7 +13,7 @@ export default async function StoryPage(props: PageProps<"/stories/[id]">) {
   let story = getStory(ctx.household.id, id);
   if (!story) notFound();
   if (story.art && story.art.status !== "idle" && !artBusy(id)) {
-    settleLostArt(id);
+    resumeLostArt(id);
     story = getStory(ctx.household.id, id)!;
   }
   const book = getBook(ctx.household.id, story.bookId)!;

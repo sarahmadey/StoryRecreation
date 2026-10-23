@@ -9,10 +9,12 @@ import type { ArtStyle } from "@/lib/shared/types";
 // stand-in pictures itself, for free, so the whole flow can be tried first.
 
 export class IllustratorError extends Error {
-  /** What the attempt still cost (Google charges for a reply that came back without a picture). */
   constructor(
     message: string,
+    /** What the attempt still cost (Google charges for a reply that came back without a picture). */
     public cost = 0,
+    /** Whether trying again might work: Google busy, a dropped connection, an empty reply (not a refused key or request). */
+    public retry = false,
   ) {
     super(message);
   }
@@ -89,23 +91,44 @@ export async function drawPicture(req: PictureRequest): Promise<Picture> {
     if (res && res.status !== 429 && res.status < 500) break;
     if (attempt === 0) await wait(4000);
   }
-  if (!res) throw new IllustratorError("The illustrator couldn't be reached. Please try again in a minute.");
+  if (!res) throw new IllustratorError("The illustrator couldn't be reached. Please try again in a minute.", 0, true);
 
   const data = (await res.json().catch(() => ({}))) as GeminiResponse;
-  if (!res.ok) throw new IllustratorError(errorMessage(res.status, data.error?.message));
+  if (!res.ok) throw new IllustratorError(errorMessage(res.status, data.error?.message), 0, res.status === 429 || res.status >= 500);
 
   const cost = pictureCost(config.pictureModel, data.usageMetadata ?? {});
   const picture = data.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
   if (!picture?.inlineData?.data) {
-    const blocked = data.promptFeedback?.blockReason || /SAFETY|PROHIBITED|BLOCK/.test(data.candidates?.[0]?.finishReason ?? "");
+    const finish = data.candidates?.[0]?.finishReason ?? "";
+    const blocked = data.promptFeedback?.blockReason || /SAFETY|PROHIBITED|BLOCK/.test(finish);
     throw new IllustratorError(
       blocked
         ? "The illustrator wouldn't draw this one. Try again with a note about what to draw."
         : "The illustrator came back without a picture. Please try again.",
       cost,
+      // A refused request is refused again; a picture that came out wrong may come out right next time.
+      !data.promptFeedback?.blockReason,
     );
   }
   return { bytes: Buffer.from(picture.inlineData.data, "base64"), mime: picture.inlineData.mimeType ?? "image/png", cost, standIn: false };
+}
+
+/**
+ * A reference picture, made small (at most 1024 pixels across, as a JPEG). It's plenty for the illustrator to keep a
+ * character the same, it goes quicker, and full-size pictures could add up past what Google takes in one request.
+ */
+export async function smallReference(ref: Reference): Promise<Reference> {
+  try {
+    const { default: sharp } = await import("sharp");
+    const data = await sharp(ref.data)
+      .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
+      .flatten({ background: "#fffaf0" })
+      .jpeg({ quality: 86 })
+      .toBuffer();
+    return { ...ref, data, mime: "image/jpeg" };
+  } catch {
+    return ref;
+  }
 }
 
 function errorMessage(status: number, detail: string | undefined): string {

@@ -35,8 +35,10 @@ function useOffers(story: Story, status: AppStatus, onStory: (s: Story) => void)
 /** The cover (0) or a page in a drawing job: being drawn now, waiting its turn, or not in it. */
 function drawingNow(job: ArtJob | null | undefined, target: number): "drawing" | "waiting" | null {
   if (job?.kind !== "drawing" || !job.targets?.includes(target) || job.finished.includes(target)) return null;
+  // One that didn't come the first time waits to be tried once more, after the rest.
+  if (job.retrying?.includes(target)) return "waiting";
   // The cover comes first, on its own; then the pages, two at a time, in order.
-  const left = job.targets.filter((t) => !job.finished.includes(t));
+  const left = job.targets.filter((t) => !job.finished.includes(t) && !job.retrying?.includes(t));
   if (left.includes(0)) return target === 0 ? "drawing" : "waiting";
   return left.indexOf(target) < 2 ? "drawing" : "waiting";
 }
@@ -49,6 +51,12 @@ const drawingWhat = (job: ArtJob, art: StoryArt) => {
   const redraw = Boolean(t === 0 ? art.cover : art.pages[t - 1]) && !job.finished.includes(t);
   return `${redraw ? "Redrawing" : "Drawing"} ${t === 0 ? "the cover" : `page ${t}`}`;
 };
+
+/** Every picture of the book drawn so far, for the viewer, starting from this one (0 is the cover). */
+function bookViewer(art: StoryArt, page: number): { items: ViewerItem[]; start: number } {
+  const all = [art.cover, ...art.pages].flatMap((src, i) => (src ? [{ src, caption: i === 0 ? "The cover" : `Page ${i} of ${art.pages.length}`, page: i }] : []));
+  return { items: all, start: Math.max(0, all.findIndex((x) => x.page === page)) };
+}
 
 const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
 
@@ -115,7 +123,10 @@ function workingNote(job: ArtJob, art: StoryArt): PillNote {
 
 /** That the illustrator has finished (or run into trouble), for the note, and where to see it. */
 function finishedNote(job: ArtJob, art: StoryArt): PillNote {
-  if (art.error) return { text: "⚠️ Something went wrong with the pictures. Take a look", target: "art-panel", done: true, problem: true };
+  if (art.error) {
+    const target = art.problem?.kind === "drawing" ? "art-book" : art.problem?.kind === "sketching" ? `art-char-${art.problem.characterId}` : "art-panel";
+    return { text: "⚠️ Something went wrong with the pictures. Take a look", target, done: true, problem: true };
+  }
   if (job.kind === "planning") return { text: "✓ The pictures are planned: meet the characters", target: "art-chars", done: true };
   if (job.kind === "sketching") {
     const name = art.characters.find((c) => c.id === job.characterId)?.name ?? "the character";
@@ -264,6 +275,8 @@ export function Pictures({
   const sketchSeconds = drawingSeconds(SKETCHES, false, status.illustrator);
   const bookSeconds = drawingSeconds(todo, !art.cover, status.illustrator);
   const pictureAt = (t: number) => (t === 0 ? art.cover : (art.pages[t - 1] ?? null));
+  // The pictures the last drawing job couldn't make.
+  const failedHere = art.error && art.problem?.kind === "drawing" ? (art.problem.targets ?? []) : [];
   // A redraw shows on its own picture; anything else being drawn shows here too.
   const redrawing = job?.kind === "drawing" && job.total === 1 && Boolean(pictureAt(job.targets?.[0] ?? 0));
   const drawingBook = job?.kind === "drawing" && !redrawing;
@@ -349,7 +362,7 @@ export function Pictures({
         </span>
       </div>
       {error && <p className="notice notice-error">{error}</p>}
-      {art.error && !working && <p className="notice notice-error">{art.error}</p>}
+      {art.error && !working && (!art.problem || art.problem.kind === "planning") && <p className="notice notice-error">{art.error}</p>}
 
       <section className="stack" id="art-chars" style={{ ["--gap" as string]: "12px" }}>
         <h3 style={{ margin: 0 }}>Meet the characters</h3>
@@ -416,6 +429,11 @@ export function Pictures({
                   note="You can leave this page; the sketches will be waiting."
                 />
               )}
+              {art.error && !working && art.problem?.kind === "sketching" && art.problem.characterId === c.id && (
+                <p className="notice notice-error small" style={{ margin: "10px 0 0" }}>
+                  {art.error}
+                </p>
+              )}
               {!sketching && c.sketches.length > 0 && (
                 <p className="small" style={{ margin: "6px 0 0" }}>
                   {c.chosen === null ? `Which one is ${c.name}? Tap a sketch to see it big, and choose.` : "Tap a sketch to see it big."}
@@ -481,8 +499,38 @@ export function Pictures({
           <PagePicture story={story} status={status} page={0} onStory={onStory} />
           <div className="stack" style={{ ["--gap" as string]: "8px" }}>
             <div className="small">
-              {drawn === 0 ? `A cover and ${art.pages.length} pages to draw.` : `${drawn} of ${bookPictures(art.pages.length)} pictures drawn.`}
+              {drawn === 0 && !drawingBook ? `A cover and ${art.pages.length} pages to draw.` : `${drawn} of ${bookPictures(art.pages.length)} pictures drawn.`}
             </div>
+            {(drawn > 0 || drawingBook || failedHere.length > 0) && (
+              <>
+                <div className="book-strip" role="list" aria-label="The book's pictures">
+                  {[art.cover, ...art.pages].map((url, page) => {
+                    const now = drawingNow(job, page);
+                    const failed = !now && !working && failedHere.includes(page);
+                    const name = page === 0 ? "The cover" : `Page ${page}`;
+                    const state = now === "drawing" ? "being drawn" : now === "waiting" ? "waiting its turn" : failed ? "couldn't be drawn" : url ? "see it big" : "to be drawn";
+                    return (
+                      <button
+                        key={page}
+                        type="button"
+                        role="listitem"
+                        className={`book-thumb ${url ? "drawn" : ""} ${now === "drawing" ? "working" : ""} ${failed ? "failed" : ""}`}
+                        onClick={() => (url ? setViewing(bookViewer(art, page)) : scrollTo(`art-page-${page}`))}
+                        aria-label={`${name}: ${state}`}
+                      >
+                        <span className="book-thumb-pic">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          {url && <img src={url} alt="" loading="lazy" />}
+                          {(now || failed) && <span className="book-thumb-mark">{now === "drawing" ? <Spinner /> : now === "waiting" ? "⏳" : "⚠️"}</span>}
+                        </span>
+                        <span className="book-thumb-label">{page === 0 ? "Cover" : `Page ${page}`}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {drawn > 0 && <p className="small muted" style={{ margin: 0 }}>Tap one to see it big. Each page&apos;s picture is also beside its words, below.</p>}
+              </>
+            )}
             {drawn === 0 && !drawingBook && (
               <div>
                 <span className="small muted">Style: </span>
@@ -504,6 +552,7 @@ export function Pictures({
                 note={`${job.total > 1 && job.targets?.includes(0) ? "The cover first, so the pages can match it, then two pages at a time. " : ""}You can leave this page; the pictures will be waiting.`}
               />
             )}
+            {art.error && !working && art.problem?.kind === "drawing" && <p className="notice notice-error small" style={{ margin: 0 }}>{art.error}</p>}
             {todo > 0 && (
               <div>
                 <button className="btn" onClick={drawBook} disabled={busy || working || (unchosen.length > 0 && !skipSketches)}>
@@ -532,7 +581,7 @@ export function Pictures({
                 </button>
               </p>
             )}
-            {todo === 0 && <p className="small muted" style={{ margin: 0 }}>Every picture is drawn. Tap one to see it big, or ↻ beside a page to redraw it.</p>}
+            {todo === 0 && <p className="small muted" style={{ margin: 0 }}>Every picture is drawn. To redraw one, tap ↻ beside it.</p>}
             <p className="small purchase-terms" style={{ margin: 0 }}>
               {status.illustrator
                 ? `Pictures for this story so far: ${formatMoney(spent, "nothing yet")}.`
@@ -569,11 +618,9 @@ export function PagePicture({ story, status, page, onStory }: { story: Story; st
   const single = Boolean(job && job.total === 1);
   const clock = useNow(Boolean(now) && single, job?.startedAt ?? 0);
 
-  /** Every picture drawn so far, big, starting from this one. */
-  const view = () => {
-    const all = [art.cover, ...art.pages].flatMap((src, i) => (src ? [{ src, caption: i === 0 ? "The cover" : `Page ${i} of ${art.pages.length}`, page: i }] : []));
-    setViewing({ items: all, start: Math.max(0, all.findIndex((x) => x.page === page)) });
-  };
+  const view = () => setViewing(bookViewer(art, page));
+  // The last drawing job couldn't make this one: why, here too (all of it when it's about just this picture).
+  const problem = !working && art.error && art.problem?.kind === "drawing" && art.problem.targets?.includes(page) ? art.problem : null;
 
   return (
     <div className={`script-pic page-picture ${cover ? "art-cover" : ""}`} id={`art-page-${page}`}>
@@ -610,9 +657,14 @@ export function PagePicture({ story, status, page, onStory }: { story: Story; st
           {now === "drawing" && single && job && <span className="faint">{timeLeft(job.startedAt, job.seconds, clock)}</span>}
         </div>
       )}
-      {url && !asking && !now && (
+      {problem && (
+        <p className="small picture-problem">
+          ⚠️ {problem.targets?.length === 1 ? art.error : `This picture couldn't be drawn this time. Why, and the button to try again, are under “The book” above.`}
+        </p>
+      )}
+      {(url || problem) && !asking && !now && (
         <button type="button" className="btn btn-quiet btn-sm" onClick={() => setAsking(true)} disabled={working}>
-          ↻ Redraw
+          {url ? "↻ Redraw" : "✏️ Try it with a note"}
         </button>
       )}
       {asking && (
@@ -623,14 +675,17 @@ export function PagePicture({ story, status, page, onStory }: { story: Story; st
               type="button"
               className="btn btn-sm"
               onClick={() =>
-                offerPictures(cover ? "Redraw the cover" : `Redraw page ${page}`, 1, drawingSeconds(1, cover, status.illustrator), `/api/stories/${story.id}/art/draw`, {
-                  pages: [page],
-                  note,
-                })
+                offerPictures(
+                  `${url ? "Redraw" : "Draw"} ${cover ? "the cover" : `page ${page}`}`,
+                  1,
+                  drawingSeconds(1, cover, status.illustrator),
+                  `/api/stories/${story.id}/art/draw`,
+                  { pages: [page], note },
+                )
               }
               disabled={working}
             >
-              ↻ Redraw · {status.illustrator ? formatMoney(status.picturePrice) : "free"}
+              {url ? "↻ Redraw" : "🎨 Draw it"} · {status.illustrator ? formatMoney(status.picturePrice) : "free"}
             </button>
             <button type="button" className="btn btn-quiet btn-sm" onClick={() => setAsking(false)}>
               Cancel

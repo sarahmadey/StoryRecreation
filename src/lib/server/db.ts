@@ -678,6 +678,11 @@ export function getStoryArt(id: string): StoryArt | null {
   return json<StoryArt>(r?.art);
 }
 
+/** Stories whose illustrator was at work, by what the database says (after a restart, nothing is). */
+export function storiesWithArtAtWork(): string[] {
+  return (db().prepare("SELECT id FROM stories WHERE art IS NOT NULL AND json_extract(art, '$.status') != 'idle'").all() as Row[]).map((r) => r.id as string);
+}
+
 /**
  * Change a picture book's pictures. Read and written in one step, so the
  * illustrator and the family's own changes never undo each other.

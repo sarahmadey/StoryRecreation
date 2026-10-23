@@ -7,6 +7,7 @@ import { Avatar, ReaderEditor } from "@/components/Readers";
 import { VoiceDesigner } from "@/components/VoiceDesigner";
 import { FamilyVoices } from "@/components/FamilyVoices";
 import { BackupsPanel } from "@/components/BackupsPanel";
+import { DownloadEverything } from "@/components/DownloadEverything";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { CreditMeter, useCredits } from "@/components/Credits";
 import { forgetOffline } from "@/components/Offline";
@@ -41,6 +42,7 @@ export function GrownupsView({
   familyName,
   email,
   unlocked,
+  unlockedUntil,
   pinSet,
   profiles,
   designed,
@@ -55,6 +57,8 @@ export function GrownupsView({
   familyName: string;
   email: string;
   unlocked: boolean;
+  /** Until when the PIN entered on this device is good for (null when there's no PIN). */
+  unlockedUntil: number | null;
   pinSet: boolean;
   profiles: Profile[];
   designed: { voiceId: string; name: string; description: string }[];
@@ -403,12 +407,7 @@ export function GrownupsView({
                 backup.bytes < 1024 * 1024 ? "under 1 MB" : `about ${Math.round(backup.bytes / (1024 * 1024))} MB`,
               ].join(" · ")}
             </p>
-            <div>
-              <a className="btn btn-sm" href="/api/export" download>
-                ⬇ Download everything
-              </a>
-            </div>
-            <p className="hint" style={{ margin: 0 }}>On an iPhone or iPad, it lands in the Files app, under Downloads.</p>
+            <DownloadEverything bytes={backup.bytes} unlockedUntil={unlockedUntil} />
           </div>
         )}
       </Fold>

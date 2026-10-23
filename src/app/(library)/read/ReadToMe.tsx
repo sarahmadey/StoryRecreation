@@ -9,8 +9,10 @@ import { Steps, toTop } from "@/components/Steps";
 import { CreditNote, CreditsLeft, useCredits } from "@/components/Credits";
 import { VoicePicker, useVoices } from "@/components/Pickers";
 import { pickPhotos } from "@/lib/client/images";
+import { sendTrouble, sentWords, upload } from "@/lib/client/upload";
+import { WaitLine } from "@/components/Waiting";
 import { DEFAULT_NARRATOR_ID } from "@/lib/shared/personas";
-import { defaultSettings } from "@/lib/shared/options";
+import { defaultSettings, readingWordsSeconds } from "@/lib/shared/options";
 import { gutenbergCover } from "@/lib/shared/gutenberg";
 import type { AppStatus, Book } from "@/lib/shared/types";
 import type { CataloguePage, Classic, Refinement, TOPICS } from "@/lib/server/classics";
@@ -152,7 +154,8 @@ export function ReadToMe({
   // own words
   const [wordsTitle, setWordsTitle] = useState("");
   const [words, setWords] = useState("");
-  const [reading, setReading] = useState(false);
+  // Words from a photo: developing it, sending it, then the storyteller reading it (about how long that takes, when it's known).
+  const [reading, setReading] = useState<{ what: string; startedAt: number; seconds: number } | null>(null);
   const [readNote, setReadNote] = useState<{ ok: boolean; text: string } | null>(null);
   const picturesInput = useRef<HTMLInputElement>(null);
 
@@ -432,16 +435,26 @@ export function ReadToMe({
   /** The words in a photo or screenshot, copied into the box (after anything already there) to check. */
   const readPictures = async (files: FileList | null) => {
     if (!files?.length) return;
-    setReading(true);
+    const step = (what: string, seconds = 0) => setReading({ what, startedAt: Date.now(), seconds });
+    step("Developing the photo");
     setReadNote(null);
     try {
-      const { photos, extra } = await pickPhotos(files, 6);
+      const { photos, extra } = await pickPhotos(files, 6, (done, total) => step(total > 1 ? `Developing photo ${done + 1} of ${total}` : "Developing the photo"));
       const form = new FormData();
       photos.forEach((p) => {
         form.append("pictures", p.file, p.file.name);
         URL.revokeObjectURL(p.url);
       });
-      const res = await api.form<{ title: string | null; text: string }>("/api/words", form);
+      const sending = photos.length > 1 ? "Sending the photos" : "Sending the photo";
+      step(sending);
+      let sent = false;
+      const res = await upload<{ title: string | null; text: string }>(api, "/api/words", form, (n, of) => {
+        if (n < of) step(sentWords(sending, n, of));
+        else if (!sent) {
+          sent = true;
+          step("Reading the words", status.storyteller ? readingWordsSeconds(photos.length) : 0);
+        }
+      });
       if (!res.text) {
         setReadNote({ ok: false, text: "No words could be found in that picture. A closer, brighter photo usually helps." });
         return;
@@ -453,9 +466,9 @@ export function ReadToMe({
         text: `Here are the words${extra ? ` from the first ${photos.length} pictures` : ""}. Give them a quick read, and fix anything the picture made hard to make out.`,
       });
     } catch (err) {
-      setReadNote({ ok: false, text: err instanceof Error ? err.message : "That picture couldn't be read." });
+      setReadNote({ ok: false, text: sendTrouble(err, "That picture couldn't be read.") });
     } finally {
-      setReading(false);
+      setReading(null);
     }
   };
 
@@ -801,13 +814,19 @@ export function ReadToMe({
                     e.target.value = "";
                   }}
                 />
-                <button type="button" className="btn btn-ghost" onClick={() => picturesInput.current?.click()} disabled={reading}>
-                  {reading ? "✨ Reading the words…" : "📷 Add a photo or screenshot"}
-                </button>
-                <span className="hint">
-                  The words in it are copied out below for you to check
-                  {storytellerReady ? ` (about ${formatMoney(storytellerCost(status.storytellerRates, 2_500, 1_500))} of storyteller time a picture)` : ""}.
-                </span>
+                {reading ? (
+                  <WaitLine what={reading.what} done={0} total={1} startedAt={reading.startedAt} seconds={reading.seconds} />
+                ) : (
+                  <>
+                    <button type="button" className="btn btn-ghost" onClick={() => picturesInput.current?.click()}>
+                      📷 Add a photo or screenshot
+                    </button>
+                    <span className="hint">
+                      The words in it are copied out below for you to check
+                      {storytellerReady ? ` (about ${formatMoney(storytellerCost(status.storytellerRates, 2_500, 1_500))} of storyteller time a picture)` : ""}.
+                    </span>
+                  </>
+                )}
               </div>
               {readNote && <p className={`notice small ${readNote.ok ? "" : "notice-error"}`} style={{ margin: 0 }}>{readNote.text}</p>}
               <label className="field">

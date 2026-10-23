@@ -7,6 +7,7 @@ import { PurchaseDialog, type PurchaseOffer } from "@/components/Purchase";
 import { PictureViewer, type ViewerItem } from "@/components/PictureViewer";
 import { Spinner, WaitLine, WaitPill, useNow } from "@/components/Waiting";
 import { shrinkImage } from "@/lib/client/images";
+import { sendTrouble, sentWords, upload } from "@/lib/client/upload";
 import { StylePicker, bookEstimate } from "@/components/PictureBook";
 import { ART_STYLES, DEFAULT_ART_STYLE, SKETCHES, bookPictures, drawingSeconds, formatMoney, isStandIn, planningSeconds } from "@/lib/shared/art";
 import { aboutTime, timeLeft } from "@/lib/shared/options";
@@ -167,8 +168,8 @@ export function Pictures({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [viewing, setViewing] = useState<{ items: ViewerItem[]; start: number } | null>(null);
-  // A child's drawing on its way up: it's shrunk on the phone first, which can take a moment.
-  const [adding, setAdding] = useState<string | null>(null);
+  // A child's drawing on its way up: shrunk on the phone first, then sent (how far it's got, in words).
+  const [adding, setAdding] = useState<{ id: string; words: string } | null>(null);
   const { offerPictures, dialog } = useOffers(story, status, onStory);
   const each = status.picturePrice;
   const pages = story.script?.pages.length ?? 0;
@@ -330,12 +331,16 @@ export function Pictures({
   const addDrawing = (c: ArtCharacter, file: File | undefined) =>
     run(async () => {
       if (!file) return;
-      setAdding(c.id);
+      setAdding({ id: c.id, words: "Getting the photo ready…" });
       try {
         const form = new FormData();
         form.set("characterId", c.id);
         form.set("picture", await shrinkImage(file));
-        onStory((await api.form<{ story: Story }>(`/api/stories/${story.id}/art/drawing`, form)).story);
+        const sent = (n: number, of: number) => setAdding({ id: c.id, words: n < of ? `${sentWords("Sending the drawing", n, of)}…` : "Adding the drawing…" });
+        sent(0, 1);
+        onStory((await upload<{ story: Story }>(api, `/api/stories/${story.id}/art/drawing`, form, sent)).story);
+      } catch (err) {
+        throw new Error(sendTrouble(err, "The drawing couldn't be added."));
       } finally {
         setAdding(null);
       }
@@ -457,9 +462,9 @@ export function Pictures({
                   )}
                 </button>
                 <label className={`btn btn-ghost btn-sm ${busy || working ? "disabled" : ""}`}>
-                  {adding === c.id ? (
+                  {adding?.id === c.id ? (
                     <>
-                      <Spinner /> Adding the drawing…
+                      <Spinner /> {adding.words}
                     </>
                   ) : (
                     <>📷 {c.drawing ? "A different drawing" : "Use our own drawing"}</>

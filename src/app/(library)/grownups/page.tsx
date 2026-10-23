@@ -17,6 +17,7 @@ export default async function GrownupsPage() {
         familyName={ctx.household.name}
         email={ctx.household.email}
         unlocked={ctx.grownup}
+        unlockedUntil={ctx.household.pin_hash ? ctx.session.grownup_until : null}
         pinSet={Boolean(ctx.household.pin_hash)}
         profiles={listProfiles(ctx.household.id)}
         designed={listDesignedVoices(ctx.household.id)}

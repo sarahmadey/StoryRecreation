@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useApi } from "./Grownup";
+import { WaitLine } from "./Waiting";
 import { previewVoice } from "@/lib/client/sound";
+import { DESIGN_VOICES_SECONDS, KEEP_VOICE_SECONDS } from "@/lib/shared/options";
 
 /**
  * Conjure a brand-new voice from a description using ElevenLabs Voice
@@ -25,7 +27,8 @@ export function VoiceDesigner({
   const [description, setDescription] = useState(initialDescription);
   const [previews, setPreviews] = useState<{ generatedVoiceId: string; audio: string }[] | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  // What the workshop is doing, since when, and about how long it takes.
+  const [busy, setBusy] = useState<{ what: string; startedAt: number; seconds: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The three voices, and then the button to keep one, appear further down: bring them into view.
   const previewsRef = useRef<HTMLDivElement>(null);
@@ -38,7 +41,7 @@ export function VoiceDesigner({
   }, [chosen]);
 
   const conjure = async () => {
-    setBusy("Conjuring three voices…");
+    setBusy({ what: "Conjuring three voices", startedAt: Date.now(), seconds: DESIGN_VOICES_SECONDS });
     setError(null);
     setChosen(null);
     try {
@@ -53,7 +56,7 @@ export function VoiceDesigner({
 
   const save = async () => {
     if (!chosen) return;
-    setBusy("Sewing it into the wardrobe…");
+    setBusy({ what: "Sewing it into the wardrobe", startedAt: Date.now(), seconds: KEEP_VOICE_SECONDS });
     setError(null);
     try {
       const { voiceId } = await api.post<{ voiceId: string }>("/api/voices/design/save", {
@@ -99,11 +102,15 @@ export function VoiceDesigner({
             ElevenLabs credit.
           </div>
         </label>
-        <div className="center">
-          <button className="btn" onClick={conjure} disabled={Boolean(busy) || description.trim().length < 20}>
-            {busy && !previews ? busy : previews ? "Try three more" : "Conjure three voices"}
-          </button>
-        </div>
+        {busy && !chosen ? (
+          <WaitLine what={busy.what} done={0} total={1} startedAt={busy.startedAt} seconds={busy.seconds} />
+        ) : (
+          <div className="center">
+            <button className="btn" onClick={conjure} disabled={Boolean(busy) || description.trim().length < 20}>
+              {previews ? "Try three more" : "Conjure three voices"}
+            </button>
+          </div>
+        )}
         {previews && (
           <div className="voice-grid" role="radiogroup" aria-label="Choose a voice" ref={previewsRef}>
             {previews.map((p, i) => (
@@ -126,13 +133,16 @@ export function VoiceDesigner({
           </div>
         )}
         {error && <p className="notice notice-error">{error}</p>}
-        {chosen && (
-          <div className="center" ref={keepRef}>
-            <button className="btn btn-velvet" onClick={save} disabled={Boolean(busy)}>
-              {busy ?? "Keep this voice"}
-            </button>
-          </div>
-        )}
+        {chosen &&
+          (busy ? (
+            <WaitLine what={busy.what} done={0} total={1} startedAt={busy.startedAt} seconds={busy.seconds} />
+          ) : (
+            <div className="center" ref={keepRef}>
+              <button className="btn btn-velvet" onClick={save}>
+                Keep this voice
+              </button>
+            </div>
+          ))}
       </div>
     </div>
   );

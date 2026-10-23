@@ -8,7 +8,8 @@ import { Mp3Encoder } from "@breezystack/lamejs";
 const RATE = 44100;
 const MAX_MS = 20 * 60 * 1000;
 
-export async function prepareRecording(blob: Blob, name = "recording"): Promise<{ file: File; durationMs: number }> {
+/** `onProgress` hears how much of it is ready (opening it is quick; making the MP3 is most of the wait). */
+export async function prepareRecording(blob: Blob, name = "recording", onProgress?: (fraction: number) => void): Promise<{ file: File; durationMs: number }> {
   let decoded: AudioBuffer;
   try {
     decoded = await new OfflineAudioContext(1, 1, RATE).decodeAudioData(await blob.arrayBuffer());
@@ -50,7 +51,10 @@ export async function prepareRecording(blob: Blob, name = "recording"): Promise<
   for (let i = 0; i < pcm.length; i += block) {
     const buf = encoder.encodeBuffer(pcm.subarray(i, i + block));
     if (buf.length) parts.push(new Uint8Array(buf));
-    if (i % (block * 64) === 0) await new Promise((r) => setTimeout(r)); // keep the page responsive
+    if (i % (block * 64) === 0) {
+      onProgress?.(i / pcm.length);
+      await new Promise((r) => setTimeout(r)); // keep the page responsive
+    }
   }
   const tail = encoder.flush();
   if (tail.length) parts.push(new Uint8Array(tail));

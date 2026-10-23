@@ -699,3 +699,45 @@ test("the voice credit left this month is read from ElevenLabs, and asked for at
   assert.equal(asks().length, before + 1, "the second look is answered here");
   assert.equal(asks()[0].headers["xi-api-key"], "test-eleven");
 });
+
+test("recording counts only what isn't made yet: switching sound effects on keeps the voices", async () => {
+  const db = await import("@/lib/server/db");
+  const { startRecording, isRunning } = await import("@/lib/server/jobs");
+  const { defaultSettings } = await import("@/lib/shared/options");
+  const hh = db.createHousehold("The Wren Family", "wren@example.com", "x");
+  const book = db.createBook(hh, { title: "The Little Door", kind: "idea" });
+  const script = {
+    title: "The Little Door",
+    synopsis: "",
+    ambience: "",
+    cast: [{ id: "narrator", name: "Narrator", description: "", voiceBrief: "", voiceId: PERSONA_VOICE }],
+    pages: [
+      { page: 1, picture: "", lines: [{ speaker: "narrator", text: "Mia tiptoed down the long hall, past the sleeping cat and the ticking clock, all the way to the end." }, { speaker: "narrator", text: "Then the little door creaked open, and a warm light spilled out across her slippers." }] },
+      { page: 2, picture: "", lines: [{ speaker: "narrator", text: "An owl sat on a lamp inside. It said hoo, very politely, and Mia laughed so hard she had to sit down." }] },
+    ],
+  };
+  const settings = { ...defaultSettings({}), intro: false, effects: false, ambience: false };
+  const id = db.createStory(hh, { bookId: book, profileId: null, mode: "create", title: "The Little Door", settings, status: "draft" });
+  db.updateStory(id, { script });
+  const finished = async () => {
+    for (let i = 0; i < 400 && isRunning(id); i++) await new Promise((r) => setTimeout(r, 25));
+    return db.getStoryById(id)!;
+  };
+  const estimate = () => db.getStoryById(id)!.progress?.seconds;
+
+  startRecording(id);
+  const fresh = estimate()!;
+  assert.ok(fresh > 10, "every voice still to make");
+  assert.equal((await finished()).status, "ready");
+
+  soundJson = JSON.stringify({ effects: [{ page: 1, line: 1, word: "creaked", sound: "a small wooden door creaks open", seconds: 2 }] });
+  db.updateStory(id, { settings: { ...settings, effects: true } });
+  startRecording(id);
+  assert.equal(estimate(), 10 + 25, "the voices are kept: just choosing and making the sounds, and binding it together");
+  assert.equal((await finished()).status, "ready");
+  assert.equal(db.getStoryById(id)!.script!.effects!.length, 1);
+
+  startRecording(id);
+  assert.equal(estimate(), 10, "everything made already: only binding it together");
+  await finished();
+});

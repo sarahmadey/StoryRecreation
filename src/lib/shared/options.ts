@@ -158,6 +158,18 @@ export function aboutTime(seconds: number): string {
   return `about ${Math.round(seconds / 60)} minutes`;
 }
 
+// How long the slower things usually take, for the waits that say so.
+
+/** The storyteller copying out the words in a few photos. */
+export const readingWordsSeconds = (pictures: number) => 10 + 6 * pictures;
+/** ElevenLabs conjuring three voices from a description, and keeping the one chosen. */
+export const DESIGN_VOICES_SECONDS = 20;
+export const KEEP_VOICE_SECONDS = 5;
+/** ElevenLabs learning a voice from `ms` of recordings: cleaning up background noise takes longer. */
+export const familyVoiceSeconds = (ms: number, cleanNoise: boolean) => Math.round((10 + (ms / 60_000) * 4) * (cleanNoise ? 1.6 : 1));
+/** Binding a story `seconds` long together again with new sounds (its voices are kept). */
+export const rebindSeconds = (seconds: number | null) => Math.round(3 + (seconds ?? 300) / 40);
+
 /** How a wait is going, in words: what's left, or that it's taking longer than usual. */
 export function timeLeft(startedAt: number, seconds: number, now: number): string {
   const elapsed = Math.max(0, (now - startedAt) / 1000);

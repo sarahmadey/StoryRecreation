@@ -206,7 +206,7 @@ export function applyPhotoOrder(householdId: string, bookId: string, sent: PageR
 export function startRecording(storyId: string) {
   const story = getStoryById(storyId);
   const step = story?.audioUrl ? "Opening the recordings" : "Warming up the voices";
-  const seconds = story?.script ? recordingSeconds(story.script, story.settings) : 60;
+  const seconds = story?.script ? recordingSeconds(story.script, story.settings, storyDir(story.householdId, storyId)) : 60;
   updateStory(storyId, { status: "recording", error: null, progress: { step, done: 0, total: 1, startedAt: Date.now(), seconds } });
   launch("record", storyId, () => recordStory(storyId));
 }
@@ -214,12 +214,18 @@ export function startRecording(storyId: string) {
 /**
  * About how long the voices take to record a story: by how long it is to listen to (the voices are made two pages
  * at a time, a few times faster than they're heard), with a little for the welcome, sounds and binding it together.
+ * Only what isn't made yet counts: switching sound effects on keeps the voices, so it's just the new sounds.
  */
-function recordingSeconds(script: StoryScript, s: StorySettings): number {
+function recordingSeconds(script: StoryScript, s: StorySettings, dir: string): number {
   if (!config.elevenLabsKey && config.demoMode) return 5;
-  const chars = script.pages.reduce((n, p) => n + p.lines.reduce((m, l) => m + stripTags(l.text).length, 0), 0);
+  const toVoice = script.pages.filter((p) => !isRecorded(dir, pageClip(p.page), p.lines, script));
+  const chars = toVoice.reduce((n, p) => n + p.lines.reduce((m, l) => m + stripTags(l.text).length, 0), 0);
   const listening = chars / 15;
-  return Math.round(10 + listening * 0.15 + (s.intro ? 6 : 0) + (s.ambience ? 8 : 0) + (s.effects ? 15 : 0));
+  const welcome = s.intro && !fs.existsSync(path.join(dir, "intro-a.json")) ? 6 : 0;
+  const soundscape = s.ambience && script.ambience && !fs.existsSync(ambienceFile(dir, script.ambience)) ? 8 : 0;
+  // Choosing the sound effects (the first time) is a quick word with the storyteller; then a few seconds for each one made.
+  const effects = !s.effects ? 0 : script.effects ? 4 * script.effects.filter((cue) => !fs.existsSync(effectFile(dir, cue))).length : 25;
+  return Math.round(10 + listening * 0.15 + welcome + soundscape + effects);
 }
 
 function introLines(
@@ -264,10 +270,26 @@ interface CachedClip {
   words: Clip["words"];
 }
 
+const pageClip = (page: number) => `page-${String(page).padStart(3, "0")}`;
+
+/** What a set of lines sounds like: the words, who says them, and the voice model. Recorded again only when it changes. */
+function performanceHash(lines: ScriptLine[], script: StoryScript): string {
+  const voices = Object.fromEntries(script.cast.map((c) => [c.id, c.voiceId]));
+  return hashOf({ lines, voices: lines.map((l) => voices[l.speaker]), model: config.voiceModel, demo: !config.elevenLabsKey });
+}
+
+/** Whether a set of lines is recorded already, unchanged. */
+function isRecorded(dir: string, name: string, lines: ScriptLine[], script: StoryScript): boolean {
+  try {
+    return (JSON.parse(fs.readFileSync(path.join(dir, `${name}.json`), "utf8")) as CachedClip).hash === performanceHash(lines, script);
+  } catch {
+    return false;
+  }
+}
+
 /** Record a set of lines, reusing the saved audio if nothing changed. */
 async function cachedPerformance(dir: string, name: string, lines: ScriptLine[], script: StoryScript): Promise<Clip> {
-  const voices = Object.fromEntries(script.cast.map((c) => [c.id, c.voiceId]));
-  const hash = hashOf({ lines, voices: lines.map((l) => voices[l.speaker]), model: config.voiceModel, demo: !config.elevenLabsKey });
+  const hash = performanceHash(lines, script);
   const pcmPath = path.join(dir, `${name}.pcm`);
   const metaPath = path.join(dir, `${name}.json`);
   try {
@@ -313,7 +335,7 @@ async function recordStory(storyId: string) {
       const i = next++;
       const p = script.pages[i];
       tick(`Recording page ${p.page} of ${script.pages.length}`);
-      pages[i] = { page: p.page, clip: await cachedPerformance(dir, `page-${String(p.page).padStart(3, "0")}`, p.lines, script) };
+      pages[i] = { page: p.page, clip: await cachedPerformance(dir, pageClip(p.page), p.lines, script) };
     }
   };
   await Promise.all([worker(), worker()]);
@@ -347,9 +369,10 @@ async function recordStory(storyId: string) {
   }
 }
 
+const ambienceFile = (dir: string, description: string) => path.join(dir, `ambience-${hashOf({ description, demo: !config.elevenLabsKey })}.pcm`);
+
 async function cachedAmbience(dir: string, description: string): Promise<Float32Array | null> {
-  const hash = hashOf({ description, demo: !config.elevenLabsKey });
-  const pcmPath = path.join(dir, `ambience-${hash}.pcm`);
+  const pcmPath = ambienceFile(dir, description);
   try {
     return pcm16ToFloat(await fs.promises.readFile(pcmPath));
   } catch {
@@ -462,7 +485,7 @@ export async function remixStory(storyId: string): Promise<boolean> {
   };
   const pages: { page: number; clip: Clip }[] = [];
   for (const p of story.script.pages) {
-    const clip = await load(`page-${String(p.page).padStart(3, "0")}`);
+    const clip = await load(pageClip(p.page));
     if (!clip) return false;
     pages.push({ page: p.page, clip });
   }

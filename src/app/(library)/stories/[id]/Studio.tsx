@@ -10,7 +10,8 @@ import { CreditNote } from "@/components/Credits";
 import { ChimePicker, SoundsPicker, VoicePicker, VoiceSelect, soundsOf, useVoices, type SoundsChoice } from "@/components/Pickers";
 import { VoiceDesigner } from "@/components/VoiceDesigner";
 import { imageForPage } from "@/lib/shared/pages";
-import { formatDuration } from "@/lib/shared/options";
+import { formatDuration, rebindSeconds } from "@/lib/shared/options";
+import { WaitLine } from "@/components/Waiting";
 import { formatMoney } from "@/lib/shared/art";
 import { PagePicture, Pictures } from "./Pictures";
 import type { AppStatus, Book, BookPage, ChimeSettings, Story, StoryScript, VoiceOption } from "@/lib/shared/types";
@@ -44,6 +45,8 @@ export function Studio({
   const [editing, setEditing] = useState(initial.status === "draft");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // New sounds being bound into the story: since when, and about how long it takes.
+  const [rebinding, setRebinding] = useState<{ startedAt: number; seconds: number } | null>(null);
   const [designing, setDesigning] = useState<{ castId: string } | null>(null);
   const [newNarrator, setNewNarrator] = useState<string | null>(null);
   const [chime, setChime] = useState<ChimeSettings>(initial.settings.chime);
@@ -150,12 +153,17 @@ export function Studio({
 
   const remix = () =>
     run(async () => {
-      const res = await api.post<{ story: Story }>(`/api/stories/${story.id}/remix`, {
-        chime,
-        effects: sounds === "effects",
-        ambience: sounds === "soundscape",
-      });
-      setStory(res.story);
+      setRebinding({ startedAt: Date.now(), seconds: rebindSeconds(story.duration) });
+      try {
+        const res = await api.post<{ story: Story }>(`/api/stories/${story.id}/remix`, {
+          chime,
+          effects: sounds === "effects",
+          ambience: sounds === "soundscape",
+        });
+        setStory(res.story);
+      } finally {
+        setRebinding(null);
+      }
     });
 
   // A new storyteller reads the same words: the story is recorded again in their voice.
@@ -202,6 +210,8 @@ export function Studio({
     );
   }
   if (story.status === "recording") {
+    // About how long it takes is shown above the note when it's known (it can be much less than a minute or two).
+    const howLong = story.progress?.startedAt && story.progress.seconds ? "" : "This takes a minute or two.";
     return (
       <div className="stack" style={{ ["--gap" as string]: "22px" }}>
         <Brewing
@@ -209,8 +219,8 @@ export function Studio({
           progress={story.progress}
           note={
             story.audioUrl
-              ? "This takes a minute or two. You can leave this page; the story will be waiting on the shelf."
-              : "Each character is stepping up to the microphone. This takes a minute or two."
+              ? `${howLong} You can leave this page; the story will be waiting on the shelf.`.trim()
+              : `Each character is stepping up to the microphone. ${howLong}`.trim()
           }
         />
         {pictures}
@@ -290,9 +300,13 @@ export function Studio({
             </details>
             {soundsChanged && (
               <div className="center stack" style={{ ["--gap" as string]: "8px" }}>
-                <button className="btn btn-sm" onClick={remix} disabled={busy}>
-                  {busy ? "Re-binding…" : "Save the new sounds"}
-                </button>
+                {rebinding ? (
+                  <WaitLine what="Binding the story together with its new sounds" done={0} total={1} startedAt={rebinding.startedAt} seconds={rebinding.seconds} />
+                ) : (
+                  <button className="btn btn-sm" onClick={remix} disabled={busy}>
+                    Save the new sounds
+                  </button>
+                )}
                 <p className="small" style={{ margin: 0, color: "var(--ink-soft)" }}>
                   The voices aren&apos;t re-recorded.
                   {sounds === "effects" && !story.settings.effects ? " New sound effects use a little ElevenLabs credit." : ""}

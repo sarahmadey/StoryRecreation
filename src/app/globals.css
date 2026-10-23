@@ -3541,6 +3541,7 @@ label.btn.disabled {
   display: flex;
   gap: 10px;
   align-items: flex-start;
+  text-align: left;
   margin-top: 10px;
   padding: 10px 12px;
   border-radius: 12px;

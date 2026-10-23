@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
+import { Spinner, WaitLine } from "@/components/Waiting";
 import { clock, prepareRecording } from "@/lib/client/audio";
+import { keepAwake, sendTrouble, sentWords, upload } from "@/lib/client/upload";
+import { familyVoiceSeconds } from "@/lib/shared/options";
 import type { FamilyVoice, Keepsake } from "@/lib/shared/types";
 
 // A family's voices, kept: a voicemail from Grandma, a child reading at four,
@@ -202,7 +205,7 @@ function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose
     setError(null);
     setBusy("Getting the recording ready…");
     try {
-      const out = await prepareRecording(blob, name);
+      const out = await prepareRecording(blob, name, (f) => setBusy(`Getting the recording ready (${Math.round(f * 100)}%)…`));
       setReady((old) => {
         if (old) URL.revokeObjectURL(old.url);
         return { ...out, url: URL.createObjectURL(out.file) };
@@ -240,8 +243,10 @@ function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose
 
   const save = async () => {
     if (!ready || !person.trim()) return;
-    setBusy("Saving…");
+    setBusy("Saving the recording…");
     setError(null);
+    // A long recording can take a while to send on a weak signal: the screen stays on until it's in.
+    const release = await keepAwake();
     try {
       const form = new FormData();
       form.set("audio", ready.file);
@@ -249,12 +254,14 @@ function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose
       form.set("title", title.trim() || (mode === "record" ? "Recorded here" : "A recording"));
       form.set("recordedOn", recordedOn.trim());
       form.set("durationMs", String(ready.durationMs));
-      await api.form("/api/keepsakes", form);
+      await upload(api, "/api/keepsakes", form, (n, of) => setBusy(`${sentWords("Saving the recording", n, of)}…`));
       URL.revokeObjectURL(ready.url);
       onSaved(person.trim());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "That recording couldn't be saved.");
+      setError(sendTrouble(err, "That recording couldn't be saved."));
       setBusy(null);
+    } finally {
+      release();
     }
   };
 
@@ -335,7 +342,14 @@ function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose
         </div>
       )}
 
-      {busy && <p className="small muted">{busy}</p>}
+      {busy && (
+        <div className="wait-line" role="status" aria-live="polite">
+          <Spinner />
+          <div>
+            <b>{busy}</b>
+          </div>
+        </div>
+      )}
       {ready && !busy && (
         <div className="stack" style={{ ["--gap" as string]: "6px" }}>
           <span className="small muted">Ready to keep · {clock(ready.durationMs)}</span>
@@ -375,7 +389,8 @@ function VoiceMaker({
   const [adult, setAdult] = useState(false);
   const [consent, setConsent] = useState(false);
   const [cleanNoise, setCleanNoise] = useState(true);
-  const [busy, setBusy] = useState(false);
+  // When learning the voice began, and about how long it takes.
+  const [busy, setBusy] = useState<{ startedAt: number; seconds: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const totalMs = keepsakes.filter((k) => chosen.includes(k.id)).reduce((n, k) => n + k.durationMs, 0);
@@ -389,14 +404,14 @@ function VoiceMaker({
           : "Plenty to learn from.";
 
   const make = async () => {
-    setBusy(true);
+    setBusy({ startedAt: Date.now(), seconds: familyVoiceSeconds(totalMs, cleanNoise) });
     setError(null);
     try {
       const res = await api.post<{ name: string }>("/api/family-voices", { name, keepsakeIds: chosen, adult, consent, cleanNoise });
       onMade(res.name);
     } catch (err) {
       setError(err instanceof Error ? err.message : "That voice couldn't be made.");
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -450,14 +465,18 @@ function VoiceMaker({
       </label>
       {!enabled && <p className="notice small">Making a storytelling voice needs your ElevenLabs key (see “The engines” above).</p>}
       {error && <p className="notice notice-error small">{error}</p>}
-      <div className="row" style={{ justifyContent: "flex-end" }}>
-        <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={busy}>
-          Not now
-        </button>
-        <button className="btn btn-sm" onClick={make} disabled={!enabled || busy || !adult || !consent || totalMs < 10_000 || !name.trim()}>
-          {busy ? `Learning ${name}'s voice…` : `Make ${name || person}'s storytelling voice`}
-        </button>
-      </div>
+      {busy ? (
+        <WaitLine what={`Learning ${name}'s voice`} done={0} total={1} startedAt={busy.startedAt} seconds={busy.seconds} />
+      ) : (
+        <div className="row" style={{ justifyContent: "flex-end" }}>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>
+            Not now
+          </button>
+          <button className="btn btn-sm" onClick={make} disabled={!enabled || !adult || !consent || totalMs < 10_000 || !name.trim()}>
+            Make {name || person}&apos;s storytelling voice
+          </button>
+        </div>
+      )}
     </div>
   );
 }

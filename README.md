@@ -124,7 +124,12 @@ a brand-new tale for the very same pictures.
   family's copy to keep, whatever happens to the app or the subscriptions.
 - **Every wait says so.** A tap that opens a page shows at once that it's on its way; writing and recording a
   story say about how long is left (and if it's taking longer than usual); the play button's ring turns while
-  a story loads on a weak signal.
+  a story loads on a weak signal. Adding sound effects to a recorded story counts only the new sounds (the
+  voices are kept). Conjuring a voice, teaching the storytellers a family voice, and re-binding a story with
+  new sounds each say about how long they take. Every upload says how far along it is (a child's drawing,
+  words from a photo, a family recording) and is sent again by itself if the signal drops.
+  **Download everything** says it's getting the backup ready, then that the download has started and how big
+  it is, and asks for the PIN first if it has run out.
 - **Adding a book on a weak signal.** A new book's photos go up one at a time ("Sending page 3 of 8…", with a
   bar), and the grown-up PIN is asked before they go. A photo the signal drops, or a connection that stops
   moving for 40 seconds, is simply sent again; if the signal is gone, it says how many photos are in, and

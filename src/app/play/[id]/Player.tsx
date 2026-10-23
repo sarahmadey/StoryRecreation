@@ -43,7 +43,23 @@ function usePref<T>(key: string, initial: T): [T, (v: T) => void] {
   return [value, set];
 }
 
-type IconName = "close" | "prev" | "next" | "play" | "pause" | "again";
+/** A phone turned sideways: too short for the picture and the words together. */
+function useSideways(): boolean {
+  const [sideways, setSideways] = useState(false);
+  useEffect(() => {
+    const mq = matchMedia("(orientation: landscape) and (max-height: 540px)");
+    const update = () => setSideways(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return sideways;
+}
+
+/** Words that came back run together across two lines ("me!Floss"), spaced as they're read (but not "U.S.A."). */
+const spaced = (word: string) => word.replace(/([.!?…,;:"”)])(?=["“(]?\p{L}\p{L})/gu, "$1 ");
+
+type IconName = "close" | "prev" | "next" | "play" | "pause" | "again" | "bigger" | "smaller";
 
 /** Drawn icons, so the controls look the same on every phone (emoji vary). */
 function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
@@ -75,6 +91,8 @@ function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
         <path d="M4.6 4.6v4.8h4.8" {...line} />
       </>
     ),
+    bigger: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" {...line} />,
+    smaller: <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" {...line} />,
   };
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
@@ -151,6 +169,31 @@ export function Player({
   // it looks broken to anyone who didn't choose it.
   const [lightsOut, setLightsOut] = usePref("lightsOut", false);
   const wordsBox = useRef<HTMLDivElement>(null);
+  // The picture as big as the screen: when it's asked for (and kept, for next time), or with a phone turned
+  // sideways (back to the words with a tap, until it's turned again).
+  const [bigPref, setBigPref] = usePref("bigPicture", false);
+  const sideways = useSideways();
+  const [uprightWhileSideways, setUprightWhileSideways] = useState(false);
+  useEffect(() => {
+    if (!sideways) setUprightWhileSideways(false);
+  }, [sideways]);
+  const big = bigPref || (sideways && !uprightWhileSideways);
+  // In the big picture, the controls show at a tap, and step aside again while the story plays.
+  const [chrome, setChrome] = useState(true);
+  useEffect(() => {
+    if (!big || !playing || !chrome) return;
+    const hide = setTimeout(() => setChrome(false), 3500);
+    return () => clearTimeout(hide);
+  }, [big, playing, chrome]);
+  const bigger = () => {
+    setBigPref(true);
+    setUprightWhileSideways(false);
+    setChrome(true);
+  };
+  const smaller = () => {
+    setBigPref(false);
+    if (sideways) setUprightWhileSideways(true);
+  };
 
   const idx = pageAt(pages, t);
   const page = pages[idx];
@@ -161,6 +204,11 @@ export function Player({
     document.body.classList.toggle("lights-out-active", lightsOut);
     return () => document.body.classList.remove("lights-out-active");
   }, [lightsOut]);
+  // The page underneath stays put while the picture fills the screen.
+  useEffect(() => {
+    document.body.classList.toggle("big-picture-active", big);
+    return () => document.body.classList.remove("big-picture-active");
+  }, [big]);
 
   // Smooth time updates for word highlighting, and the "wait for me" pause.
   useEffect(() => {
@@ -312,6 +360,7 @@ export function Player({
         else play();
       } else if (e.code === "ArrowRight") goPage(idx + 1);
       else if (e.code === "ArrowLeft") goPage(idx - 1);
+      else if (e.code === "Escape" && big) smaller();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -377,7 +426,7 @@ export function Player({
           : `Chapter ${page.page} of ${storyPages}`;
 
   return (
-    <main className={`player ${lightsOut ? "lights-out" : ""}`}>
+    <main className={`player ${lightsOut ? "lights-out" : ""} ${big ? "big" : ""}`}>
       <audio
         ref={audio}
         src={story.audioUrl!}
@@ -428,7 +477,15 @@ export function Player({
       </div>
 
       <div className="player-stage">
-        <div className={`page-frame ${img ? "photo" : ""}`}>
+        <div
+          className={`page-frame ${img ? "photo" : ""}`}
+          // A tap on the picture makes it big; in the big picture, it shows (or hides) the controls.
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("a, button")) return;
+            if (big) setChrome(!chrome);
+            else bigger();
+          }}
+        >
           {img ? (
             <DriftingImage key={img} src={img} alt={label} page={page.page} seconds={page.next - page.start} offset={pageOffset} playing={playing} />
           ) : (
@@ -474,9 +531,40 @@ export function Player({
               </div>
             </div>
           )}
+          {!big && (
+            <button type="button" className="icon-btn picture-bigger" onClick={bigger} aria-label="Make the picture as big as the screen" title="Big picture">
+              <Icon name="bigger" size={20} />
+            </button>
+          )}
         </div>
         <span className="page-badge">{label}</span>
       </div>
+
+      {big && (
+        <div className={`big-chrome ${chrome || !playing ? "" : "resting"}`}>
+          <span className="big-label">{label}</span>
+          <button type="button" className="icon-btn big-smaller" onClick={smaller} aria-label="Smaller picture, with the words" title="Smaller picture">
+            <Icon name="smaller" size={20} />
+          </button>
+          <div className="big-controls">
+            <button className="icon-btn" onClick={() => goPage(idx - 1)} disabled={idx === 0} aria-label="Previous page">
+              <Icon name="prev" />
+            </button>
+            {playing ? (
+              <button className="big-play" onClick={pause} aria-label="Pause">
+                <Icon name="pause" size={32} />
+              </button>
+            ) : (
+              <button className="big-play" onClick={play} aria-label={ended ? "Play again" : started ? "Keep listening" : "Play the story"}>
+                <Icon name={ended ? "again" : "play"} size={34} />
+              </button>
+            )}
+            <button className="icon-btn" onClick={() => goPage(idx + 1)} disabled={idx >= pages.length - 1} aria-label="Next page">
+              <Icon name="next" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {showWords && (page.words.length > 0 || pageText) && (
         <div className="read-along" ref={wordsBox} aria-hidden="true">
@@ -484,7 +572,7 @@ export function Player({
           {page.words.length > 0
             ? page.words.map((w, i) => (
                 <span key={i} data-i={i} className={`w ${i < wordIdx ? "said" : ""} ${i === wordIdx && t <= w.e + 0.25 ? "now" : ""}`}>
-                  {w.w}{" "}
+                  {spaced(w.w)}{" "}
                 </span>
               ))
             : pageText}
@@ -539,6 +627,7 @@ export function Player({
           <Toggle on={waitMode} onClick={() => setWaitMode(!waitMode)} icon="✋" label="Wait for me to turn" title="Pause after each chime until you tap" />
         )}
         <Toggle on={showWords} onClick={() => setShowWords(!showWords)} icon="Aa" label="Words" />
+        <Toggle on={big} onClick={() => (big ? smaller() : bigger())} icon="🖼️" label="Big picture" title="The picture as big as the screen" />
         <Toggle on={lightsOut} onClick={() => setLightsOut(!lightsOut)} icon="🌙" label="Lights out" title="A nearly-black screen for shadow books on the wall" />
       </div>
 

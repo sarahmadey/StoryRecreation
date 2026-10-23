@@ -26,7 +26,7 @@ import { forgetVoiceCredits } from "./credits";
 import { alertStoryFailed, checkVoiceCreditLow } from "./alerts";
 import { recordSpend } from "./spending";
 import { planPicturesAfterWriting } from "./art";
-import { sectionText, stripTags } from "./text";
+import { sectionText, stripTags, withTheEnd } from "./text";
 import { personaFor } from "@/lib/shared/personas";
 import type { ScriptLine, ScriptPage, SoundCue, StoryScript } from "@/lib/shared/types";
 
@@ -92,12 +92,15 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
 
   // Text to read aloud, for classics and pasted words.
   let text: string | undefined;
+  // A chapter of a classic before its last ends with the end of the chapter, not of the book.
+  let moreChapters = false;
   if (s.source === "classic" && s.classic) {
     progress("Fetching the book from the library", 0, 1);
     const classic = await loadClassic(s.classic.gutenbergId);
     const chapter = classic.chapters[s.classic.chapter];
     if (!chapter) throw new StorytellerError("That chapter couldn't be found.");
     text = chapter.text;
+    moreChapters = s.classic.chapter < classic.chapters.length - 1;
   } else if (s.source === "text") {
     text = s.text ?? "";
   }
@@ -150,6 +153,9 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
       });
     }
   }
+
+  // Every story ends by saying so, so everyone knows it's over.
+  script = withTheEnd(script, moreChapters ? "That's the end of this chapter." : "The end.");
 
   updateStory(storyId, {
     script,

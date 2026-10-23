@@ -2116,6 +2116,12 @@ button.step:hover {
   color: var(--gold-1);
   text-shadow: 0 0 18px rgba(255, 190, 92, 0.9);
 }
+/* Words under "The End" stay easy to read, whatever the picture behind them. */
+.turn-cue .muted,
+.turn-cue .up-next-label {
+  color: #f7ecd2;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.85);
+}
 .turn-cue .page-turn-icon {
   font-size: 3.4rem;
   display: inline-block;
@@ -2310,6 +2316,112 @@ button.step:hover {
   .player-options .dark-chip {
     font-size: 0.9rem;
   }
+}
+
+/* A tap on the picture (or this button) makes it as big as the screen. */
+.player:not(.big) .page-frame {
+  cursor: zoom-in;
+}
+.picture-bigger {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  background: rgba(20, 12, 6, 0.55);
+  border-color: rgba(245, 220, 154, 0.5);
+}
+
+/* The big picture: a phone turned sideways, or asked for. The whole picture, as big as the screen. */
+body.big-picture-active {
+  overflow: hidden;
+}
+.player.big .page-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  width: auto;
+  max-width: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+  box-shadow: none;
+  background: #000;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+.player.big .page-frame:not(.photo) {
+  display: grid;
+  place-items: center;
+}
+.player.big .page-frame .drift {
+  width: 100%;
+  height: 100%;
+}
+.player.big .page-frame.photo img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+}
+/* Its controls: shown at a tap, and resting out of sight while the story plays. */
+.big-chrome {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.big-chrome > * {
+  pointer-events: auto;
+}
+.big-chrome.resting {
+  opacity: 0;
+}
+.big-chrome.resting > * {
+  pointer-events: none;
+}
+.big-label {
+  position: absolute;
+  top: calc(var(--safe-top) + 12px);
+  left: max(12px, var(--safe-left));
+  padding: 3px 14px;
+  border-radius: 999px;
+  font-family: var(--font-heading);
+  color: var(--ink);
+  background: linear-gradient(180deg, #f5dc9a, #c99b48);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+.big-smaller {
+  position: absolute;
+  top: calc(var(--safe-top) + 8px);
+  right: max(12px, var(--safe-right));
+  background: rgba(20, 12, 6, 0.6);
+}
+.big-controls {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(10px, var(--safe-bottom)) + 10px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(20, 12, 6, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.big-controls .big-play {
+  width: 62px;
+  height: 62px;
+}
+.big-controls .icon-btn {
+  width: 46px;
+  height: 46px;
+}
+.big-controls .icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 /* Lights out: for shadow books on the bedroom wall. Nearly black, with

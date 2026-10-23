@@ -87,6 +87,10 @@ a brand-new tale for the very same pictures.
   shadow book on the bedroom wall. It's off until you turn it on.
 - **Aa Read-along words:** each word lights up as it's spoken, right under the picture of the page, which
   helps early readers.
+- **🖼️ Big picture:** turn a phone sideways, or tap the picture, and it fills the screen (the words step aside;
+  a tap brings back the controls). Tap the smaller-picture button to have the words again.
+- **"The end."** Every story ends with the storyteller saying so, so everyone knows it's over (a classic read
+  chapter by chapter says it's the end of the chapter, until the last).
 - **🦉 Sound effects on cue** (optional): a sound designer picks a few moments, like a door's creak on
   "creaked" or an owl's hoot, and each short sound lands on its word, softly beneath the voices. Turn
   sounds on or off for any finished story without re-recording the voices.

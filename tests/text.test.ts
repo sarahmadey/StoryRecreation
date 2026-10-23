@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chapterize, chunkLines, cleanGutenberg, sectionText, stripTags } from "@/lib/server/text";
+import { chapterize, chunkLines, cleanGutenberg, sectionText, stripTags, withTheEnd } from "@/lib/server/text";
 import { wordsPerPage } from "@/lib/shared/options";
 
 test("lines are chunked under the dialogue limit", () => {
@@ -18,6 +18,26 @@ test("sections keep every word", () => {
   const sections = sectionText(text, 200);
   assert.ok(sections.length > 3);
   assert.equal(sections.join(" ").split(/\s+/).length, text.split(/\s+/).length);
+});
+
+test("every story ends by saying so, once", () => {
+  const script = {
+    title: "Floss",
+    synopsis: "",
+    ambience: "",
+    cast: [{ id: "narrator", name: "Narrator", description: "", voiceBrief: "", voiceId: "v1" }],
+    pages: [
+      { page: 1, picture: "", lines: [{ speaker: "narrator", text: "Once upon a time." }] },
+      { page: 2, picture: "", lines: [{ speaker: "mia", text: "Goodnight, Floss!" }] },
+    ],
+  };
+  const ended = withTheEnd(script);
+  assert.deepEqual(ended.pages[1].lines.at(-1), { speaker: "narrator", text: "The end." }, "the narrator says it, last");
+  assert.equal(ended.pages[0].lines.length, 1);
+  assert.equal(withTheEnd(ended), ended, "not twice");
+  const already = { ...script, pages: [script.pages[0], { ...script.pages[1], lines: [{ speaker: "narrator", text: "[softly] And they all slept. The End!" }] }] };
+  assert.equal(withTheEnd(already), already, "a story that already ends that way is left as it is");
+  assert.equal(withTheEnd(script, "That's the end of this chapter.").pages[1].lines.at(-1)!.text, "That's the end of this chapter.");
 });
 
 test("delivery tags are hidden from readers", () => {

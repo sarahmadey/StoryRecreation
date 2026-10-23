@@ -1,4 +1,4 @@
-import type { ScriptLine } from "@/lib/shared/types";
+import type { ScriptLine, StoryScript } from "@/lib/shared/types";
 
 /** Split text into roughly `target`-character sections at paragraph breaks. */
 export function sectionText(text: string, target = 1000): string[] {
@@ -67,6 +67,18 @@ export function chunkLines(lines: ScriptLine[], max = 1800): ScriptLine[][] {
 /** Remove [delivery tags] for display and word timing. */
 export function stripTags(text: string): string {
   return text.replace(/\[[^\]]{1,40}\]\s*/g, "").replace(/\s{2,}/g, " ").trim();
+}
+
+/**
+ * A story's last words: "The end.", said by the narrator on the last page, so everyone knows it's over
+ * (unless it already ends that way).
+ */
+export function withTheEnd(script: StoryScript, ending = "The end."): StoryScript {
+  const last = script.pages.at(-1);
+  if (!last) return script;
+  const said = stripTags(last.lines.at(-1)?.text ?? "");
+  if (/\bthe end\b[\s.!…"”']*$/i.test(said) || /\bend of (this|the) chapter\b/i.test(said)) return script;
+  return { ...script, pages: [...script.pages.slice(0, -1), { ...last, lines: [...last.lines, { speaker: "narrator", text: ending }] }] };
 }
 
 /** Remove delivery tags for voice models that would read them aloud. */

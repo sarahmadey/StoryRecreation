@@ -70,3 +70,24 @@ test("alignment becomes words and skips delivery tags", () => {
   );
   assert.ok(words[0].t > 0.4, "timing starts after the tag");
 });
+
+test("words never run together across two lines of a dialogue", () => {
+  // A dialogue's lines come back joined with nothing between them.
+  const lines = ["And you can draw me!", "Floss blinked."];
+  const chars = [...lines.join("")];
+  const lineAt = (i: number) => (i < lines[0].length ? 0 : 1);
+  const words = wordsFromAlignment(
+    {
+      characters: chars,
+      characterStartTimesSeconds: chars.map((_, i) => i * 0.05),
+      characterEndTimesSeconds: chars.map((_, i) => i * 0.05 + 0.04),
+    },
+    (i) => (lineAt(i) === 0 ? "mia" : "narrator"),
+    lineAt,
+  );
+  assert.deepEqual(
+    words.map((w) => w.w),
+    ["And", "you", "can", "draw", "me!", "Floss", "blinked."],
+  );
+  assert.equal(words[5].speaker, "narrator", "each word is the right speaker's");
+});

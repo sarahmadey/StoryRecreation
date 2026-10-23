@@ -44,11 +44,9 @@ async function performChunk(lines: ScriptLine[], voiceOf: (s: string) => string 
       }),
     );
     const samples = pcm16ToFloat(Buffer.from(res.audioBase64, "base64"));
-    const speakerAt = (charIndex: number) => {
-      const seg = res.voiceSegments.find((s) => charIndex >= s.characterStartIndex && charIndex < s.characterEndIndex);
-      return lines[seg?.dialogueInputIndex ?? 0]?.speaker ?? "narrator";
-    };
-    const words = res.alignment ? wordsFromAlignment(res.alignment, speakerAt) : [];
+    const lineAt = (charIndex: number) =>
+      res.voiceSegments.find((s) => charIndex >= s.characterStartIndex && charIndex < s.characterEndIndex)?.dialogueInputIndex ?? 0;
+    const words = res.alignment ? wordsFromAlignment(res.alignment, (i) => lines[lineAt(i)]?.speaker ?? "narrator", lineAt) : [];
     return { samples, words };
   } catch (err) {
     // Some plans or models may not offer dialogue; perform line by line instead.
@@ -81,10 +79,14 @@ async function performLineByLine(lines: ScriptLine[], voiceOf: (s: string) => st
   return concatClips(clips, 0.3);
 }
 
-/** Group per-character timings into words, skipping [delivery tags]. */
+/**
+ * Group per-character timings into words, skipping [delivery tags]. The lines of a dialogue come back run together
+ * ("…draw me!Floss blinked"), so a word also ends where a line does (`lineAt` says which line a character is in).
+ */
 export function wordsFromAlignment(
   a: { characters: string[]; characterStartTimesSeconds: number[]; characterEndTimesSeconds: number[] },
   speakerAt: (charIndex: number) => string,
+  lineAt?: (charIndex: number) => number,
 ): TimelineWord[] {
   const words: TimelineWord[] = [];
   let cur = "";
@@ -111,6 +113,7 @@ export function wordsFromAlignment(
       flush();
       return;
     }
+    if (cur && lineAt && lineAt(i) !== lineAt(firstIndex)) flush();
     if (!cur) {
       start = a.characterStartTimesSeconds[i] ?? end;
       firstIndex = i;

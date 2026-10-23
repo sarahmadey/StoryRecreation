@@ -12,6 +12,9 @@ pictures.
 Built first for a shadow book whose old read-along had been heard a hundred times. Now every night can bring
 a brand-new tale for the very same pictures.
 
+**The family's Storyhollow:** [storyrecreation-production.up.railway.app](https://storyrecreation-production.up.railway.app)
+(the live app; the test copy has its own address, in Railway's staging environment).
+
 ---
 
 ## What it does

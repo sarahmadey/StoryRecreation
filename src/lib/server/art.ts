@@ -499,7 +499,19 @@ export function resumeLostArt(storyId: string) {
   );
 }
 
-/** When the app starts, the illustrator carries on with whatever a restart stopped. */
+/** When the app starts, the illustrator carries on with whatever a restart stopped (never stopping the app itself). */
 export function resumeLostArtSoon() {
-  setTimeout(() => storiesWithArtAtWork().forEach(resumeLostArt), 3_000).unref();
+  setTimeout(() => {
+    try {
+      for (const id of storiesWithArtAtWork()) {
+        try {
+          resumeLostArt(id);
+        } catch (err) {
+          console.error(`[art] ${id}: couldn't carry on after a restart`, err);
+        }
+      }
+    } catch (err) {
+      console.error("[art] couldn't look for pictures to carry on with", err);
+    }
+  }, 3_000).unref();
 }

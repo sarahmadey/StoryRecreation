@@ -1164,6 +1164,28 @@ a.choice {
   line-height: 1.15;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
 }
+/* A cover with no words of its own (the illustrator's picture, a family photo) has the book's name across the top,
+   over a little dusk so it reads on a pale sky. */
+.cover-title {
+  position: absolute;
+  inset: 0 0 auto;
+  padding: 10% 8% 22%;
+  background: linear-gradient(to bottom, rgba(16, 9, 5, 0.66), rgba(16, 9, 5, 0.34) 58%, transparent);
+  pointer-events: none;
+}
+.cover-title > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  font-family: var(--font-heading);
+  font-size: calc(var(--w, 128px) * 0.125);
+  line-height: 1.12;
+  text-align: center;
+  color: #fff4d8;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 12px rgba(0, 0, 0, 0.55);
+}
 
 /* ------------------------------------------------------------------ story cards */
 
@@ -3019,6 +3041,231 @@ code {
   top: -10px;
   right: -8px;
 }
+/* A folder of books on the shelf: a wooden box with its name on a paper label, and the tops of the books in it
+   peeking out above, fanned a little. */
+.book.folder {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.folder .book-cover.folder-box {
+  overflow: visible;
+  border-radius: 0;
+  box-shadow: none;
+}
+.folder .book-cover.folder-box::after {
+  display: none;
+}
+.folder-peek {
+  --w: calc(var(--tier-w, 112px) * 0.6);
+  position: absolute;
+  top: 3%;
+  left: 20%;
+  width: 60%;
+  aspect-ratio: 3 / 4;
+  border-radius: 2px 5px 5px 2px;
+  overflow: hidden;
+  box-shadow: -2px 0 0 rgba(0, 0, 0, 0.3), 0 6px 12px rgba(0, 0, 0, 0.5);
+  transform-origin: 50% 100%;
+}
+.folder-peek[data-at="0"] {
+  z-index: 3;
+}
+.folder-peek[data-at="1"] {
+  z-index: 2;
+  transform: translateX(-27%) rotate(-9deg);
+}
+.folder-peek[data-at="2"] {
+  z-index: 1;
+  transform: translateX(27%) rotate(9deg);
+}
+.folder-front {
+  position: absolute;
+  z-index: 4;
+  inset: auto 0 0;
+  height: 58%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6%;
+  padding: 7% 8%;
+  border-radius: 3px 3px 7px 7px;
+  background:
+    linear-gradient(180deg, rgba(255, 226, 170, 0.3), transparent 8%),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.07) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg, #8d5c31, #6c4223 55%, #56331a);
+  box-shadow:
+    inset 0 0 0 2px rgba(40, 22, 10, 0.55),
+    inset 0 0 0 4px rgba(245, 220, 154, 0.22),
+    0 12px 22px rgba(0, 0, 0, 0.55),
+    0 2px 4px rgba(0, 0, 0, 0.4);
+  transition: box-shadow 0.4s;
+}
+.folder-name {
+  max-width: 100%;
+  padding: 5% 8%;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #f8eed6, #e7d3a6);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(110, 74, 28, 0.35);
+}
+.folder-name > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  font-family: var(--font-heading);
+  font-size: calc(var(--w, 112px) * 0.115);
+  line-height: 1.12;
+  text-align: center;
+  color: #3a2410;
+}
+.folder-count {
+  font-size: calc(var(--w, 112px) * 0.095);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--gold-1);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+.folder.fresh .folder-front {
+  animation: folder-fresh 1.6s ease-in-out 2;
+}
+@keyframes folder-fresh {
+  50% {
+    box-shadow:
+      inset 0 0 0 2px rgba(40, 22, 10, 0.55),
+      inset 0 0 0 4px rgba(245, 220, 154, 0.5),
+      0 0 0 3px rgba(255, 210, 120, 0.8),
+      0 0 34px rgba(255, 190, 92, 0.75);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .folder.fresh .folder-front {
+    animation: none;
+    box-shadow:
+      inset 0 0 0 2px rgba(40, 22, 10, 0.55),
+      0 0 0 3px rgba(255, 210, 120, 0.8);
+  }
+}
+/* "Make a folder" is a thing to do, not a way to arrange: it stands apart from the choices. */
+.library-order .make-folder {
+  margin-left: auto;
+  border-style: dashed;
+  color: var(--gold-1);
+}
+@media (max-width: 520px) {
+  .library-order .make-folder {
+    margin-left: 0;
+  }
+}
+
+/* Making or changing a folder: its name, and every book with a tick. */
+.folder-maker {
+  margin-bottom: 18px;
+  scroll-margin-top: calc(var(--safe-top) + 84px);
+}
+.folder-maker-title {
+  margin: 0 0 4px;
+  font-size: 1.4rem;
+}
+.folder-ticked {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+.folder-pick-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
+  gap: 6px 12px;
+}
+.folder-pick-shelf {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a5a1f;
+}
+.folder-pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(107, 63, 21, 0.2);
+  background: rgba(255, 252, 242, 0.45);
+  cursor: pointer;
+}
+.folder-pick:has(input:checked) {
+  border-color: rgba(168, 121, 43, 0.75);
+  background: rgba(245, 220, 154, 0.55);
+}
+.folder-pick input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  accent-color: #a8792b;
+  color-scheme: light;
+}
+.folder-pick-thumb {
+  --w: 36px;
+  flex: none;
+  width: 36px;
+  height: 48px;
+  border-radius: 2px 4px 4px 2px;
+  overflow: hidden;
+  box-shadow: -1px 0 0 rgba(0, 0, 0, 0.3), 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+.folder-pick-thumb .leather {
+  padding: 4px;
+  gap: 2px;
+}
+.folder-pick-thumb .leather-emoji {
+  font-size: 1.05rem;
+}
+.folder-pick-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.folder-pick-title {
+  font-family: var(--font-heading);
+  font-size: 1.02rem;
+  line-height: 1.2;
+  color: #3b2212;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.folder-pick-where {
+  font-size: 0.8rem;
+  color: #8a6e4e;
+}
+.parchment .folder-unpack {
+  color: #8e2a1c;
+}
+@media (max-width: 520px) {
+  /* the shelves to choose from: one row to swipe, fading at the edge so it's plain there's more */
+  .folder-shelves {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin: 0 -20px;
+    padding: 2px 40px 6px 20px;
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+  }
+  .folder-shelves .chip {
+    flex: none;
+  }
+}
+
 /* An empty bookcase's word about what goes here, standing on its shelf. */
 .tiers-empty {
   justify-content: center;

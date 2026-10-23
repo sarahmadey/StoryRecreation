@@ -16,6 +16,9 @@ export function emojiFor(kind: BookKind, notes?: string | null): string {
   return BOOK_KINDS[kind].emoji;
 }
 
+/** Books whose covers have no words of their own: a dreamed-up tale's is drawn by the illustrator, and one from the wild is the family's photo. */
+const WORDLESS = new Set<BookKind>(["idea", "wild"]);
+
 export function Cover({
   id,
   title,
@@ -31,13 +34,20 @@ export function Cover({
   notes?: string | null;
   showTitle?: boolean;
 }) {
-  // A cover photo lies over the leather one, which shows through if the photo can't be fetched.
+  // A cover photo lies over the leather one, which shows through if the photo can't be fetched. A picture with no
+  // words on it has the book's name across the top, in the calm space the illustrator leaves there for it.
+  const nameOnTop = showTitle && Boolean(coverUrl) && WORDLESS.has(kind);
   return (
     <div className="leather" style={{ ["--hue" as string]: hueFor(id) }}>
       <span className="leather-emoji">{emojiFor(kind, notes)}</span>
-      {showTitle && <span className="leather-title">{title}</span>}
+      {showTitle && !nameOnTop && <span className="leather-title">{title}</span>}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {coverUrl && <img className="cover-photo" src={coverUrl} alt="" loading="lazy" />}
+      {nameOnTop && (
+        <span className="cover-title">
+          <span>{title}</span>
+        </span>
+      )}
     </div>
   );
 }

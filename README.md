@@ -121,7 +121,16 @@ a brand-new tale for the very same pictures.
 - Look at the **books** on the bookcase or every **story** in a list. Books stand face-out on the shelves,
   three to a shelf on a phone, each kind under its own brass plaque (small kinds share a shelf on a computer),
   or all together newest first or A to Z. Filter by child, ⭐ favorites or read-alouds, and search everything.
-- To rename a book, move it to another shelf or take it off the shelves, open it and tap *Rename, move or remove*.
+- **Folders for books that belong together** (a series, the same two characters, a season's books): tap
+  **📁 Make a folder**, name it, tick its books, and they stand on the shelf as one wooden box with the tops of
+  their covers peeking out. Tap it to open it; *Change this folder* renames it, adds or takes out books, or
+  unpacks it (the books go back on their shelves; nothing is deleted). A search still finds every book, in a
+  folder or not, and a new story made *like* one in a folder goes in the same folder.
+- **Every cover says its name.** A dreamed-up tale's cover is drawn without words (and one from the wild is your
+  photo), so its name is written across the top. A dreamed-up book you didn't name takes its first story's
+  title once the storyteller has written it, instead of the first words of the idea.
+- To rename a book, move it to another shelf or folder, or take it off the shelves, open it and tap *Rename, move
+  or remove*.
 - **Family accounts with reader cards:** one grown-up login per family, then a "Who's listening tonight?"
   card for each child (no passwords), so everyone finds their own favorites.
 - **Grown-up PIN** (optional): children can play anything on the shelves, but creating new stories, buying

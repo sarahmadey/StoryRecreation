@@ -10,14 +10,21 @@ export const GET = route(async () => {
   return Response.json({ books: listBooks(ctx.household.id) });
 });
 
-/** A new book's title, kind, author, shelf and notes, checked. */
+/** A new book's title, kind, author, shelf, folder and notes, checked. */
 function details(get: (name: string) => unknown): NewBook {
   const text = (name: string, max: number) => String(get(name) ?? "").trim().slice(0, max);
   const title = text("title", 120);
   const kind = (text("kind", 40) || "picture_book") as BookKind;
   if (!title) throw new HttpError(400, "Every book needs a title.");
   if (!(kind in BOOK_KINDS) || kind === "classic") throw new HttpError(400, "Unknown kind of book.");
-  return { title, kind, author: text("author", 120) || null, shelf: text("shelf", 60) || undefined, notes: text("notes", 1000) || null };
+  return {
+    title,
+    kind,
+    author: text("author", 120) || null,
+    shelf: text("shelf", 60) || undefined,
+    folder: text("folder", 40) || null,
+    notes: text("notes", 1000) || null,
+  };
 }
 
 /**

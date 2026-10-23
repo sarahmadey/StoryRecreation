@@ -8,6 +8,7 @@ import {
   getStoryById,
   listBookCharacters,
   listPageRows,
+  nameBookAfterStory,
   previousStoriesForBook,
   rememberCharacters,
   replacePages,
@@ -180,6 +181,7 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
     status: "draft",
     progress: null,
   });
+  if (story.mode === "create") nameBookAfterStory(story.householdId, book.id, script.title);
 
   // A picture book: the illustrator reads the story and plans what to draw, ready for the family to meet the characters.
   if (s.pictures && story.mode === "create") planPicturesAfterWriting(storyId);

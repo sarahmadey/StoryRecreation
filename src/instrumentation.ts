@@ -13,6 +13,9 @@ export async function register() {
     // Pictures are priced from what they've really cost lately.
     const { refreshPictureCost } = await import("./lib/server/spending");
     refreshPictureCost();
+    // Dreamed-up books nobody named take their first story's title (books made before they were named so).
+    const { nameUnnamedBooks } = await import("./lib/server/db");
+    nameUnnamedBooks();
     // Photos for a book that was never finished are let go after a day.
     const { clearOldUploadsDaily } = await import("./lib/server/uploads");
     clearOldUploadsDaily();

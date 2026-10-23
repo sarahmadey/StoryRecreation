@@ -16,11 +16,13 @@ export const PATCH = route(async (req: Request, ctx: RouteContext<"/api/books/[i
   requireGrownup(c);
   const { id } = await ctx.params;
   if (!getBook(c.household.id, id)) throw new HttpError(404, "That book isn't on the shelf.");
-  const body = await readJson<{ title?: string; author?: string | null; shelf?: string; notes?: string | null }>(req);
+  const body = await readJson<{ title?: string; author?: string | null; shelf?: string; folder?: string | null; notes?: string | null }>(req);
   updateBook(c.household.id, id, {
     ...(body.title?.trim() ? { title: body.title.trim().slice(0, 120) } : {}),
     ...(body.author !== undefined ? { author: body.author?.trim().slice(0, 120) || null } : {}),
     ...(body.shelf?.trim() ? { shelf: body.shelf.trim().slice(0, 60) } : {}),
+    // no folder, or an empty one, takes the book out of its folder
+    ...(body.folder !== undefined ? { folder: typeof body.folder === "string" ? body.folder : null } : {}),
     ...(body.notes !== undefined ? { notes: body.notes?.trim().slice(0, 1000) || null } : {}),
   });
   return Response.json({ book: getBook(c.household.id, id) });

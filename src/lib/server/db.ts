@@ -3,7 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { config } from "./config";
-import { DEFAULT_SHELVES } from "@/lib/shared/options";
+import { DEFAULT_SHELVES, namedByItsStory } from "@/lib/shared/options";
 import { gutenbergCover } from "@/lib/shared/gutenberg";
 import type {
   Book,
@@ -246,6 +246,8 @@ export function db(): DatabaseSync {
     if (!storyColumns.includes("art")) conn.exec("ALTER TABLE stories ADD COLUMN art TEXT");
     const householdColumns = (conn.prepare("PRAGMA table_info(households)").all() as Row[]).map((c) => c.name);
     if (!householdColumns.includes("pin_digits")) conn.exec("ALTER TABLE households ADD COLUMN pin_digits INTEGER");
+    const bookColumns = (conn.prepare("PRAGMA table_info(books)").all() as Row[]).map((c) => c.name);
+    if (!bookColumns.includes("folder")) conn.exec("ALTER TABLE books ADD COLUMN folder TEXT");
     globalForDb.__storyhollowDb = conn;
     recoverInterruptedJobs(conn);
   }
@@ -438,6 +440,7 @@ function toBook(r: Row): Book {
     author: (r.author as string | null) ?? null,
     kind: r.kind as BookKind,
     shelf: r.shelf as string,
+    folder: (r.folder as string | null) ?? null,
     coverUrl: coverFor(r.cover_path, r.kind, r.source_ref),
     sourceRef: (r.source_ref as string | null) ?? null,
     notes: (r.notes as string | null) ?? null,
@@ -475,14 +478,22 @@ export function findBookBySource(householdId: string, kind: BookKind, sourceRef:
 
 export function createBook(
   householdId: string,
-  b: { title: string; author?: string | null; kind: BookKind; shelf?: string; sourceRef?: string | null; notes?: string | null },
+  b: {
+    title: string;
+    author?: string | null;
+    kind: BookKind;
+    shelf?: string;
+    folder?: string | null;
+    sourceRef?: string | null;
+    notes?: string | null;
+  },
 ): string {
   const id = newId();
   const now = Date.now();
   db()
     .prepare(
-      `INSERT INTO books (id, household_id, title, author, kind, shelf, source_ref, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO books (id, household_id, title, author, kind, shelf, folder, source_ref, notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -491,6 +502,7 @@ export function createBook(
       b.author ?? null,
       b.kind,
       b.shelf?.trim() || DEFAULT_SHELVES[b.kind],
+      b.folder?.trim() ? folderNamed(householdId, b.folder) : null,
       b.sourceRef ?? null,
       b.notes ?? null,
       now,
@@ -511,13 +523,14 @@ export function classicsWithoutCovers(): { householdId: string; id: string; sour
 export function updateBook(
   householdId: string,
   id: string,
-  b: Partial<{ title: string; author: string | null; shelf: string; notes: string | null; coverPath: string | null }>,
+  b: Partial<{ title: string; author: string | null; shelf: string; folder: string | null; notes: string | null; coverPath: string | null }>,
 ) {
   const sets: string[] = [];
   const vals: (string | number | null)[] = [];
   if (b.title !== undefined) (sets.push("title = ?"), vals.push(b.title));
   if (b.author !== undefined) (sets.push("author = ?"), vals.push(b.author));
   if (b.shelf !== undefined) (sets.push("shelf = ?"), vals.push(b.shelf));
+  if (b.folder !== undefined) (sets.push("folder = ?"), vals.push(b.folder?.trim() ? folderNamed(householdId, b.folder) : null));
   if (b.notes !== undefined) (sets.push("notes = ?"), vals.push(b.notes));
   if (b.coverPath !== undefined) (sets.push("cover_path = ?"), vals.push(b.coverPath));
   sets.push("updated_at = ?");
@@ -539,6 +552,70 @@ export function listShelves(householdId: string): string[] {
   return (
     db().prepare("SELECT DISTINCT shelf FROM books WHERE household_id = ? ORDER BY shelf").all(householdId) as Row[]
   ).map((r) => r.shelf as string);
+}
+
+/**
+ * A dreamed-up book (or one from the wild) that nobody named goes by the first words of its idea until its first
+ * story has a title: then it takes that one. A book the family named keeps its name.
+ */
+export function nameBookAfterStory(householdId: string, bookId: string, storyTitle: string) {
+  const book = getBook(householdId, bookId);
+  const title = storyTitle.trim().slice(0, 120);
+  if (!book || !title || !namedByItsStory(book)) return;
+  db().prepare("UPDATE books SET title = ? WHERE household_id = ? AND id = ?").run(title, householdId, bookId);
+}
+
+/** Books made before books were named after their stories: each takes its first written story's title. */
+export function nameUnnamedBooks() {
+  const rows = db()
+    .prepare(
+      `SELECT b.household_id, b.id,
+         (SELECT s.title FROM stories s WHERE s.book_id = b.id AND s.mode = 'create' AND s.script IS NOT NULL ORDER BY s.created_at LIMIT 1) AS story_title
+       FROM books b WHERE b.kind IN ('idea', 'wild')`,
+    )
+    .all() as Row[];
+  for (const r of rows) if (r.story_title) nameBookAfterStory(r.household_id as string, r.id as string, r.story_title as string);
+}
+
+// -------------------------------------------------------------- folders
+// A folder holds books the family keeps together (a series, a season's books) and stands on the shelf as one. It's
+// only a name on its books: a folder is there while there's a book in it.
+
+/** The family's folders, A to Z. */
+export function listFolders(householdId: string): string[] {
+  return (
+    db()
+      .prepare("SELECT DISTINCT folder FROM books WHERE household_id = ? AND folder IS NOT NULL ORDER BY folder COLLATE NOCASE")
+      .all(householdId) as Row[]
+  ).map((r) => r.folder as string);
+}
+
+/** A folder's name as the family already has it, when it's one of theirs in any case ("twinkle" is "Twinkle"), apart from `except`. */
+function folderNamed(householdId: string, name: string, except?: string | null): string {
+  const given = name.trim().slice(0, 40);
+  return listFolders(householdId).find((f) => f !== except && f.localeCompare(given, undefined, { sensitivity: "base" }) === 0) ?? given;
+}
+
+/**
+ * Put these books in a folder, and only these: any others it had (under its old name `from`, when it's being changed)
+ * go back on their shelves. A name like one of the family's folders joins that one, and no books unpacks it. Returns
+ * the folder's name as kept, or null when it has no books.
+ */
+export function fileBooks(householdId: string, f: { from?: string | null; name: string; bookIds: string[] }): string | null {
+  const conn = db();
+  const name = folderNamed(householdId, f.name, f.from);
+  conn.exec("BEGIN");
+  try {
+    if (f.from) conn.prepare("UPDATE books SET folder = NULL WHERE household_id = ? AND folder = ?").run(householdId, f.from);
+    const put = conn.prepare("UPDATE books SET folder = ? WHERE household_id = ? AND id = ?");
+    if (name) for (const id of f.bookIds) put.run(name, householdId, id);
+    conn.exec("COMMIT");
+  } catch (e) {
+    conn.exec("ROLLBACK");
+    throw e;
+  }
+  const kept = conn.prepare("SELECT COUNT(*) AS n FROM books WHERE household_id = ? AND folder = ?").get(householdId, name) as Row;
+  return name && Number(kept.n) > 0 ? name : null;
 }
 
 // ---------------------------------------------------------------- book pages

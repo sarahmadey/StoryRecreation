@@ -9,12 +9,15 @@ import { BOOK_KINDS, DEFAULT_SHELVES, defaultSettings } from "@/lib/shared/optio
 import type { Book, BookPage, Profile, StoryCard, StorySettings } from "@/lib/shared/types";
 import { Plaque } from "@/components/Plaque";
 
+const folderHref = (name: string) => `/library?folder=${encodeURIComponent(name)}`;
+
 export function BookView({
   book,
   pages,
   stories,
   profiles,
   shelves,
+  folders,
   lastCreate,
   currentProfile,
   canMake,
@@ -24,6 +27,8 @@ export function BookView({
   stories: StoryCard[];
   profiles: Profile[];
   shelves: string[];
+  /** The family's folders of books, to keep this one in. */
+  folders: string[];
   lastCreate: StorySettings | null;
   currentProfile: Profile | null;
   canMake: boolean;
@@ -35,6 +40,7 @@ export function BookView({
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(book.title);
   const [shelf, setShelf] = useState(book.shelf);
+  const [folder, setFolder] = useState(book.folder ?? "");
 
   const physical = book.kind === "shadow_book" || book.kind === "picture_book";
   const canCreate = book.kind !== "classic" && book.kind !== "own_text";
@@ -66,7 +72,7 @@ export function BookView({
 
   const save = async () => {
     try {
-      await api.patch(`/api/books/${book.id}`, { title, shelf });
+      await api.patch(`/api/books/${book.id}`, { title, shelf, folder });
       setEditing(false);
       router.refresh();
     } catch (err) {
@@ -87,9 +93,15 @@ export function BookView({
 
   return (
     <>
-      <Link href="/library" className="back-link">
-        ‹ Back to the library
-      </Link>
+      {book.folder ? (
+        <Link href={folderHref(book.folder)} className="back-link">
+          ‹ Back to {book.folder}
+        </Link>
+      ) : (
+        <Link href="/library" className="back-link">
+          ‹ Back to the library
+        </Link>
+      )}
       <div className="book-header">
         <div className="book">
           <div className="book-cover">
@@ -101,14 +113,35 @@ export function BookView({
             <div className="eyebrow">
               {/* The shelf says what kind of book it is, unless the family has put it on a shelf of their own. */}
               {BOOK_KINDS[book.kind].emoji} {book.shelf === DEFAULT_SHELVES[book.kind] ? book.shelf : `${BOOK_KINDS[book.kind].label} · ${book.shelf}`}
+              {book.folder && (
+                <>
+                  {" · "}
+                  <Link href={folderHref(book.folder)}>📁 {book.folder}</Link>
+                </>
+              )}
             </div>
             {editing ? (
               <div className="stack" style={{ maxWidth: 460 }}>
-                <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Title" />
-                <input className="input" list="shelves" value={shelf} onChange={(e) => setShelf(e.target.value)} aria-label="Shelf" />
+                <label className="field">
+                  <span>Its name</span>
+                  <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
+                </label>
+                <label className="field">
+                  <span>Its shelf</span>
+                  <input className="input" list="shelves" value={shelf} onChange={(e) => setShelf(e.target.value)} />
+                </label>
                 <datalist id="shelves">
                   {[...new Set([...shelves, ...Object.values(DEFAULT_SHELVES)])].map((s) => (
                     <option key={s} value={s} />
+                  ))}
+                </datalist>
+                <label className="field">
+                  <span>Keep it in a folder</span>
+                  <input className="input" list="folders" value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="Not in a folder" maxLength={40} />
+                </label>
+                <datalist id="folders">
+                  {folders.map((f) => (
+                    <option key={f} value={f} />
                   ))}
                 </datalist>
                 <div className="row">
@@ -190,7 +223,17 @@ export function BookView({
             </div>
           )}
           {!editing && (
-            <button className="btn btn-quiet btn-sm" onClick={() => setEditing(true)} style={{ alignSelf: "flex-start" }}>
+            <button
+              className="btn btn-quiet btn-sm"
+              onClick={() => {
+                // as the book is now (a folder's name may have been matched to one the family already has)
+                setTitle(book.title);
+                setShelf(book.shelf);
+                setFolder(book.folder ?? "");
+                setEditing(true);
+              }}
+              style={{ alignSelf: "flex-start" }}
+            >
               ✎ Rename, move or remove
             </button>
           )}

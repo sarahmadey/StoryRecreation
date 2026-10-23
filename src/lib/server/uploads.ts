@@ -25,6 +25,7 @@ export interface NewBook {
   kind: BookKind;
   author?: string | null;
   shelf?: string;
+  folder?: string | null;
   notes?: string | null;
 }
 

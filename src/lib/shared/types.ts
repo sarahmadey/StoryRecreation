@@ -31,6 +31,8 @@ export interface Book {
   author: string | null;
   kind: BookKind;
   shelf: string;
+  /** The folder it's kept in on its shelf, if any. */
+  folder: string | null;
   coverUrl: string | null;
   sourceRef: string | null;
   notes: string | null;

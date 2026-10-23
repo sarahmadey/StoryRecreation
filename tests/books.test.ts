@@ -108,3 +108,77 @@ test("photos for a book that was never finished are let go after a day", async (
   assert.equal(fs.existsSync(dir(old)), false);
   assert.equal(fs.existsSync(dir(fresh)), true);
 });
+
+test("a dreamed-up book nobody named takes its first story's title; one the family named keeps its name", async () => {
+  const db = await import("@/lib/server/db");
+  const { defaultSettings, madeUpBookTitle } = await import("@/lib/shared/options");
+  const hh = db.createHousehold("The Glow Family", "glow@example.com", "x");
+  const idea = "A shy dragon who glows when she laughs, and the owl who helps her find her friends. Then a party.";
+  assert.equal(madeUpBookTitle("idea", idea), "A shy dragon who glows when she laughs, and the owl who help");
+  assert.equal(madeUpBookTitle("idea", "  "), "A Dreamed-Up Tale");
+  assert.equal(madeUpBookTitle("wild", "a snail"), "Our Adventure");
+
+  const write = (bookId: string, title: string) => {
+    const id = db.createStory(hh, { bookId, profileId: null, mode: "create", title: "A new story is brewing…", settings: defaultSettings({ source: "idea" }), status: "writing" });
+    db.updateStory(id, { title, script: { title, synopsis: "", ambience: "", cast: [], pages: [] }, status: "draft" });
+    return title;
+  };
+  const unnamed = db.createBook(hh, { title: madeUpBookTitle("idea", idea), kind: "idea", notes: idea });
+  const named = db.createBook(hh, { title: "Hoop Dreams", kind: "idea", notes: "Adaline learns to shoot hoops." });
+  const seen = db.createBook(hh, { title: "Our Adventure", kind: "wild", notes: null });
+  const later = db.createBook(hh, { title: "A Dreamed-Up Tale", kind: "idea", notes: null });
+
+  // Written before books were named this way: put right when the server starts.
+  write(unnamed, "Fern Glows at the Party");
+  write(named, "The Big Game");
+  write(seen, "The Snail Who Raced the Rain");
+  db.nameUnnamedBooks();
+  assert.equal(db.getBook(hh, unnamed)!.title, "Fern Glows at the Party");
+  assert.equal(db.getBook(hh, named)!.title, "Hoop Dreams");
+  assert.equal(db.getBook(hh, seen)!.title, "The Snail Who Raced the Rain");
+
+  // As the storyteller finishes: the first story names the book, and the next doesn't rename it.
+  db.nameBookAfterStory(hh, later, write(later, "The Moon's Lost Hat"));
+  db.nameBookAfterStory(hh, later, write(later, "The Moon Finds It Again"));
+  assert.equal(db.getBook(hh, later)!.title, "The Moon's Lost Hat");
+});
+
+test("folders: books kept together, renamed, matched by name in any case, and unpacked back onto their shelves", async () => {
+  const db = await import("@/lib/server/db");
+  const hh = db.createHousehold("The Folder Family", "folders@example.com", "x");
+  const other = db.createHousehold("The Neighbours", "neighbours@example.com", "x");
+  const [beds, picnic, teeth, pumpkin] = ["Three Beds", "The Picnic", "Wobbly Tooth", "Pip and the Pumpkin"].map((title) =>
+    db.createBook(hh, { title, kind: "idea" }),
+  );
+  const theirs = db.createBook(other, { title: "Not Yours", kind: "idea" });
+  const folderOf = (id: string, household = hh) => db.getBook(household, id)!.folder;
+
+  // Made with three books (a neighbour's book can't be put in it), and listed.
+  assert.equal(db.fileBooks(hh, { name: "  Twinkle and Adaline ", bookIds: [beds, picnic, teeth, theirs] }), "Twinkle and Adaline");
+  assert.deepEqual([beds, picnic, teeth, pumpkin].map((id) => folderOf(id)), ["Twinkle and Adaline", "Twinkle and Adaline", "Twinkle and Adaline", null]);
+  assert.equal(folderOf(theirs, other), null);
+  assert.deepEqual(db.listFolders(hh), ["Twinkle and Adaline"]);
+  assert.deepEqual(db.listFolders(other), []);
+
+  // Changed: renamed, one book taken out, another put in. The book taken out goes back on its shelf.
+  assert.equal(db.fileBooks(hh, { from: "Twinkle and Adaline", name: "The Sisters", bookIds: [beds, picnic] }), "The Sisters");
+  assert.deepEqual([beds, picnic, teeth].map((id) => folderOf(id)), ["The Sisters", "The Sisters", null]);
+  // A new folder named like one that's there (in any case) joins it, and so does a book given that folder.
+  assert.equal(db.fileBooks(hh, { name: "the sisters", bookIds: [teeth] }), "The Sisters");
+  db.updateBook(hh, pumpkin, { folder: "THE SISTERS" });
+  assert.deepEqual(db.listFolders(hh), ["The Sisters"]);
+  assert.equal(db.getBook(hh, pumpkin)!.folder, "The Sisters");
+  // Its own name in another case is a rename, not a join.
+  assert.equal(db.fileBooks(hh, { from: "The Sisters", name: "the sisters", bookIds: [beds, picnic, teeth, pumpkin] }), "the sisters");
+  // A book can be made straight into a folder (a new story made like one in it), and taken out of it.
+  const seaside = db.createBook(hh, { title: "The Seaside", kind: "idea", folder: "The Sisters" });
+  assert.equal(folderOf(seaside), "the sisters");
+  db.updateBook(hh, seaside, { folder: null });
+  assert.equal(folderOf(seaside), null);
+
+  // Unpacked: no books, no folder. Nothing else changes.
+  assert.equal(db.fileBooks(hh, { from: "the sisters", name: "the sisters", bookIds: [] }), null);
+  assert.deepEqual(db.listFolders(hh), []);
+  assert.equal(db.listBooks(hh).length, 5);
+  assert.ok(db.listBooks(hh).every((b) => b.folder === null && b.shelf === "Dreamed-Up Tales"));
+});

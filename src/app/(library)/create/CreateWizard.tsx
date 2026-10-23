@@ -11,7 +11,7 @@ import { StylePicker, bookEstimate } from "@/components/PictureBook";
 import { DEFAULT_ART_STYLE, formatMoney, storytellerCost } from "@/lib/shared/art";
 import type { PickedPhoto } from "@/lib/client/images";
 import { newShelving, shelfTrouble, shelfWords, shelveBook, type Shelving } from "@/lib/client/shelve";
-import { AGES, LENGTHS, MOODS, defaultSettings, estimateMinutes } from "@/lib/shared/options";
+import { AGES, LENGTHS, MOODS, defaultSettings, estimateMinutes, madeUpBookTitle } from "@/lib/shared/options";
 import type { AgeBand, AppStatus, Book, LengthPreset, Mood, Profile, StorySettings, VoiceLabel, WriteCosts } from "@/lib/shared/types";
 
 type Source = "book" | "wild" | "idea";
@@ -178,20 +178,30 @@ export function CreateWizard({
     return { minutes, chars: Math.round(minutes * 140 * 6) };
   }, [settings.length, pageCount, source]);
 
+  // The book the story is for: one already on the shelf, or (with none) a new one, which joins the folder of the
+  // story it's made like, so a series stays together.
+  const forBook = chosenBook && (source === "book" || chosenBook.kind === source) ? chosenBook.id : "";
+  const likedFolder = !forBook && liked && sourceOf(liked) === source ? (books.find((b) => b.id === liked.bookId)?.folder ?? null) : null;
+
   const toggleHero = (name: string) =>
     set("heroes", settings.heroes.includes(name) ? settings.heroes.filter((h) => h !== name) : [...settings.heroes, name]);
 
   const conjure = async () => {
     setError(null);
-    let id = chosenBook && (source === "book" || chosenBook.kind === source) ? chosenBook.id : "";
+    let id = forBook;
     if (!id) {
       // The photos go up one at a time; trying again carries on, and never shelves the book twice.
-      const fallbackTitle =
-        source === "wild" ? "Our Adventure" : source === "idea" ? settings.description.split(/[.!?\n]/)[0].slice(0, 60) || "A Dreamed-Up Tale" : "My Book";
+      // A book nobody names takes its first story's title once the storyteller has written it.
+      const kind = source === "book" ? "picture_book" : source;
       const s = (shelving.current ??= newShelving());
       setBusy("Putting the book on the shelf…");
       try {
-        const book = { title: title.trim() || fallbackTitle, kind: source, notes: settings.description || undefined };
+        const book = {
+          title: title.trim() || madeUpBookTitle(kind, settings.description),
+          kind: source,
+          notes: settings.description || undefined,
+          folder: likedFolder ?? undefined,
+        };
         id = await shelveBook(api, s, book, photos, (step) => setBusy(shelfWords(step, "Putting the book on the shelf…")));
       } catch (err) {
         setError(shelfTrouble(err, s, photos.length, "the same button"));
@@ -345,6 +355,7 @@ export function CreateWizard({
                           </>
                         )}
                         <div className="small muted">{howItWasMade(liked)}</div>
+                        {likedFolder && <div className="small muted">📁 The new book goes in the folder &ldquo;{likedFolder}&rdquo;, with it.</div>}
                       </div>
                       <div className="row">
                         <button type="button" className="btn btn-quiet btn-sm" onClick={() => setChoosing(!choosing)}>

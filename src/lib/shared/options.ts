@@ -106,6 +106,18 @@ export const BOOK_KINDS: Record<BookKind, { label: string; emoji: string }> = {
   own_text: { label: "Our words", emoji: "✉️" },
 };
 
+/** What a new book is called when the family doesn't name it: a dreamed-up one goes by the first words of its idea. */
+export function madeUpBookTitle(kind: BookKind, idea?: string | null): string {
+  if (kind === "wild") return "Our Adventure";
+  if (kind === "idea") return (idea ?? "").trim().split(/[.!?\n]/)[0].slice(0, 60).trim() || "A Dreamed-Up Tale";
+  return "My Book";
+}
+
+/** A dreamed-up book (or one from the wild) that nobody named, and so takes the title of its first story. */
+export function namedByItsStory(book: { kind: BookKind; title: string; notes: string | null }): boolean {
+  return (book.kind === "idea" || book.kind === "wild") && book.title === madeUpBookTitle(book.kind, book.notes);
+}
+
 /** The order shelves appear in the library; custom shelves come after these. */
 export const SHELF_ORDER = [
   "Shadow Books",

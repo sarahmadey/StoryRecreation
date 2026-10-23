@@ -25,7 +25,7 @@ export type ShelfStep = { sending: number; of: number; fraction: number } | "she
 export async function shelveBook(
   api: Api,
   shelving: Shelving,
-  book: { title: string; kind: string; notes?: string },
+  book: { title: string; kind: string; notes?: string; folder?: string },
   photos: PickedPhoto[],
   onStep: (step: ShelfStep) => void,
 ): Promise<string> {

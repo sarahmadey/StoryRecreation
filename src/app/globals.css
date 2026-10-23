@@ -2023,12 +2023,6 @@ button.step:hover {
   gap: 6px 10px;
   margin-top: 10px;
 }
-/* A loved one's voice, before there is one: a card that says it's possible. */
-.voice-card.voice-invite {
-  border-style: dashed;
-  text-decoration: none;
-  color: inherit;
-}
 .voice-empty {
   margin: 0;
   padding: 26px 12px;
@@ -4522,48 +4516,45 @@ label.btn.disabled {
   }
 }
 
-/* Family voices at Home: a way straight to them, or a word that it's possible. */
-.family-card {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  margin: 26px 0 0;
-  padding: 18px 20px;
-  border-radius: 18px;
-  border: 1px solid rgba(220, 174, 85, 0.35);
-  background: radial-gradient(120% 140% at 0% 0%, rgba(255, 196, 110, 0.16), transparent 60%), linear-gradient(180deg, rgba(52, 34, 21, 0.85), rgba(32, 20, 13, 0.9));
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
-}
-.family-card-face {
-  flex: none;
-  font-size: 2.2rem;
-  line-height: 1;
-  filter: drop-shadow(0 0 12px rgba(255, 200, 90, 0.5));
-}
-.family-card-text {
-  min-width: 0;
+/* A little "did you know?", like a small ad at the foot of a list: something the family may not have found yet. */
+.did-you-know {
   display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
   gap: 10px;
+  margin-top: 14px;
+  padding: 10px 8px 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(168, 121, 43, 0.4);
+  background: linear-gradient(135deg, rgba(255, 233, 184, 0.75), rgba(244, 219, 168, 0.4));
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
-.family-card-text h2 {
-  margin: 0;
-  font-size: 1.35rem;
-  color: var(--gold-1);
+.did-you-know-face {
+  font-size: 1.25rem;
+  line-height: 1.2;
 }
-.family-card-text p {
-  margin: 0;
-  color: var(--text-soft);
-  line-height: 1.5;
+.did-you-know-label {
+  display: block;
+  margin-bottom: 1px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a5a1c;
 }
-.family-card-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+.did-you-know a {
+  color: inherit;
+  font-weight: 600;
+  white-space: nowrap;
 }
-.family-card-row b {
-  font-family: var(--font-heading);
-  font-weight: 400;
-  color: var(--text);
-  margin-right: 4px;
+.did-you-know-close {
+  border: 0;
+  background: none;
+  padding: 2px 6px;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 0.9rem;
+  cursor: pointer;
 }

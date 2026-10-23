@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Spinner, WaitLine } from "@/components/Waiting";
@@ -99,16 +100,26 @@ export function FamilyVoices({
             </summary>
             <div className="voice-folder-body stack" style={{ ["--gap" as string]: "12px" }}>
               {voice ? (
-                <div className="spread">
+                <div className="stack" style={{ ["--gap" as string]: "8px" }}>
                   <span className="keepsake-voice">💛 Reads stories as “{voice.name}”</span>
-                  <button
-                    className="btn btn-quiet btn-sm"
-                    onClick={() =>
-                      act(() => api.del(`/api/family-voices/${encodeURIComponent(voice.voiceId)}`), `${voice.name} won't read stories any more. The recordings are still here.`)
-                    }
-                  >
-                    Stop using {voice.name}&apos;s storytelling voice
-                  </button>
+                  <div className="row" style={{ gap: 8 }}>
+                    <Link href={`/read?reader=${encodeURIComponent(voice.voiceId)}`} className="btn btn-ghost btn-sm">
+                      📖 Pick something to read
+                    </Link>
+                    <Link href={`/create?narrator=${encodeURIComponent(voice.voiceId)}`} className="btn btn-ghost btn-sm">
+                      ✨ A new story, read by them
+                    </Link>
+                  </div>
+                  <div>
+                    <button
+                      className="btn btn-quiet btn-sm"
+                      onClick={() =>
+                        act(() => api.del(`/api/family-voices/${encodeURIComponent(voice.voiceId)}`), `${voice.name} won't read stories any more. The recordings are still here.`)
+                      }
+                    >
+                      Stop using {voice.name}&apos;s storytelling voice
+                    </button>
+                  </div>
                 </div>
               ) : (
                 making !== person && (

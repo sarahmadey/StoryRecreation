@@ -118,10 +118,12 @@ a brand-new tale for the very same pictures.
 - **A folder for each person.** In the Grown-ups' corner, everyone's recordings are kept together under their
   name ("4 recordings · 2:13 · reads stories as “Gram T”"). Open a folder to play a recording (one at a time,
   with a slider to move through it), add another of theirs, remove one, or let them read stories.
-- **Easy to discover.** Until there's a family voice, Home invites the family to keep one (with *Not now*),
-  and storyteller lists, *Read to Me* and the welcome page say it's possible, linking to where it's set up. Once
-  there is one, Home offers *Choose something to read* or *A new story* in their voice, which opens with
-  them already chosen.
+- **Found where it matters, without getting in the way.** Until there's a family voice, every storyteller list
+  (making a story, *Read to Me*, a story's *Who should read it?*) ends with a small *Did you know?*: someone you
+  love can read to you, from an old voicemail or a video, with *See how →* (✕ puts it away on that phone). *Read
+  to Me*'s own-words step and the welcome page mention it too. Once there is one, they come first in every
+  storyteller list, and their folder offers *Pick something to read* or *A new story, read by them*,
+  which open with them already chosen.
 - **A grown-up's voice can read anything.** ElevenLabs instant voice cloning learns their voice from their
   recordings, and they then appear first in every storyteller list, ready to read a book, a poem or a letter.
   Making one asks the grown-up to confirm the voice is an adult's and that the family has the right to use it

@@ -152,6 +152,43 @@ export function PhotoPicker({
 // ------------------------------------------------------------------ voices
 
 const VOICE_MADE = "storyhollow:voice-made";
+const TIP_PUT_AWAY = "storyhollow:did-you-know-family-voices";
+
+/** A little "did you know?", like a small ad: someone you love can read too. ✕ puts it away on this phone. */
+function FamilyVoiceTip() {
+  // Shown once the phone has said it wasn't put away (so it doesn't flash up and vanish).
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    try {
+      setShown(localStorage.getItem(TIP_PUT_AWAY) !== "1");
+    } catch {
+      setShown(true);
+    }
+  }, []);
+  if (!shown) return null;
+  const putAway = () => {
+    setShown(false);
+    try {
+      localStorage.setItem(TIP_PUT_AWAY, "1");
+    } catch {
+      // ignore
+    }
+  };
+  return (
+    <aside className="did-you-know" aria-label="Did you know?">
+      <span className="did-you-know-face" aria-hidden="true">
+        💛
+      </span>
+      <span>
+        <span className="did-you-know-label">Did you know?</span>
+        Someone you love can read to you, from an old voicemail or video. <Link href="/grownups#family-voices">See how →</Link>
+      </span>
+      <button type="button" className="did-you-know-close" onClick={putAway} aria-label="Not now">
+        ✕
+      </button>
+    </aside>
+  );
+}
 
 /** A voice just made in the voice workshop: every list of voices on the page takes it in. */
 export function announceVoice(voice: VoiceOption) {
@@ -301,15 +338,6 @@ export function VoicePicker({
               <span className="voice-tag">The perfect voice for this story</span>
             </div>
           )}
-          {/* No loved one's voice yet: a word that it's possible, and where it's set up. */}
-          {narratorsOnly && family.length === 0 && filter === "all" && (
-            <Link href="/grownups#family-voices" className="voice-card voice-invite">
-              <span className="voice-face">💛</span>
-              <span className="voice-name">Someone you love</span>
-              <span className="voice-tag">From a voicemail or a video, they can read to you too</span>
-              <span className="hear">Set it up →</span>
-            </Link>
-          )}
           {shown.map((v) => {
             const name = v.persona?.name ?? v.name;
             const starred = favorites.has(v.voiceId);
@@ -362,6 +390,8 @@ export function VoicePicker({
           Describe one, hear three, and keep your favorite.
         </span>
       </div>
+      {/* No loved one's voice yet: a word that it's possible, and where it's set up. */}
+      {narratorsOnly && family.length === 0 && <FamilyVoiceTip />}
       {designing &&
         createPortal(
           <VoiceDesigner

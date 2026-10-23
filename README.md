@@ -125,6 +125,10 @@ a brand-new tale for the very same pictures.
 - **Every wait says so.** A tap that opens a page shows at once that it's on its way; writing and recording a
   story say about how long is left (and if it's taking longer than usual); the play button's ring turns while
   a story loads on a weak signal.
+- **Adding a book on a weak signal.** A new book's photos go up one at a time ("Sending page 3 of 8…", with a
+  bar), and the grown-up PIN is asked before they go. A photo the signal drops, or a connection that stops
+  moving for 40 seconds, is simply sent again; if the signal is gone, it says how many photos are in, and
+  **Try again** carries on from there. The book is made once they're all in, so it's never shelved twice.
 
 ---
 

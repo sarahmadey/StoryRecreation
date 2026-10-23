@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { ChimePicker, PhotoPicker, SoundsPicker, VoicePicker, soundsOf, useVoices } from "@/components/Pickers";
@@ -10,6 +10,7 @@ import { CreditNote } from "@/components/Credits";
 import { StylePicker, bookEstimate } from "@/components/PictureBook";
 import { DEFAULT_ART_STYLE, formatMoney, storytellerCost } from "@/lib/shared/art";
 import type { PickedPhoto } from "@/lib/client/images";
+import { newShelving, shelfTrouble, shelfWords, shelveBook, type Shelving } from "@/lib/client/shelve";
 import { AGES, LENGTHS, MOODS, defaultSettings, estimateMinutes } from "@/lib/shared/options";
 import type { AgeBand, AppStatus, Book, LengthPreset, Mood, Profile, StorySettings, VoiceLabel, WriteCosts } from "@/lib/shared/types";
 
@@ -148,6 +149,8 @@ export function CreateWizard({
   const [customHero, setCustomHero] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A new book's photos already sent, so trying again carries on.
+  const shelving = useRef<Shelving | null>(null);
 
   const set = <K extends keyof StorySettings>(k: K, v: StorySettings[K]) => setSettings((s) => ({ ...s, [k]: v }));
 
@@ -180,19 +183,23 @@ export function CreateWizard({
 
   const conjure = async () => {
     setError(null);
-    try {
-      let id = chosenBook && (source === "book" || chosenBook.kind === source) ? chosenBook.id : "";
-      if (!id) {
-        setBusy("Putting the book on the shelf…");
-        const form = new FormData();
-        const fallbackTitle =
-          source === "wild" ? "Our Adventure" : source === "idea" ? settings.description.split(/[.!?\n]/)[0].slice(0, 60) || "A Dreamed-Up Tale" : "My Book";
-        form.set("title", title.trim() || fallbackTitle);
-        form.set("kind", source);
-        if (settings.description) form.set("notes", settings.description);
-        photos.forEach((p) => form.append("pages", p.file, p.file.name));
-        id = (await api.form<{ id: string }>("/api/books", form)).id;
+    let id = chosenBook && (source === "book" || chosenBook.kind === source) ? chosenBook.id : "";
+    if (!id) {
+      // The photos go up one at a time; trying again carries on, and never shelves the book twice.
+      const fallbackTitle =
+        source === "wild" ? "Our Adventure" : source === "idea" ? settings.description.split(/[.!?\n]/)[0].slice(0, 60) || "A Dreamed-Up Tale" : "My Book";
+      const s = (shelving.current ??= newShelving());
+      setBusy("Putting the book on the shelf…");
+      try {
+        const book = { title: title.trim() || fallbackTitle, kind: source, notes: settings.description || undefined };
+        id = await shelveBook(api, s, book, photos, (step) => setBusy(shelfWords(step, "Putting the book on the shelf…")));
+      } catch (err) {
+        setError(shelfTrouble(err, s, photos.length, "the same button"));
+        setBusy(null);
+        return;
       }
+    }
+    try {
       setBusy("Summoning the storyteller…");
       const story = await api.post<{ id: string }>("/api/stories", {
         bookId: id,

@@ -84,10 +84,14 @@ export class BucketClient {
 const unescapeXml = (s: string) =>
   s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 
-/** Every file in the data folder except the live database (copied separately, safely), as paths relative to it. */
+/**
+ * Every file in the data folder except the live database (copied separately, safely) and photos still on
+ * their way into a new book, as paths relative to it.
+ */
 function dataFiles(dir: string, rel = ""): { rel: string; size: number }[] {
   const out: { rel: string; size: number }[] = [];
   for (const entry of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+    if (rel === "" && entry.name === "incoming") continue;
     const r = rel ? `${rel}/${entry.name}` : entry.name;
     if (entry.isDirectory()) out.push(...dataFiles(dir, r));
     else if (entry.isFile() && !(rel === "" && DATABASE_FILES.test(entry.name))) out.push({ rel: r, size: fs.statSync(path.join(dir, r)).size });

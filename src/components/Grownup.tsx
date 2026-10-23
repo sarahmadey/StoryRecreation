@@ -12,6 +12,8 @@ export class ApiError extends Error {
     message: string,
     public status: number,
     public code?: string,
+    /** Everything else the server said about it. */
+    public details?: Record<string, unknown>,
   ) {
     super(message);
   }

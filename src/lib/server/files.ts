@@ -23,7 +23,8 @@ export function storyDir(householdId: string, storyId: string): string {
   return resolveHouseholdPath(householdId, path.join("stories", storyId));
 }
 
-const IMAGE_TYPES: Record<string, string> = {
+/** The photo types the library keeps, and the extension each is saved with. */
+export const IMAGE_TYPES: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
   "image/webp": ".webp",

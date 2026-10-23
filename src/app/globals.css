@@ -3559,6 +3559,20 @@ label.btn.disabled {
   font-size: 0.85rem;
   color: var(--ink-soft);
 }
+/* A new book's photos on their way: the bar fills as they go. */
+.shelf-progress {
+  margin-top: 0;
+}
+.shelf-progress > div {
+  flex: 1;
+  min-width: 0;
+}
+.shelf-progress .progress {
+  width: 100%;
+  height: 8px;
+  margin: 8px 0 4px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+}
 .purchase-time {
   margin-top: 8px;
   color: var(--ink-soft);

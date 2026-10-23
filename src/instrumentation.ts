@@ -10,5 +10,8 @@ export async function register() {
     // The illustrator carries on with any pictures a restart (an update, say) stopped midway.
     const { resumeLostArtSoon } = await import("./lib/server/art");
     resumeLostArtSoon();
+    // Photos for a book that was never finished are let go after a day.
+    const { clearOldUploadsDaily } = await import("./lib/server/uploads");
+    clearOldUploadsDaily();
   }
 }

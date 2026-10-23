@@ -233,7 +233,7 @@ export function CreateWizard({
     <>
       <div className="center" style={{ marginBottom: 16 }}>
         <div className="eyebrow">Create a New Story</div>
-        <h1>{["What shall we make a story for?", "Shape the story", "Voices & sounds", "Ready to conjure"][step]}</h1>
+        <h1>{["What story shall we create?", "Shape the story", "Voices & sounds", "Ready to conjure"][step]}</h1>
       </div>
       <Steps labels={STEPS} step={step} onGo={goTo} />
 

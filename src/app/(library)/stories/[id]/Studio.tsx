@@ -14,7 +14,7 @@ import { formatDuration, rebindSeconds } from "@/lib/shared/options";
 import { WaitLine } from "@/components/Waiting";
 import { formatMoney } from "@/lib/shared/art";
 import { PagePicture, Pictures } from "./Pictures";
-import type { AppStatus, Book, BookPage, ChimeSettings, Story, StoryScript, VoiceOption } from "@/lib/shared/types";
+import type { AppStatus, Book, BookPage, ChimeSettings, DrawnBefore, Story, StoryScript, VoiceOption } from "@/lib/shared/types";
 
 export function Studio({
   initial,
@@ -22,6 +22,7 @@ export function Studio({
   photos,
   status,
   pictureSpend,
+  drawnBefore,
   planPrice,
   writeCost,
 }: {
@@ -31,6 +32,8 @@ export function Studio({
   status: AppStatus;
   /** What this story's pictures have cost so far. */
   pictureSpend: number;
+  /** Its characters as drawn for the family's other picture books, to use again. */
+  drawnBefore: Record<string, DrawnBefore[]>;
   /** About what planning its pictures would cost. */
   planPrice: number;
   /** About what writing it again would cost. */
@@ -40,6 +43,7 @@ export function Studio({
   const router = useRouter();
   const [story, setStory] = useState(initial);
   const [spent, setSpent] = useState(pictureSpend);
+  const [before, setBefore] = useState(drawnBefore);
   const [script, setScript] = useState<StoryScript | null>(initial.script);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState(initial.status === "draft");
@@ -62,8 +66,9 @@ export function Studio({
   const lastStatus = useRef(initial.status);
 
   const refresh = useCallback(async () => {
-    const res = await api.get<{ story: Story; pictureSpend: number }>(`/api/stories/${story.id}`);
+    const res = await api.get<{ story: Story; pictureSpend: number; drawnBefore?: Record<string, DrawnBefore[]> }>(`/api/stories/${story.id}`);
     setSpent(res.pictureSpend);
+    setBefore(res.drawnBefore ?? {});
     // The storyteller may have put the book's photos in order: reload them.
     if (lastStatus.current === "writing" && res.story.status !== "writing") router.refresh();
     lastStatus.current = res.story.status;
@@ -99,6 +104,7 @@ export function Studio({
       story={story}
       status={status}
       spent={spent}
+      drawnBefore={before}
       planPrice={planPrice}
       heroes={story.settings.heroes}
       listen={story.status === "ready" && story.audioUrl ? `/play/${story.id}` : null}

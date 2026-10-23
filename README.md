@@ -37,8 +37,13 @@ a brand-new tale for the very same pictures.
 - **An idea becomes an illustrated book.** For a story dreamed up from an idea, switch on *Make it a picture book*
   and pick a style: watercolor, painted, colored pencil, cut paper or shadow puppets.
 - **Meet the characters first.** The storyteller reads the finished story and plans the pictures: who's in them,
-  what each one looks like, and what every page shows. Each main character is sketched three times and you choose
-  the right one together, or photograph your child's own drawing and the sketches are made from it.
+  what each one looks like, and what every page shows. **Sketch everyone at once**: one approval for two sketches
+  of each main character (untick anyone you don't want drawn), then choose a favorite for each. Or photograph your
+  child's own drawing and the sketches are made from it.
+- **Characters you've drawn before come back, free.** A character with the same name as one chosen for another
+  of your picture books (your children, say) is offered again on the new book, at no cost.
+- **Change any page before it's drawn.** Beside each page's words is what its picture will show; change it in
+  your own words ("only two beds"), free, before drawing the book.
 - **The same on every page.** The cover is drawn first, then every page from the chosen sketches and the cover,
   so the characters and colors stay the same all the way through. Redraw any page, with a note about what to change.
 - **You can see it working.** Whatever the illustrator is making shows where it will appear, with how many are
@@ -49,13 +54,16 @@ a brand-new tale for the very same pictures.
   is tried again by itself, on the same purchase. If the app restarts midway (an update, say), it carries on where
   it stopped. If a picture still can't be drawn, it says why right beside it, and whether that cost anything.
 - **Children are described, never photographed:** the illustrator works from words like "curly hair and a
-  brand-new gap in a big smile", so photos of your children are never sent anywhere.
+  brand-new gap in a big smile". A photo can help write those words (*Describe from a photo*): the storyteller
+  looks at it once and writes the description, which you can change; the photo isn't kept, and the illustrator
+  only ever sees the words.
 - **Living pictures:** while a story plays, its picture drifts slowly, and a little touch the storyteller chose
   for the scene (fairy dust, falling snow, fireflies, petals…) floats over it. Photographed books get it too. It
   pauses with the story, and rests on phones set to reduce motion.
-- **The price first, and the PIN every time.** Every step that costs money says what it costs before it happens,
-  and buying pictures always asks for the family PIN, even on an unlocked device. The illustrator never spends
-  more than was approved, and the Grown-ups' corner shows what was spent.
+- **The price first.** Every step that costs money says what it costs before it happens, priced from what your
+  recent pictures really cost (Google's charges vary a little), so an approved purchase covers every picture in
+  it. On a device where the PIN was entered lately, a tap says yes; otherwise the PIN is asked for. The
+  illustrator never spends more than was approved, and the Grown-ups' corner shows what was spent.
 - **Try it before setting it up:** until the illustrator's key is added, free stand-in pictures are drawn instead.
 
 ### 🎭 Voices that feel human
@@ -116,9 +124,11 @@ a brand-new tale for the very same pictures.
 - To rename a book, move it to another shelf or take it off the shelves, open it and tap *Rename, move or remove*.
 - **Family accounts with reader cards:** one grown-up login per family, then a "Who's listening tonight?"
   card for each child (no passwords), so everyone finds their own favorites.
-- **Grown-up PIN** (optional): children can play anything on the shelves, but creating new stories, which
-  spends credits, needs a grown-up. Buying pictures always asks for it, so a family chooses one the first time.
-  Like a phone's passcode, it's checked the moment the last digit goes in: there's no button to press.
+- **Grown-up PIN** (optional): children can play anything on the shelves, but creating new stories, buying
+  pictures and changing settings need a grown-up (buying pictures needs a PIN, so a family chooses one the first
+  time). Like a phone's passcode, it's checked the moment the last digit goes in. Once it's entered, the device
+  doesn't ask again for half an hour, or for 30 days with *Don't ask again on this device* (ticked to begin with).
+  **🔒 Lock now** in the Grown-ups' corner makes it ask every time again.
 - **⬇ Download everything:** one ZIP with every story as an MP3 (filed by book), the family recordings (by
   person), the book photos, and a *Read me* page to browse, play and read every story's words. It's the
   family's copy to keep, whatever happens to the app or the subscriptions.
@@ -165,9 +175,9 @@ humming placeholder voices.
 5. Read the script, swap any voice, then press **Record the story**. After a minute or two, press **Listen**.
 6. Tomorrow, open the book and tap **✨ Quick create**. When a story ends, *Up next* offers the next one.
 7. For a picture book, choose **Just an idea**, describe it (the sillier the what-ifs, the better), and switch on
-   **📖 Make it a picture book**. Once it's written, meet the characters on the story's page: sketch each one,
-   tap the sketches to see them big and choose together, then **Draw the book**. Each of those shows its price and
-   how long it takes, and asks for the family PIN.
+   **📖 Make it a picture book**. Once it's written, meet the characters on the story's page: **Sketch everyone
+   at once**, tap the sketches to see them big and choose together, look over what each page will show, then
+   **Draw the book**. Each of those shows its price and how long it takes before you say yes.
 8. To make one like a story you've made before, open Create: *Quick create* at the bottom offers the last story
    made for the book you choose, or the last of the kind you choose (*Choose another* lists, and searches, every
    story you've made). Its storyteller, length, mood, sounds and characters are filled in, so it's one tap; *Start
@@ -280,14 +290,15 @@ That's for your family's own listening; please don't share those recordings publ
 | Keeping family recordings | free |
 | Making a family storytelling voice | included in ElevenLabs plans from Starter up (each voice uses one of your plan's voice slots) |
 | Planning a picture book's pictures (Claude) | a few cents |
-| Pictures (Google's Nano Banana 2.1, print-sized) | at most 7¢ each, usually about 5¢: three sketches of a character about 20¢, a 6-page book about 46¢, so about 85¢ for a whole book with two characters |
+| Pictures (Google's Nano Banana 2.1, print-sized) | about 10¢ each (Google also charges for the model's thinking, which varies): two sketches of a character about 20¢, a 6-page book about 70¢, so about $1.10 for a whole book with two characters; characters drawn before are free |
 | Living pictures | free |
 
 To trim costs, set `STORY_MODEL=claude-sonnet-5-5` for the storyteller, or pick a shorter length.
 
 Before anything is made, the create screen shows about what the storyteller will cost (from what your recent
-stories cost) and how many voice credits it uses. Pictures are bought one step at a time, each with its price and
-the family PIN, and never cost more than the price approved. The Grown-ups' corner lists what was spent this month.
+stories cost) and how many voice credits it uses. Pictures are bought one step at a time, each with its price (from
+what recent pictures really cost), and never cost more than the price approved. The Grown-ups' corner lists what was
+spent this month.
 
 ---
 

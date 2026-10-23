@@ -1485,6 +1485,20 @@ a.choice {
   color: var(--ink-soft);
   text-align: center;
 }
+/* "Don't ask again on this device for 30 days", under a PIN pad. */
+.remember-device {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.remember-device input {
+  width: 18px;
+  height: 18px;
+  accent-color: #a8792b;
+}
 .pin-error {
   color: #8a2a1c;
   font-weight: 600;
@@ -3315,6 +3329,60 @@ label.btn.disabled {
   background: rgba(255, 252, 242, 0.5);
   color: var(--ink-soft);
 }
+/* A character drawn for another book: offered again, free. */
+.drawn-before {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.drawn-before-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.drawn-before-pick {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 132px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(168, 121, 43, 0.5);
+  background: #fffaf0;
+  color: var(--ink);
+  cursor: pointer;
+}
+.drawn-before-pick img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.drawn-before-pick span {
+  color: var(--ink-soft);
+  text-align: center;
+  line-height: 1.25;
+}
+/* Describing a character from a photo: a quiet link under their description. */
+.describe-photo {
+  display: inline-block;
+  margin-top: 8px;
+  cursor: pointer;
+}
+.describe-photo.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+/* What a picture will show, being changed before it's drawn: room for the words. */
+.picture-to-be.changing {
+  aspect-ratio: auto;
+  overflow: visible;
+}
+.scene-edit {
+  align-self: flex-start;
+  margin-top: auto;
+  font-size: 0.9rem;
+}
 .art-others summary {
   cursor: pointer;
   color: var(--ink-soft);
@@ -3589,6 +3657,35 @@ label.btn.disabled {
   color: var(--ink-soft);
 }
 
+/* Sketch everyone at once: who (untick anyone), and one button. */
+.sketch-everyone {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px dashed rgba(168, 121, 43, 0.55);
+  background: rgba(255, 244, 214, 0.55);
+}
+.sketch-everyone-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+.toggle-line {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+.toggle-line input {
+  flex: none;
+  margin-top: 2px;
+}
+.toggle-line input {
+  width: 18px;
+  height: 18px;
+  accent-color: #a8792b;
+}
 /* A note that follows the page while the illustrator works: above the menu on phones, and out of the test copy's label. */
 .wait-pill {
   position: fixed;

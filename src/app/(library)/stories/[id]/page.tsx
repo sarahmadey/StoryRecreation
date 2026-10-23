@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { pageCtx } from "@/lib/server/auth";
 import { getBook, getStory, listPages } from "@/lib/server/db";
 import { appStatus } from "@/lib/server/config";
-import { artBusy, resumeLostArt } from "@/lib/server/art";
+import { artBusy, drawnBeforeUrls, resumeLostArt } from "@/lib/server/art";
 import { planCostGuess } from "@/lib/server/prices";
 import { pictureSpendForStory, writeCosts } from "@/lib/server/spending";
 import { Studio } from "./Studio";
@@ -26,6 +26,7 @@ export default async function StoryPage(props: PageProps<"/stories/[id]">) {
         photos={listPages(book.id)}
         status={appStatus()}
         pictureSpend={pictureSpendForStory(id)}
+        drawnBefore={drawnBeforeUrls(ctx.household.id, id)}
         planPrice={planCostGuess(words, story.script?.pages.length ?? 6)}
         writeCost={writeCosts(ctx.household.id)[story.settings.length]}
       />

@@ -1,15 +1,16 @@
-import { db, newId, rememberPinDigits, setSessionGrownup } from "./db";
-import { grownupUnlockUntil, HttpError, verifySecret, type Ctx } from "./auth";
+import { db, newId, rememberPinDigits } from "./db";
+import { HttpError, unlockDevice, verifySecret, type Ctx } from "./auth";
 import { clearAttempts, recordAttempt, tooManyAttempts } from "./ratelimit";
-import { writeCostGuess } from "./prices";
+import { noteRecentPictureCost, writeCostGuess } from "./prices";
 import { LENGTHS } from "@/lib/shared/options";
 import { formatMoney } from "@/lib/shared/art";
 import type { LengthPreset, SpendingItem, SpendingSummary, WriteCosts } from "@/lib/shared/types";
 
 // What the family spends, kept so it can be shown before and after. Pictures
-// are bought: a grown-up approves each purchase with the family PIN, and the
-// illustrator never spends more than was approved. The storyteller's cost is
-// recorded after each story is written, and guides the estimate for the next.
+// are bought: a grown-up approves each purchase (with the family PIN, unless
+// it was entered on this device lately), and the illustrator never spends more
+// than was approved. The storyteller's cost is recorded after each story is
+// written, and guides the estimate for the next.
 
 type Row = Record<string, unknown>;
 
@@ -51,6 +52,16 @@ export function recordSpend(householdId: string, s: SpendRecord): string {
 /** A picture drawn for an approved purchase. */
 export function addToPurchase(id: string, micros: number, pictures = 1) {
   db().prepare("UPDATE spending SET spent_micros = spent_micros + ?, pictures = pictures + ? WHERE id = ?").run(Math.round(micros), pictures, id);
+  refreshPictureCost();
+}
+
+/** What pictures have really cost lately, each (tries that came back empty included), so their price covers them. */
+export function refreshPictureCost() {
+  const rows = db()
+    .prepare("SELECT spent_micros, pictures FROM spending WHERE service = 'pictures' AND stand_in = 0 AND pictures > 0 ORDER BY created_at DESC LIMIT 12")
+    .all() as Row[];
+  const pictures = rows.reduce((n, r) => n + Number(r.pictures), 0);
+  noteRecentPictureCost(pictures ? rows.reduce((n, r) => n + Number(r.spent_micros), 0) / pictures : null);
 }
 
 export function getPurchase(id: string): { approved: number; spent: number; pictures: number } | null {
@@ -118,25 +129,28 @@ export interface Approval {
   pin?: unknown;
   /** The price the grown-up was shown and said yes to. */
   micros?: unknown;
+  /** "Don't ask again on this device for 30 days." */
+  remember?: unknown;
 }
 
 /**
- * A grown-up said yes to spending money: the family PIN, entered for this
- * purchase, and a price no lower than what it can cost. Purchases always
- * need the PIN, even while the device is unlocked for making stories.
+ * A grown-up said yes to spending money, at a price no lower than what it can cost. The family PIN is asked for
+ * unless it was entered on this device lately (or this device is remembered for 30 days): then the yes is enough.
  */
 export function approvePurchase(ctx: Ctx, approval: Approval | undefined, price: number) {
   if (!ctx.household.pin_hash) throw new HttpError(403, "Buying pictures needs a family PIN. Please choose one first.", "pin_needed");
-  const key = `pin:${ctx.household.id}`;
-  if (tooManyAttempts(key, 8)) throw new HttpError(429, "Too many tries. Please wait a few minutes.");
-  const pin = typeof approval?.pin === "string" ? approval.pin : "";
-  if (!pin || !verifySecret(pin, ctx.household.pin_hash)) {
-    recordAttempt(key);
-    throw new HttpError(401, "That's not the right PIN.", "wrong_pin");
+  if (!ctx.grownup) {
+    const key = `pin:${ctx.household.id}`;
+    if (tooManyAttempts(key, 8)) throw new HttpError(429, "Too many tries. Please wait a few minutes.");
+    const pin = typeof approval?.pin === "string" ? approval.pin : "";
+    if (!pin || !verifySecret(pin, ctx.household.pin_hash)) {
+      recordAttempt(key);
+      throw new HttpError(401, pin ? "That's not the right PIN." : "A grown-up needs to enter the PIN.", pin ? "wrong_pin" : "pin_required");
+    }
+    clearAttempts(key);
+    if (ctx.household.pin_digits === null) rememberPinDigits(ctx.household.id, pin.length);
+    unlockDevice(ctx, approval?.remember === true);
   }
-  clearAttempts(key);
-  if (ctx.household.pin_digits === null) rememberPinDigits(ctx.household.id, pin.length);
-  setSessionGrownup(ctx.session.id, grownupUnlockUntil());
   const approved = Number(approval?.micros);
   if (!Number.isFinite(approved) || approved < price) {
     throw new HttpError(409, `The price has changed to ${formatMoney(price)}. Please look again before saying yes.`, "price_changed");

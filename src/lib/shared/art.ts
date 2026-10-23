@@ -58,8 +58,8 @@ export const sceneEffect = (value: unknown): SceneEffect =>
 /** How many pictures a book of pages takes: a cover, then one a page. */
 export const bookPictures = (pages: number) => pages + 1;
 
-/** How many sketches are made of a character at a time, to choose between. */
-export const SKETCHES = 3;
+/** How many sketches are made of a character at a time, to choose between (more can always be asked for). */
+export const SKETCHES = 2;
 
 /** About how long one picture takes the illustrator. */
 const PICTURE_SECONDS = 25;

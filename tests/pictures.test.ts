@@ -97,7 +97,7 @@ test("prices: Claude by the token, pictures by the picture, with a fair guess be
     1000 * 4 * 1.25 + 1000 * 0.2,
   );
   assert.equal(claudeCost("claude-opus-4-8", { input_tokens: 1000, output_tokens: 0 }), 5000, "an older Opus at its own price");
-  assert.equal(picturePrice("gemini-nano-banana-2.1"), 2000 * 30 + 10_000 * 0.5);
+  assert.equal(picturePrice("gemini-nano-banana-2.1"), 3680 * 30 + 10_000 * 0.5, "the picture, and room for the model's thinking");
   assert.ok(picturePrice("gemini-3-pro-image-preview") > picturePrice("gemini-nano-banana-2.1"), "the premium model costs more");
   assert.equal(pictureCost("gemini-nano-banana-2.1", { promptTokenCount: 3000, candidatesTokenCount: 1680 }), DRAWN);
   assert.ok(DRAWN <= picturePrice("gemini-nano-banana-2.1"), "a picture never costs more than its price");
@@ -109,13 +109,14 @@ test("prices: Claude by the token, pictures by the picture, with a fair guess be
   delete process.env.PICTURE_PRICE;
 });
 
-test("a purchase needs the family PIN, entered for it, and a price no lower than it can cost", async () => {
+test("a purchase is a grown-up's yes: the PIN on a locked device (remembered for 30 days if asked), and a price no lower than it can cost", async () => {
   const { createHousehold, createSession, getHousehold, getSession, setHouseholdPin } = await import("@/lib/server/db");
   const { hashSecret } = await import("@/lib/server/auth");
   const { approvePurchase } = await import("@/lib/server/spending");
   const id = createHousehold("The Gap Family", "gap@example.com", "hash");
-  const session = getSession(createSession(id, 60_000))!;
-  const ctx = () => ({ session, household: getHousehold(id)!, profile: null, grownup: true });
+  const sid = createSession(id, 60_000);
+  const locked = () => ({ session: getSession(sid)!, household: getHousehold(id)!, profile: null, grownup: false });
+  const unlocked = () => ({ ...locked(), grownup: true });
   const code = (fn: () => void) => {
     try {
       fn();
@@ -124,14 +125,22 @@ test("a purchase needs the family PIN, entered for it, and a price no lower than
       return (err as { code?: string }).code;
     }
   };
-  assert.equal(code(() => approvePurchase(ctx(), { pin: "1234", micros: 100 }, 100)), "pin_needed", "without a PIN, one is chosen first");
+  const minutesLeft = () => Math.round((getSession(sid)!.grownup_until - Date.now()) / 60_000);
+  assert.equal(code(() => approvePurchase(unlocked(), { micros: 100 }, 100)), "pin_needed", "without a PIN, one is chosen first");
   setHouseholdPin(id, hashSecret("2468"));
-  assert.equal(code(() => approvePurchase(ctx(), { pin: "1111", micros: 100 }, 100)), "wrong_pin");
-  assert.equal(code(() => approvePurchase(ctx(), { micros: 100 }, 100)), "wrong_pin", "an unlocked device isn't enough");
+  assert.equal(code(() => approvePurchase(locked(), { micros: 100 }, 100)), "pin_required", "a locked device asks for the PIN");
+  assert.equal(code(() => approvePurchase(locked(), { pin: "1111", micros: 100 }, 100)), "wrong_pin");
   assert.equal(getHousehold(id)!.pin_digits, null, "a PIN from before lengths were kept, not entered right yet");
-  assert.equal(code(() => approvePurchase(ctx(), { pin: "2468", micros: 99 }, 100)), "price_changed", "never more than was approved");
-  assert.equal(code(() => approvePurchase(ctx(), { pin: "2468", micros: 100 }, 100)), "approved");
+  assert.equal(code(() => approvePurchase(locked(), { pin: "2468", micros: 99 }, 100)), "price_changed", "never more than was approved");
   assert.equal(getHousehold(id)!.pin_digits, 4, "entered right once: its length is kept, so the pad checks it as soon as it's all in");
+  assert.equal(code(() => approvePurchase(locked(), { pin: "2468", micros: 100 }, 100)), "approved");
+  assert.equal(minutesLeft(), 30, "the PIN unlocks this device for half an hour");
+  assert.equal(code(() => approvePurchase(unlocked(), { micros: 100 }, 100)), "approved", "then a yes is enough here: no PIN again");
+  assert.equal(code(() => approvePurchase(unlocked(), { micros: 99 }, 100)), "price_changed");
+  assert.equal(code(() => approvePurchase(locked(), { pin: "2468", micros: 100, remember: true }, 100)), "approved");
+  assert.equal(Math.round(minutesLeft() / 60 / 24), 30, "\"don't ask again on this device for 30 days\"");
+  approvePurchase(locked(), { pin: "2468", micros: 100 }, 100);
+  assert.equal(Math.round(minutesLeft() / 60 / 24), 30, "entering it again never shortens a remembered device");
 
   setHouseholdPin(id, hashSecret("135790"), 6);
   assert.equal(getHousehold(id)!.pin_digits, 6);
@@ -395,10 +404,10 @@ test("the illustrator never draws more than the purchase covers, and a refusal o
   mode = "blocked";
   const shy = await pictureBook("A Shy Illustrator");
   const p3 = recordSpend(shy.household, { storyId: shy.story, service: "pictures", kind: "sketch", what: "x", approved: picturePrice() * 3 });
-  startSketches(shy.story, "fairy", p3, 3);
+  startSketches(shy.story, ["fairy", "fairy", "fairy"], p3);
   await untilDrawn(shy.story);
   assert.match(getStoryArt(shy.story)!.error ?? "", /wouldn't draw this one/);
-  assert.deepEqual(getStoryArt(shy.story)!.problem, { kind: "sketching", characterId: "fairy" });
+  assert.deepEqual(getStoryArt(shy.story)!.problem, { kind: "sketching", characterId: "fairy", characterIds: ["fairy"] });
   assert.deepEqual(getPurchase(p3), { approved: picturePrice() * 3, spent: 500 * 0.5 * 3, pictures: 0 }, "what a picture-less reply cost is still counted");
   mode = "ok";
 });
@@ -411,7 +420,7 @@ test("without the illustrator's key, the pictures are free stand-ins", async () 
   const { recordSpend, getPurchase } = await import("@/lib/server/spending");
   const { household, story } = await pictureBook("Stand-in Sketches");
   const purchase = recordSpend(household, { storyId: story, service: "pictures", kind: "sketch", what: "x", approved: 0, standIn: true });
-  startSketches(story, "mia", purchase, 3);
+  startSketches(story, ["mia", "mia", "mia"], purchase);
   const job = getStoryArt(story)!.job!;
   assert.deepEqual([job.kind, job.characterId, job.total, job.seconds], ["sketching", "mia", 3, 3], "stand-ins take a moment");
   await untilDrawn(story);
@@ -421,4 +430,88 @@ test("without the illustrator's key, the pictures are free stand-ins", async () 
   assert.ok(mia.sketches.every((p) => p.endsWith(".svg")));
   assert.deepEqual(getPurchase(purchase), { approved: 0, spent: 0, pictures: 3 });
   assert.equal(asked.length, 0, "Google wasn't asked");
+});
+
+test("a picture is priced from what pictures have really cost lately, so a purchase covers every picture in it", async () => {
+  const { picturePrice, noteRecentPictureCost } = await import("@/lib/server/prices");
+  const { recordSpend, addToPurchase, refreshPictureCost } = await import("@/lib/server/spending");
+  const { createHousehold } = await import("@/lib/server/db");
+  const listed = picturePrice();
+  const hh = createHousehold("The Thrift Family", "thrift@example.com", "x");
+  // Google's thinking made the latest pictures dearer than the list price allowed for: 13¢ each.
+  for (let i = 0; i < 12; i++) {
+    const dear = recordSpend(hh, { service: "pictures", kind: "sketch", what: "Sketches", approved: 300_000 });
+    addToPurchase(dear, 130_000);
+    addToPurchase(dear, 130_000);
+  }
+  assert.equal(picturePrice(), Math.round(130_000 * 1.25), "what they really cost, with room to spare");
+  // Stand-ins don't count, nor do purchases with no pictures yet.
+  recordSpend(hh, { service: "pictures", kind: "draw", what: "Stand-ins", approved: 0, standIn: true, pictures: 5 });
+  recordSpend(hh, { service: "pictures", kind: "draw", what: "Just approved", approved: 500_000 });
+  refreshPictureCost();
+  assert.equal(picturePrice(), Math.round(130_000 * 1.25));
+  // Cheaper pictures never bring it below the list price.
+  for (let i = 0; i < 12; i++) addToPurchase(recordSpend(hh, { service: "pictures", kind: "draw", what: "Pages", approved: 500_000 }), 20_000);
+  assert.equal(picturePrice(), listed);
+  noteRecentPictureCost(null);
+});
+
+test("everyone can be sketched at once, on one purchase, and a restart carries on with whoever's left", async () => {
+  delete process.env.GEMINI_API_KEY;
+  const { getStoryArt, changeStoryArt } = await import("@/lib/server/db");
+  const { startSketches, resumeLostArt } = await import("@/lib/server/art");
+  const { recordSpend, getPurchase } = await import("@/lib/server/spending");
+  const { household, story } = await pictureBook("Everyone at Once");
+  const purchase = recordSpend(household, { storyId: story, service: "pictures", kind: "sketch", what: "x", approved: 0, standIn: true });
+  const count = (id: string) => getStoryArt(story)!.characters.find((c) => c.id === id)!.sketches.length;
+  const before = { mia: count("mia"), fairy: count("fairy") };
+  startSketches(story, ["mia", "mia", "fairy", "fairy"], purchase);
+  const job = getStoryArt(story)!.job!;
+  assert.deepEqual([job.kind, job.characterId, job.whose, job.total], ["sketching", undefined, ["mia", "mia", "fairy", "fairy"], 4]);
+  assert.equal(getStoryArt(story)!.progress?.step, "Sketching the characters");
+  await untilDrawn(story);
+  assert.deepEqual([count("mia") - before.mia, count("fairy") - before.fairy], [2, 2], "two each, one purchase");
+  assert.equal(getPurchase(purchase)!.pictures, 4);
+
+  // Stopped by a restart after Mia's first sketch and the fairy's first: it carries on with one more of each.
+  changeStoryArt(story, (a) => a && { ...a, status: "sketching", job: { kind: "sketching", whose: ["mia", "mia", "fairy", "fairy"], total: 4, finished: [0, 2], startedAt: Date.now(), seconds: 3, purchaseId: purchase } });
+  resumeLostArt(story);
+  assert.deepEqual(getStoryArt(story)!.job?.whose, ["mia", "fairy"]);
+  await untilDrawn(story);
+  assert.deepEqual([count("mia") - before.mia, count("fairy") - before.fairy], [3, 3]);
+});
+
+test("a character drawn for another of the family's books is offered again, free, and copied in when used", async () => {
+  const { createStory, updateStory, changeStoryArt, getStoryArt, createBook } = await import("@/lib/server/db");
+  const { defaultSettings } = await import("@/lib/shared/options");
+  const { newArt, drawnBefore, useDrawnBefore } = await import("@/lib/server/art");
+  const { householdDir } = await import("@/lib/server/files");
+  // The family's first book: Gwendolyn's sketch is chosen (see pictureBook).
+  const first = await pictureBook("The First Tooth");
+  // A new book with Gwendolyn in it again (written a little differently), and someone new.
+  const book = createBook(first.household, { title: "The Second Tooth", kind: "idea" });
+  const second = createStory(first.household, { bookId: book, profileId: null, mode: "create", title: "The Second Tooth", settings: defaultSettings({ source: "idea", pictures: true }), status: "ready" });
+  updateStory(second, { script });
+  changeStoryArt(second, () => ({
+    ...newArt("watercolor", 3),
+    characters: [
+      { id: "gwen", name: " gwendolyn ", look: "a giant", main: true, drawing: null, sketches: [], chosen: null },
+      { id: "pip", name: "Pip", look: "a mouse", main: true, drawing: null, sketches: [], chosen: null },
+    ],
+    coverScene: "x",
+    scenes: [1, 2, 3].map((page) => ({ page, scene: `Scene ${page}`, characters: ["gwen"] })),
+  }));
+  const offered = drawnBefore(first.household, second);
+  assert.deepEqual(Object.keys(offered), ["gwen"], "only the character drawn before");
+  assert.deepEqual(offered.gwen.map((d) => [d.storyId, d.title]), [[first.story, "The First Tooth"]]);
+  assert.equal(await useDrawnBefore(first.household, second, "gwen", "not-a-story"), false);
+  assert.equal(await useDrawnBefore(first.household, second, "gwen", first.story), true);
+  const gwen = getStoryArt(second)!.characters.find((c) => c.id === "gwen")!;
+  assert.equal(gwen.chosen, 0, "chosen straight away");
+  assert.ok(gwen.sketches[0].startsWith(`stories/${second}/art/`), "copied into the new book, so it stays if the first one goes");
+  assert.deepEqual(fs.readFileSync(path.join(householdDir(first.household), gwen.sketches[0])), PNG);
+  // Another family's books never come into it.
+  const other = await pictureBook("Someone Else's Book");
+  assert.deepEqual(drawnBefore(first.household, second).gwen.map((d) => d.storyId), [first.story]);
+  assert.deepEqual(drawnBefore(other.household, second), {}, "nor is a story looked at for a family it isn't theirs");
 });

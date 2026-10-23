@@ -668,6 +668,68 @@ export async function readWordsFromPictures(images: StoryImage[]): Promise<{ tit
   }
 }
 
+// ------------------------------------------------------------ a character's look, from a photo
+
+const LOOK_SYSTEM = `You help a family describe a character for their own children's picture book. The character is based on a real person (very often one of the family's children), and you're given a photo of them, with the family's own words if they wrote any.
+
+Write how the character looks, for an illustrator who will never see the photo: one or two warm, simple sentences. Hair (color, length, curls or straight, how it's worn), eye color, skin tone, roughly how old they look ("about seven"), and friendly details you can clearly see, like glasses, freckles, dimples or a gap-toothed smile, and the kind of clothes they're wearing.
+
+- Keep everything the family wrote (what they love, what they like to wear) and add what the photo shows. Where they differ on looks, the photo wins.
+- Describe only the person: never the photo itself, the room, the background, or anything that says where they live, their name or who they are.
+- If no person can be clearly seen, leave the look empty and say why in problem.`;
+
+const LOOK_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["look", "problem"],
+  properties: { look: { type: "string" }, problem: { type: "string" } },
+} as const;
+
+/** How a character looks, in words, from a photo of the person they're based on (the photo isn't kept). */
+export async function describeFromPhoto(image: StoryImage, character: { name: string; words: string }): Promise<{ look: string; cost: number }> {
+  let message: Anthropic.Beta.BetaMessage;
+  try {
+    message = await anthropic().beta.messages.create({
+      model: config.storyModel,
+      max_tokens: 4000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: "low", format: { type: "json_schema", schema: LOOK_SCHEMA } },
+      system: LOOK_SYSTEM,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data } },
+            {
+              type: "text",
+              text: `The character is called ${character.name}.${character.words.trim() ? ` The family's own words: ${character.words.trim()}` : ""}\n\nHow do they look?`,
+            },
+          ],
+        },
+      ],
+    });
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) throw new StorytellerError("The Anthropic API key was not accepted.");
+    if (err instanceof Anthropic.RateLimitError) throw new StorytellerError("The storyteller is busy right now. Please try again in a minute.");
+    if (err instanceof Anthropic.APIError) throw new StorytellerError(`The storyteller hit a snag looking at that (${err.status}). Please try again.`);
+    throw err;
+  }
+  if (message.stop_reason === "refusal") throw new StorytellerError("The storyteller couldn't describe that photo. Describe them in words instead.");
+  const out = message.content
+    .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+  let parsed: { look: string; problem: string };
+  try {
+    parsed = JSON.parse(out) as { look: string; problem: string };
+  } catch {
+    throw new StorytellerError("The description came back jumbled. Please try again.");
+  }
+  if (!parsed.look.trim()) throw new StorytellerError(parsed.problem.trim() || "No one could be seen clearly in that photo. Try one closer up.");
+  return { look: parsed.look.trim().slice(0, 500), cost: costOf(message) };
+}
+
 function slug(s: string): string {
   return s
     .toLowerCase()

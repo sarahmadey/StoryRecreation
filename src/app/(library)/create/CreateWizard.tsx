@@ -225,7 +225,7 @@ export function CreateWizard({
     <p className="faint small center" style={{ margin: 0 }}>
       Writing it{pictureBook ? " and planning the pictures" : ""}: about {formatMoney(writeCosts[settings.length] + planning)} of storyteller time.
       {pictureBook &&
-        ` Pictures: about ${formatMoney(bookEstimate(pageCount, status.picturePrice))}${status.illustrator ? "" : " once the illustrator is set up (free stand-ins until then)"}, approved with the family PIN before any are drawn.`}
+        ` Pictures: about ${formatMoney(bookEstimate(pageCount, status.picturePrice))}${status.illustrator ? "" : " once the illustrator is set up (free stand-ins until then)"}, approved before any are drawn.`}
     </p>
   );
 

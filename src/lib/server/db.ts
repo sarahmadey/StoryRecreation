@@ -678,6 +678,16 @@ export function getStoryArt(id: string): StoryArt | null {
   return json<StoryArt>(r?.art);
 }
 
+/** A family's picture books, newest first, with their pictures as stored (to offer a character drawn before). */
+export function familyStoryArt(householdId: string): { id: string; title: string; art: StoryArt }[] {
+  return (db().prepare("SELECT id, title, art FROM stories WHERE household_id = ? AND art IS NOT NULL ORDER BY created_at DESC").all(householdId) as Row[]).flatMap(
+    (r) => {
+      const art = json<StoryArt>(r.art);
+      return art ? [{ id: r.id as string, title: r.title as string, art }] : [];
+    },
+  );
+}
+
 /** Stories whose illustrator was at work, by what the database says (after a restart, nothing is). */
 export function storiesWithArtAtWork(): string[] {
   return (db().prepare("SELECT id FROM stories WHERE art IS NOT NULL AND json_extract(art, '$.status') != 'idle'").all() as Row[]).map((r) => r.id as string);

@@ -210,8 +210,10 @@ export interface ArtScene {
 /** What the illustrator is doing right now, so the family can see it at work and how long it takes. */
 export interface ArtJob {
   kind: "planning" | "sketching" | "drawing";
-  /** Sketching: who. */
+  /** Sketching just one character: who. */
   characterId?: string;
+  /** Sketching: whose each sketch is, in the order they're made (a character's id once for each of their sketches). */
+  whose?: string[];
   /** Drawing: the cover (0) and the pages being drawn. */
   targets?: number[];
   /** How many pictures it makes, and which are finished (sketch numbers, or the cover and page numbers). */
@@ -232,7 +234,17 @@ export interface ArtJob {
 export interface ArtProblem {
   kind: ArtJob["kind"];
   characterId?: string;
+  /** Sketching: the characters whose sketches didn't all come. */
+  characterIds?: string[];
   targets?: number[];
+}
+
+/** A character's chosen picture in another of the family's books, to use again for free. */
+export interface DrawnBefore {
+  storyId: string;
+  title: string;
+  /** Its file address (its stored path, on the server). */
+  picture: string;
 }
 
 /** A picture book's pictures. Pictures are file URLs (paths, in the database); stand-ins are .svg. */

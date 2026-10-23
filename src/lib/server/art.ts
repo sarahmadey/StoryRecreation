@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { config } from "./config";
-import { changeStoryArt, getBook, getStoryArt, getStoryById, storiesWithArtAtWork, updateBook, updateStory } from "./db";
+import { changeStoryArt, familyStoryArt, fileUrl, getBook, getStoryArt, getStoryById, storiesWithArtAtWork, updateBook, updateStory } from "./db";
 import { mediaTypeFor, removeDir, removeHouseholdFile, resolveHouseholdPath, storyDir } from "./files";
 import { drawPicture, IllustratorError, illustratorReady, REFERENCE_TYPES, smallReference, type Picture, type PictureRequest, type Reference } from "./illustrator";
 import { picturePrice } from "./prices";
@@ -11,7 +11,7 @@ import { planPictures, StorytellerError, type PicturePlan } from "./storyteller"
 import { demoPicturePlan } from "./demo-storyteller";
 import { ART_STYLES, DEFAULT_ART_STYLE, drawingSeconds, formatMoney, planningSeconds } from "@/lib/shared/art";
 import { MOODS } from "@/lib/shared/options";
-import type { ArtCharacter, ArtJob, ArtProblem, ArtStyle, Mood, StoryArt } from "@/lib/shared/types";
+import type { ArtCharacter, ArtJob, ArtProblem, ArtStyle, DrawnBefore, Mood, StoryArt } from "@/lib/shared/types";
 
 // Picture books. After a story is written, the storyteller plans its pictures
 // (who's in them, what they look like, what each page shows). The family
@@ -311,24 +311,44 @@ async function plan(storyId: string) {
 
 // ---------------------------------------------------------------- sketching
 
-/** Sketch a character a few times, to choose between, on an approved purchase. */
-export function startSketches(storyId: string, characterId: string, purchaseId: string, count: number): boolean {
-  const job = { kind: "sketching" as const, characterId, purchaseId, total: count, seconds: drawingSeconds(count, false, illustratorReady()) };
-  return launchArt(storyId, "Sketching", job, () => sketch(storyId, characterId, purchaseId, count));
+/**
+ * Sketch characters to choose between, on an approved purchase: `whose` has a character's id once for each sketch
+ * of them to make (everyone at once, or just one character), and they're made in that order, two at a time.
+ */
+export function startSketches(storyId: string, whose: string[], purchaseId: string): boolean {
+  const art = getStoryArt(storyId);
+  const names = [...new Set(whose)].map((id) => art?.characters.find((c) => c.id === id)?.name ?? "");
+  const job = {
+    kind: "sketching" as const,
+    whose,
+    ...(names.length === 1 ? { characterId: whose[0] } : {}),
+    purchaseId,
+    total: whose.length,
+    seconds: drawingSeconds(whose.length, false, illustratorReady()),
+  };
+  return launchArt(storyId, names.length === 1 ? `Sketching ${names[0]}` : "Sketching the characters", job, () => sketch(storyId, whose, purchaseId));
 }
 
-async function sketch(storyId: string, characterId: string, purchaseId: string, count: number) {
+async function sketch(storyId: string, whose: string[], purchaseId: string) {
   const story = getStoryById(storyId);
   const art = getStoryArt(storyId);
-  const c = art?.characters.find((x) => x.id === characterId);
-  if (!story || !art || !c) return;
+  if (!story || !art) return;
+  const cast = new Map(art.characters.map((c) => [c.id, c]));
+  const order = whose.filter((id) => cast.has(id));
   const budget = pictureBudget(purchaseId);
-  const drawing = await reference(story.householdId, c.drawing, `a child's drawing of ${c.name}`);
+  const drawings = new Map<string, Reference | null>();
+  for (const id of new Set(order)) {
+    const c = cast.get(id)!;
+    drawings.set(id, await reference(story.householdId, c.drawing, `a child's drawing of ${c.name}`));
+  }
+  const label = new Set(order).size === 1 ? `Sketching ${cast.get(order[0])?.name}` : "Sketching the characters";
   const missed = new Map<number, Missed>();
   const tried = new Set<number>();
   let done = 0;
-  progress(storyId, `Sketching ${c.name}`, 0, count);
+  progress(storyId, label, 0, order.length);
   const one = async (i: number) => {
+    const c = cast.get(order[i])!;
+    const drawing = drawings.get(c.id) ?? null;
     const pic = budget.take()
       ? await drawWithin(budget, {
           prompt: characterPrompt(c, art.style, Boolean(drawing)),
@@ -343,16 +363,75 @@ async function sketch(storyId: string, characterId: string, purchaseId: string, 
     }
     missed.delete(i);
     const rel = await savePicture(story.householdId, storyId, `sketch-${c.id}`, pic);
-    finished(storyId, i, (a) => ({ ...a, characters: a.characters.map((x) => (x.id === characterId ? { ...x, sketches: [...x.sketches, rel] } : x)) }));
-    progress(storyId, `Sketching ${c.name}`, ++done, count);
+    finished(storyId, i, (a) => ({ ...a, characters: a.characters.map((x) => (x.id === c.id ? { ...x, sketches: [...x.sketches, rel] } : x)) }));
+    progress(storyId, label, ++done, order.length);
   };
-  await inTurns(count, 2, one);
+  await inTurns(order.length, 2, one);
   await tryAgain(storyId, missed, tried, one);
   if (missed.size) {
     const why = [...missed.values()];
-    const made = count - missed.size;
-    throw new MissedPictures(`${made ? `${made} of ${count} sketches were made. ` : ""}${why[0].problem}${chargedFor(why)}`, { kind: "sketching", characterId });
+    const made = order.length - missed.size;
+    const short = [...new Set([...missed.keys()].map((i) => order[i]))];
+    const names = short.map((id) => cast.get(id)!.name);
+    const whom = short.length === new Set(order).size ? "" : ` (${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]} still to come)`;
+    throw new MissedPictures(`${made ? `${made} of ${order.length} sketches were made${whom}. ` : ""}${why[0].problem}${chargedFor(why)}`, {
+      kind: "sketching",
+      ...(short.length === 1 ? { characterId: short[0] } : {}),
+      characterIds: short,
+    });
   }
+}
+
+// ---------------------------------------------------------- characters drawn before
+
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * For each main character of this book, the same character (by name) as chosen in the family's other picture books:
+ * the newest first, a few at most. Adaline drawn once can be in every book.
+ */
+export function drawnBefore(householdId: string, storyId: string): Record<string, DrawnBefore[]> {
+  const art = getStoryArt(storyId);
+  if (!art || getStoryById(storyId)?.householdId !== householdId) return {};
+  const others = familyStoryArt(householdId).filter((s) => s.id !== storyId);
+  const out: Record<string, DrawnBefore[]> = {};
+  for (const c of art.characters.filter((x) => x.main)) {
+    const found = others.flatMap((s) =>
+      s.art.characters
+        .filter((o) => sameName(o.name, c.name) && o.chosen !== null && o.sketches[o.chosen])
+        .map((o) => ({ storyId: s.id, title: s.title, picture: o.sketches[o.chosen!] })),
+    );
+    // The same picture chosen in several books is offered once.
+    const unique = found.filter((f, i) => found.findIndex((g) => g.picture === f.picture) === i).slice(0, 3);
+    if (unique.length) out[c.id] = unique;
+  }
+  return out;
+}
+
+/** The same, with the browser's file addresses for the pictures. */
+export function drawnBeforeUrls(householdId: string, storyId: string): Record<string, DrawnBefore[]> {
+  return Object.fromEntries(
+    Object.entries(drawnBefore(householdId, storyId)).map(([id, list]) => [id, list.map((d) => ({ ...d, picture: fileUrl(d.picture)! }))]),
+  );
+}
+
+/** Use a character's picture from another of the family's books: copied into this one (so it stays if that book goes), and chosen. */
+export async function useDrawnBefore(householdId: string, storyId: string, characterId: string, fromStoryId: string): Promise<boolean> {
+  const choice = drawnBefore(householdId, storyId)[characterId]?.find((d) => d.storyId === fromStoryId);
+  if (!choice) return false;
+  const rel = `stories/${storyId}/art/sketch-${characterId}-${randomUUID().slice(0, 8)}${path.extname(choice.picture) || ".png"}`;
+  const dest = resolveHouseholdPath(householdId, rel);
+  await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+  await fs.promises.copyFile(resolveHouseholdPath(householdId, choice.picture), dest);
+  changeStoryArt(
+    storyId,
+    (a) =>
+      a && {
+        ...a,
+        characters: a.characters.map((c) => (c.id === characterId ? { ...c, sketches: [...c.sketches, rel], chosen: c.sketches.length } : c)),
+      },
+  );
+  return true;
 }
 
 // ------------------------------------------------------------------ drawing
@@ -479,6 +558,12 @@ async function coverTheBook(householdId: string, bookId: string, pic: Picture) {
  * on by itself: sketches and pictures on the purchase the family approved, within what's left of it, and the
  * planning from the start. A job from before jobs were kept this way is settled, for the family to carry on.
  */
+/** The sketches a sketching job hadn't made yet: whose each is. */
+function sketchesLeft(job: ArtJob): string[] {
+  const whose = job.whose ?? (job.characterId ? Array.from({ length: job.total }, () => job.characterId!) : []);
+  return whose.filter((_, i) => !job.finished.includes(i));
+}
+
 export function resumeLostArt(storyId: string) {
   const art = getStoryArt(storyId);
   if (!art || art.status === "idle" || busy.has(storyId)) return;
@@ -487,8 +572,8 @@ export function resumeLostArt(storyId: string) {
   const resumed =
     job?.kind === "planning"
       ? startPlanning(storyId)
-      : job?.kind === "sketching" && job.purchaseId && job.characterId && job.total > job.finished.length
-        ? startSketches(storyId, job.characterId, job.purchaseId, job.total - job.finished.length)
+      : job?.kind === "sketching" && job.purchaseId && sketchesLeft(job).length
+        ? startSketches(storyId, sketchesLeft(job), job.purchaseId)
         : job?.kind === "drawing" && job.purchaseId && left.length
           ? startDrawing(storyId, left, job.purchaseId, job.note)
           : false;

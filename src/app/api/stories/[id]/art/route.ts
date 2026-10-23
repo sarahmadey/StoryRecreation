@@ -1,7 +1,7 @@
 import { apiCtx, HttpError, readJson, requireGrownup, route } from "@/lib/server/auth";
 import { changeStoryArt, getStory, updateStory } from "@/lib/server/db";
 import { canWriteStories } from "@/lib/server/config";
-import { startPictureBook } from "@/lib/server/art";
+import { startPictureBook, useDrawnBefore } from "@/lib/server/art";
 import { ART_STYLES, DEFAULT_ART_STYLE } from "@/lib/shared/art";
 import type { ArtStyle } from "@/lib/shared/types";
 
@@ -22,21 +22,41 @@ export const POST = route(async (req: Request, ctx: RouteContext<"/api/stories/[
   return Response.json({ story: getStory(c.household.id, id) });
 });
 
-/** Change the style, what a character looks like, or which sketch is them. */
+/** Change the style, what a character looks like, which sketch is them, or what a picture will show (before it's drawn). */
 export const PATCH = route(async (req: Request, ctx: RouteContext<"/api/stories/[id]/art">) => {
   const c = await apiCtx();
   requireGrownup(c);
   const { id } = await ctx.params;
   const story = getStory(c.household.id, id);
   if (!story?.art) throw new HttpError(404, "This story isn't a picture book yet.");
-  const body = await readJson<{ style?: unknown; looks?: Record<string, unknown>; choose?: { characterId?: unknown; index?: unknown } }>(req);
+  const body = await readJson<{
+    style?: unknown;
+    looks?: Record<string, unknown>;
+    choose?: { characterId?: unknown; index?: unknown };
+    scene?: { page?: unknown; text?: unknown };
+    reuse?: { characterId?: unknown; fromStoryId?: unknown };
+  }>(req);
+  // A character drawn for another of the family's books, used again (free): copied in, and chosen.
+  if (body.reuse) {
+    const ok = await useDrawnBefore(c.household.id, id, String(body.reuse.characterId ?? ""), String(body.reuse.fromStoryId ?? ""));
+    if (!ok) throw new HttpError(404, "That picture isn't there any more.");
+    return Response.json({ story: getStory(c.household.id, id) });
+  }
   const looks = body.looks && typeof body.looks === "object" ? body.looks : {};
   const choose = body.choose;
+  // What the cover (page 0) or a page will show: the family's own words, before it's drawn (or redrawn).
+  const scenePage = Number(body.scene?.page);
+  const sceneText = typeof body.scene?.text === "string" ? body.scene.text.trim().slice(0, 800) : "";
+  if (body.scene && (!Number.isInteger(scenePage) || scenePage < 0 || scenePage > story.art.pages.length || !sceneText)) {
+    throw new HttpError(400, "Say what the picture should show.");
+  }
   changeStoryArt(id, (a) => {
     if (!a) return a;
     return {
       ...a,
       style: body.style === undefined ? a.style : styleOf(body.style),
+      coverScene: body.scene && scenePage === 0 ? sceneText : a.coverScene,
+      scenes: body.scene && scenePage > 0 ? a.scenes.map((sc) => (sc.page === scenePage ? { ...sc, scene: sceneText } : sc)) : a.scenes,
       characters: a.characters.map((ch) => {
         const look = looks[ch.id];
         const index = Number(choose?.index);

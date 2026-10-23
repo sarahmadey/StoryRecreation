@@ -70,13 +70,13 @@ export function planCostGuess(words: number, pages: number, model = config.story
 }
 
 /**
- * Google's picture models: dollars per million tokens, and the tokens a 2K
- * picture comes to, with room for any words the model adds.
+ * Google's picture models: dollars per million tokens, and the tokens a 2K picture comes to, with room for the
+ * model's thinking and any words it adds (Google charges for those too, and they vary from picture to picture).
  */
 const PICTURES: Record<string, { input: number; output: number; tokens: number }> = {
-  "gemini-nano-banana-2.1": { input: 0.5, output: 30, tokens: 1_680 + 320 },
-  "gemini-3.1-flash-image": { input: 0.5, output: 60, tokens: 1_680 + 320 },
-  "gemini-3-pro-image": { input: 2, output: 120, tokens: 1_120 + 480 },
+  "gemini-nano-banana-2.1": { input: 0.5, output: 30, tokens: 1_680 + 2_000 },
+  "gemini-3.1-flash-image": { input: 0.5, output: 60, tokens: 1_680 + 2_000 },
+  "gemini-3-pro-image": { input: 2, output: 120, tokens: 1_120 + 1_600 },
   "gemini-2.5-flash-image": { input: 0.3, output: 30, tokens: 1_290 + 210 },
 };
 const UNKNOWN_PICTURE = { input: 2, output: 120, tokens: 2_000 };
@@ -86,12 +86,24 @@ export const PICTURE_INPUT_TOKENS = 10_000;
 
 const picturePrices = (model: string) => lookup(PICTURES, model) ?? UNKNOWN_PICTURE;
 
-/** The most one picture costs: what's shown, and approved, before any are drawn. */
+const recent = globalThis as unknown as { __storyhollowPictureCost?: number | null };
+
+/** What the family's pictures have really cost lately, each (from the spending log: see refreshPictureCost). */
+export function noteRecentPictureCost(each: number | null) {
+  recent.__storyhollowPictureCost = each;
+}
+
+/**
+ * What one picture is priced at: what's shown, and approved, before any are drawn. Never less than recent pictures
+ * have really cost, with room to spare, so a purchase covers every picture in it.
+ */
 export function picturePrice(model = config.pictureModel): number {
   const override = config.picturePriceOverride;
   if (override) return Math.round(override * 1_000_000);
   const p = picturePrices(model);
-  return Math.round(p.tokens * p.output + PICTURE_INPUT_TOKENS * p.input);
+  const listed = Math.round(p.tokens * p.output + PICTURE_INPUT_TOKENS * p.input);
+  const lately = recent.__storyhollowPictureCost;
+  return lately ? Math.max(listed, Math.round(lately * 1.25)) : listed;
 }
 
 /** What one picture cost, from the tokens Google reported. */

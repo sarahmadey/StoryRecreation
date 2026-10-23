@@ -92,6 +92,8 @@ export function GrownupProvider({ children }: { children: React.ReactNode }) {
 function PinPad({ onDone }: { onDone: (ok: boolean) => void }) {
   const [digits, setDigits] = useState<number | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  // Grown-ups mostly use the family's own phone: once is enough for a good while.
+  const [remember, setRemember] = useState(true);
 
   useEffect(() => {
     rawRequest<{ digits?: number | null }>("/api/pin").then(
@@ -102,7 +104,7 @@ function PinPad({ onDone }: { onDone: (ok: boolean) => void }) {
 
   const check = async (pin: string) => {
     try {
-      await rawRequest("/api/pin", { method: "POST", json: { pin } });
+      await rawRequest("/api/pin", { method: "POST", json: { pin, remember } });
       onDone(true);
       return true;
     } catch (err) {
@@ -118,12 +120,23 @@ function PinPad({ onDone }: { onDone: (ok: boolean) => void }) {
         <h2 id="pin-title">Enter the family PIN</h2>
         <p className="muted small">Making new stories uses storytelling credits, so a grown-up needs to say yes.</p>
         <PinEntry digits={digits} onComplete={check} error={error} onType={() => setError(null)} />
-        <p style={{ marginTop: 18 }}>
+        <RememberDevice checked={remember} onChange={setRemember} />
+        <p style={{ marginTop: 12 }}>
           <button className="btn-quiet btn" type="button" onClick={() => onDone(false)}>
             Never mind
           </button>
         </p>
       </div>
     </div>
+  );
+}
+
+/** "Don't ask again on this device for 30 days": under every PIN pad. */
+export function RememberDevice({ checked, onChange }: { checked: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="remember-device small">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      Don&apos;t ask again on this device for 30 days
+    </label>
   );
 }

@@ -142,3 +142,9 @@ export function demoWordsFromPictures(pictures: number): { title: string | null;
     ].join("\n"),
   };
 }
+
+/** Demo mode's description of a character from a photo: the family's words, and a pretend look. */
+export function demoLookFromPhoto(words: string): string {
+  const look = "curly golden hair to the shoulders, big blue eyes, rosy cheeks and a gap-toothed smile, in a pink nightgown with little flowers";
+  return words.trim() ? `${words.trim().replace(/[.\s]+$/, "")}; ${look}.` : `A little girl about seven, with ${look}.`;
+}

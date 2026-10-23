@@ -8,6 +8,7 @@ import {
   getHousehold,
   getProfile,
   getSession,
+  setSessionGrownup,
   type HouseholdRow,
   type SessionRow,
 } from "./db";
@@ -16,6 +17,8 @@ import type { Profile } from "@/lib/shared/types";
 export const SESSION_COOKIE = "ll_session";
 const SESSION_TTL = 1000 * 60 * 60 * 24 * 180; // family devices stay signed in
 const GROWNUP_UNLOCK_MS = 1000 * 60 * 30;
+/** "Don't ask again on this device for 30 days." */
+const GROWNUP_TRUST_MS = 1000 * 60 * 60 * 24 * 30;
 
 export function hashSecret(secret: string): string {
   const salt = randomBytes(16);
@@ -82,8 +85,14 @@ export function requireGrownup(ctx: Ctx) {
   if (!ctx.grownup) throw new HttpError(403, "A grown-up needs to enter the PIN.", "pin_required");
 }
 
-export function grownupUnlockUntil(): number {
-  return Date.now() + GROWNUP_UNLOCK_MS;
+/** Until when a PIN entered now unlocks this device: half an hour, or 30 days when it's to be remembered. */
+export function grownupUnlockUntil(remember = false): number {
+  return Date.now() + (remember ? GROWNUP_TRUST_MS : GROWNUP_UNLOCK_MS);
+}
+
+/** Unlock this device after the PIN was entered, never sooner than it already was (a remembered device stays so). */
+export function unlockDevice(ctx: Ctx, remember: boolean) {
+  setSessionGrownup(ctx.session.id, Math.max(ctx.session.grownup_until, grownupUnlockUntil(remember)));
 }
 
 export async function startSession(householdId: string) {

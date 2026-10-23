@@ -11,11 +11,11 @@ import { sendTrouble, sentWords, upload } from "@/lib/client/upload";
 import { StylePicker, bookEstimate } from "@/components/PictureBook";
 import { ART_STYLES, DEFAULT_ART_STYLE, SKETCHES, bookPictures, drawingSeconds, formatMoney, isStandIn, planningSeconds } from "@/lib/shared/art";
 import { aboutTime, timeLeft } from "@/lib/shared/options";
-import type { AppStatus, ArtCharacter, ArtJob, ArtStyle, Story, StoryArt } from "@/lib/shared/types";
+import type { AppStatus, ArtCharacter, ArtJob, ArtStyle, DrawnBefore, Story, StoryArt } from "@/lib/shared/types";
 
 // A story's pictures, in the studio: meet the characters as sketches and
 // choose the right ones, then draw the book. Everything that costs money
-// shows its price first and asks a grown-up for the family PIN. Whatever the
+// shows its price first and asks a grown-up (with the PIN, unless it was entered lately). Whatever the
 // illustrator is making shows where it will appear, with about how long it takes.
 
 /** A purchase of pictures, for the dialog: the price comes from the app's status, and is free while the pictures are stand-ins. */
@@ -45,6 +45,17 @@ function drawingNow(job: ArtJob | null | undefined, target: number): "drawing" |
   if (left.includes(0)) return target === 0 ? "drawing" : "waiting";
   return left.indexOf(target) < 2 ? "drawing" : "waiting";
 }
+
+/** A character's part in a sketching job: how many of their sketches it makes, and how many are done. */
+function sketchingFor(job: ArtJob | null | undefined, id: string): { total: number; done: number } | null {
+  if (job?.kind !== "sketching") return null;
+  const whose = job.whose ?? (job.characterId ? Array.from({ length: job.total }, () => job.characterId!) : []);
+  const mine = whose.flatMap((w, i) => (w === id ? [i] : []));
+  return mine.length ? { total: mine.length, done: mine.filter((i) => job.finished.includes(i)).length } : null;
+}
+
+/** "Mia, Zef and the Tooth Fairy" */
+const andList = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? ""));
 
 /** What a drawing job makes, in words. */
 const drawingWhat = (job: ArtJob, art: StoryArt) => {
@@ -117,6 +128,7 @@ function ArtPill({ art }: { art: StoryArt }) {
 function workingNote(job: ArtJob, art: StoryArt): PillNote {
   if (job.kind === "planning") return { text: "Planning the pictures…", target: "art-wait" };
   if (job.kind === "sketching") {
+    if (!job.characterId) return { text: `Sketching the characters · ${job.finished.length} of ${job.total}`, target: "art-chars" };
     const name = art.characters.find((c) => c.id === job.characterId)?.name ?? "the character";
     return { text: `Sketching ${name} · ${job.finished.length} of ${job.total}`, target: `art-wait-${job.characterId}` };
   }
@@ -127,11 +139,13 @@ function workingNote(job: ArtJob, art: StoryArt): PillNote {
 /** That the illustrator has finished (or run into trouble), for the note, and where to see it. */
 function finishedNote(job: ArtJob, art: StoryArt): PillNote {
   if (art.error) {
-    const target = art.problem?.kind === "drawing" ? "art-book" : art.problem?.kind === "sketching" ? `art-char-${art.problem.characterId}` : "art-panel";
+    const p = art.problem;
+    const target = p?.kind === "drawing" ? "art-book" : p?.kind === "sketching" ? (p.characterId ? `art-char-${p.characterId}` : "art-chars") : "art-panel";
     return { text: "⚠️ Something went wrong with the pictures. Take a look", target, done: true, problem: true };
   }
   if (job.kind === "planning") return { text: "✓ The pictures are planned: meet the characters", target: "art-chars", done: true };
   if (job.kind === "sketching") {
+    if (!job.characterId) return { text: "✓ The sketches are ready: choose one for each", target: "art-chars", done: true };
     const name = art.characters.find((c) => c.id === job.characterId)?.name ?? "the character";
     return { text: `✓ The sketches of ${name} are ready`, target: `art-char-${job.characterId}`, done: true };
   }
@@ -144,6 +158,7 @@ export function Pictures({
   story,
   status,
   spent,
+  drawnBefore,
   planPrice,
   heroes,
   listen,
@@ -153,6 +168,8 @@ export function Pictures({
   status: AppStatus;
   /** What this story's pictures have cost so far. */
   spent: number;
+  /** Its characters as drawn for the family's other picture books, to use again for free. */
+  drawnBefore: Record<string, DrawnBefore[]>;
   /** About what planning the pictures costs (storyteller time). */
   planPrice: number;
   heroes: string[];
@@ -165,11 +182,15 @@ export function Pictures({
   const [style, setStyle] = useState<ArtStyle>(art?.style ?? story.settings.artStyle ?? DEFAULT_ART_STYLE);
   const [looks, setLooks] = useState<Record<string, string>>({});
   const [skipSketches, setSkipSketches] = useState(false);
+  // Who "Sketch everyone" sketches, when the family has changed it (otherwise everyone not sketched yet).
+  const [picked, setPicked] = useState<Set<string> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [viewing, setViewing] = useState<{ items: ViewerItem[]; start: number } | null>(null);
   // A child's drawing on its way up: shrunk on the phone first, then sent (how far it's got, in words).
   const [adding, setAdding] = useState<{ id: string; words: string } | null>(null);
+  // A photo a character's look is written from: sent once, looked at by the storyteller, and not kept.
+  const [describing, setDescribing] = useState<{ id: string; what: string; startedAt: number; seconds: number } | null>(null);
   const { offerPictures, dialog } = useOffers(story, status, onStory);
   const each = status.picturePrice;
   const pages = story.script?.pages.length ?? 0;
@@ -305,6 +326,39 @@ export function Pictures({
       );
     });
 
+  // A character drawn for another book can be used again, free: offered until one is chosen for them.
+  const before = (c: ArtCharacter) => (c.chosen === null ? (drawnBefore[c.id] ?? []) : []);
+  const reuse = (c: ArtCharacter, d: DrawnBefore) =>
+    run(async () => onStory((await api.patch<{ story: Story }>(`/api/stories/${story.id}/art`, { reuse: { characterId: c.id, fromStoryId: d.storyId } })).story));
+
+  // Everyone at once: one purchase, then choose a favorite for each (anyone drawn before isn't ticked to begin with).
+  const fresh = mains.filter((c) => !c.sketches.length && c.chosen === null && !before(c).length).map((c) => c.id);
+  const chosenForAll = picked ?? new Set(fresh);
+  const everyone = mains.filter((c) => chosenForAll.has(c.id));
+  const togglePick = (id: string) =>
+    setPicked(() => {
+      const next = new Set(chosenForAll);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const sketchEveryone = () =>
+    run(async () => {
+      for (const c of everyone) await saveLook(c);
+      offerPictures(
+        `Sketches of ${andList(everyone.map((c) => c.name))} (${SKETCHES} each)`,
+        SKETCHES * everyone.length,
+        drawingSeconds(SKETCHES * everyone.length, false, status.illustrator),
+        `/api/stories/${story.id}/art/sketch`,
+        { characterIds: everyone.map((c) => c.id) },
+      );
+      setPicked(null);
+    });
+  // A problem with several characters' sketches is said once, above them; with one, on its card.
+  const sketchProblem = art.error && !working && art.problem?.kind === "sketching" ? art.problem : null;
+  const problemFor = (id: string) =>
+    sketchProblem && (sketchProblem.characterId ? sketchProblem.characterId === id : false) ? art.error : null;
+
   const choose = (c: ArtCharacter, index: number) =>
     run(async () => onStory((await api.patch<{ story: Story }>(`/api/stories/${story.id}/art`, { choose: { characterId: c.id, index } })).story));
 
@@ -346,6 +400,35 @@ export function Pictures({
       }
     });
 
+  const describe = (c: ArtCharacter, file: File | undefined) =>
+    run(async () => {
+      if (!file) return;
+      const step = (what: string, seconds = 0) => setDescribing({ id: c.id, what, startedAt: Date.now(), seconds });
+      step("Getting the photo ready");
+      try {
+        const form = new FormData();
+        form.set("characterId", c.id);
+        form.set("words", looks[c.id] ?? c.look);
+        form.set("photo", await shrinkImage(file));
+        step("Sending the photo");
+        let sent = false;
+        const res = await upload<{ story: Story }>(api, `/api/stories/${story.id}/art/describe`, form, (n, of) => {
+          if (n < of) step(sentWords("Sending the photo", n, of));
+          else if (!sent) {
+            sent = true;
+            step(`Looking at the photo of ${c.name}`, status.storyteller ? 12 : 0);
+          }
+        });
+        // The look written from the photo shows in place of anything typed before it.
+        setLooks(({ [c.id]: _typed, ...rest }) => rest);
+        onStory(res.story);
+      } catch (err) {
+        throw new Error(sendTrouble(err, "That photo couldn't be described."));
+      } finally {
+        setDescribing(null);
+      }
+    });
+
   const changeStyle = (s: ArtStyle) =>
     run(async () => {
       setStyle(s);
@@ -380,9 +463,42 @@ export function Pictures({
           Sketch each one and choose the right one together. Every page is drawn from the sketch you choose, so they look the same all the way
           through.
         </p>
+        {mains.length > 1 && mains.some((c) => c.chosen === null) && !(job?.kind === "sketching") && (
+          <div className="sketch-everyone">
+            <b>Sketch everyone at once</b>
+            <span className="small muted">
+              {SKETCHES} sketches of each, in one go. Untick anyone you don&apos;t want drawn, then choose a favorite for each.
+            </span>
+            <div className="sketch-everyone-list">
+              {mains.map((c) => (
+                <label key={c.id} className="toggle-line small">
+                  <input type="checkbox" checked={chosenForAll.has(c.id)} onChange={() => togglePick(c.id)} disabled={busy || working} />
+                  <span>
+                    {c.name}
+                    {c.sketches.length > 0 ? (
+                      <span className="faint"> (sketched already)</span>
+                    ) : (
+                      before(c).length > 0 && <span className="faint"> (drawn before: use that one, free)</span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div>
+              <button className="btn" onClick={sketchEveryone} disabled={busy || working || everyone.length === 0}>
+                {everyone.length === 0
+                  ? "✏️ Tick who to sketch"
+                  : `✏️ Sketch ${everyone.length === 1 ? everyone[0].name : `${everyone.length} characters`} · ${status.illustrator ? formatMoney(each * SKETCHES * everyone.length) : "free"}`}
+              </button>
+            </div>
+            <span className="small muted">Takes {aboutTime(drawingSeconds(SKETCHES * Math.max(1, everyone.length), false, status.illustrator))}.</span>
+          </div>
+        )}
+        {sketchProblem && !sketchProblem.characterId && <p className="notice notice-error small" style={{ margin: 0 }}>{art.error}</p>}
         {mains.map((c) => {
-          const sketching = job?.kind === "sketching" && job.characterId === c.id ? job : null;
-          const coming = sketching ? Math.max(0, sketching.total - sketching.finished.length) : 0;
+          const sketching = sketchingFor(job, c.id) && job;
+          const mine = sketchingFor(job, c.id);
+          const coming = mine ? Math.max(0, mine.total - mine.done) : 0;
           return (
             <div className="cast-card art-character" id={`art-char-${c.id}`} key={c.id}>
               <div className="cast-name">{c.name}</div>
@@ -399,7 +515,44 @@ export function Pictures({
                   }
                 />
               </label>
-              {isHero(c) && <p className="small faint" style={{ margin: "4px 0 0" }}>Described in words, so photos of your children are never sent anywhere.</p>}
+              {describing?.id === c.id ? (
+                <WaitLine what={describing.what} done={0} total={1} startedAt={describing.startedAt} seconds={describing.seconds} />
+              ) : (
+                <label className={`link-button describe-photo ${busy || working ? "disabled" : ""}`}>
+                  📷 Describe {c.name} from a photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    disabled={busy || working}
+                    onChange={(e) => {
+                      describe(c, e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+              <p className="small faint" style={{ margin: "4px 0 0" }}>
+                Only the words go to the illustrator.{isHero(c) ? " A photo just helps write them:" : " A photo can help write them:"} the storyteller
+                looks at it once, and it isn&apos;t kept.
+              </p>
+              {before(c).length > 0 && (
+                <div className="drawn-before">
+                  <span className="small">
+                    <b>Drawn before.</b> Use the same {c.name} again, free:
+                  </span>
+                  <div className="drawn-before-list">
+                    {before(c).map((d) => (
+                      <button key={d.picture} type="button" className="drawn-before-pick" onClick={() => reuse(c, d)} disabled={busy}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={d.picture} alt="" />
+                        <span className="small">from &ldquo;{d.title}&rdquo;</span>
+                        <b className="small">Use this one</b>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {(c.sketches.length > 0 || c.drawing || coming > 0) && (
                 <div className="sketches" role="group" aria-label={`Sketches of ${c.name}`}>
                   {c.drawing && (
@@ -428,20 +581,20 @@ export function Pictures({
                   ))}
                 </div>
               )}
-              {sketching && (
+              {sketching && mine && (
                 <WaitLine
                   id={`art-wait-${c.id}`}
-                  what={`Sketching ${c.name}`}
-                  done={sketching.finished.length}
-                  total={sketching.total}
+                  what={coming ? `Sketching ${c.name}` : `${c.name}'s sketches are in`}
+                  done={mine.done}
+                  total={mine.total}
                   startedAt={sketching.startedAt}
-                  seconds={sketching.seconds}
-                  note="You can leave this page; the sketches will be waiting."
+                  seconds={coming ? sketching.seconds : 0}
+                  note={coming ? "You can leave this page; the sketches will be waiting." : "Choose one now if you like, while the others are sketched."}
                 />
               )}
-              {art.error && !working && art.problem?.kind === "sketching" && art.problem.characterId === c.id && (
+              {problemFor(c.id) && (
                 <p className="notice notice-error small" style={{ margin: "10px 0 0" }}>
-                  {art.error}
+                  {problemFor(c.id)}
                 </p>
               )}
               {!sketching && c.sketches.length > 0 && (
@@ -580,7 +733,8 @@ export function Pictures({
             )}
             {todo > 0 && !drawingBook && (
               <p className="small muted" style={{ margin: 0 }}>
-                Takes {aboutTime(bookSeconds)}.
+                Takes {aboutTime(bookSeconds)}. Before drawing, look over what each picture will show (beside its words, below) and change
+                anything that isn&apos;t right: that&apos;s free.
               </p>
             )}
             {todo > 0 && unchosen.length > 0 && !skipSketches && !drawingBook && (
@@ -624,8 +778,13 @@ export function Pictures({
 
 /** The cover (page 0), or a page beside its words in the studio: its picture (or what it will show), and a redraw. */
 export function PagePicture({ story, status, page, onStory }: { story: Story; status: AppStatus; page: number; onStory: (s: Story) => void }) {
+  const api = useApi();
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState("");
+  // Before it's drawn, what it will show can be changed in the family's own words: free, unlike a redraw.
+  const [changing, setChanging] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [sceneError, setSceneError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ items: ViewerItem[]; start: number } | null>(null);
   const { offerPictures, dialog } = useOffers(story, status, (s) => {
     setAsking(false);
@@ -643,6 +802,19 @@ export function PagePicture({ story, status, page, onStory }: { story: Story; st
   const clock = useNow(Boolean(now) && single, job?.startedAt ?? 0);
 
   const view = () => setViewing(bookViewer(art, page));
+  const saveScene = async () => {
+    if (changing === null) return;
+    setSaving(true);
+    setSceneError(null);
+    try {
+      onStory((await api.patch<{ story: Story }>(`/api/stories/${story.id}/art`, { scene: { page, text: changing } })).story);
+      setChanging(null);
+    } catch (err) {
+      setSceneError(err instanceof Error ? err.message : "That didn't save.");
+    } finally {
+      setSaving(false);
+    }
+  };
   // The last drawing job couldn't make this one: why, here too (all of it when it's about just this picture).
   const problem = !working && art.error && art.problem?.kind === "drawing" && art.problem.targets?.includes(page) ? art.problem : null;
 
@@ -663,7 +835,7 @@ export function PagePicture({ story, status, page, onStory }: { story: Story; st
           )}
         </div>
       ) : (
-        <div className={`picture-to-be small ${now === "drawing" ? "working" : now === "waiting" ? "queued" : ""}`}>
+        <div className={`picture-to-be small ${now === "drawing" ? "working" : now === "waiting" ? "queued" : ""} ${changing !== null ? "changing" : ""}`}>
           {now ? (
             <b className="row" style={{ gap: 8 }}>
               {now === "drawing" ? (
@@ -677,7 +849,34 @@ export function PagePicture({ story, status, page, onStory }: { story: Story; st
           ) : (
             <b>{cover ? "The cover, to be drawn" : "To be drawn"}</b>
           )}
-          <span>{scene}</span>
+          {changing === null ? (
+            <span>{scene}</span>
+          ) : (
+            <span className="stack scene-change" style={{ ["--gap" as string]: "6px" }}>
+              <textarea
+                className="textarea"
+                rows={4}
+                value={changing}
+                onChange={(e) => setChanging(e.target.value)}
+                aria-label={`What ${cover ? "the cover" : `page ${page}`} will show`}
+                autoFocus
+              />
+              {sceneError && <span className="pin-error">{sceneError}</span>}
+              <span className="row">
+                <button type="button" className="btn btn-sm" onClick={() => void saveScene()} disabled={saving || !changing.trim()}>
+                  {saving ? "Saving…" : "Save"}
+                </button>
+                <button type="button" className="btn btn-quiet btn-sm" onClick={() => setChanging(null)} disabled={saving}>
+                  Cancel
+                </button>
+              </span>
+            </span>
+          )}
+          {!now && !working && changing === null && (
+            <button type="button" className="link-button scene-edit" onClick={() => setChanging(scene)}>
+              ✏️ Change what it shows (free)
+            </button>
+          )}
           {now === "drawing" && single && job && <span className="faint">{timeLeft(job.startedAt, job.seconds, clock)}</span>}
         </div>
       )}
@@ -693,7 +892,13 @@ export function PagePicture({ story, status, page, onStory }: { story: Story; st
       )}
       {asking && (
         <div className="stack" style={{ ["--gap" as string]: "6px", marginTop: 6 }}>
-          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What should change? (optional)" aria-label="What should change" />
+          <input
+            className="input"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="What should change? (say, “only two beds”)"
+            aria-label="What should change"
+          />
           <div className="row">
             <button
               type="button"

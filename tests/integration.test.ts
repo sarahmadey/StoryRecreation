@@ -741,3 +741,19 @@ test("recording counts only what isn't made yet: switching sound effects on keep
   assert.equal(estimate(), 10, "everything made already: only binding it together");
   await finished();
 });
+
+test("a character's look can be written from a photo: the storyteller sees the photo and the family's words, and the photo isn't kept", async () => {
+  const { describeFromPhoto } = await import("@/lib/server/storyteller");
+  soundJson = JSON.stringify({ look: "A little girl about seven with curly golden hair, blue eyes and a gap-toothed smile, in a frilly pink nightgown.", problem: "" });
+  const photo = { data: Buffer.from("not really a photo").toString("base64"), mediaType: "image/jpeg" as const };
+  const { look, cost } = await describeFromPhoto(photo, { name: "Adaline", words: "Loves dresses, even for pajamas." });
+  assert.match(look, /curly golden hair/);
+  assert.ok(cost > 0);
+  const body = captured.findLast((c) => c.url.startsWith("/v1/messages"))!.body as Record<string, any>;
+  const [image, words] = body.messages[0].content;
+  assert.equal(image.type, "image");
+  assert.match(words.text, /called Adaline.*Loves dresses, even for pajamas/s);
+  assert.match(body.system, /never the photo itself, the room, the background/);
+  soundJson = JSON.stringify({ look: "", problem: "There's no one in this photo, just a cat." });
+  await assert.rejects(describeFromPhoto(photo, { name: "Adaline", words: "" }), /just a cat/);
+});

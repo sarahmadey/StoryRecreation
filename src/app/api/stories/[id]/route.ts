@@ -2,7 +2,7 @@ import { apiCtx, HttpError, readJson, requireGrownup, route } from "@/lib/server
 import { deleteStory, getStory, updateStory } from "@/lib/server/db";
 import { removeDir, storyDir } from "@/lib/server/files";
 import { isRunning } from "@/lib/server/jobs";
-import { artBusy, resumeLostArt } from "@/lib/server/art";
+import { artBusy, drawnBeforeUrls, resumeLostArt } from "@/lib/server/art";
 import { pictureSpendForStory } from "@/lib/server/spending";
 import type { StoryScript } from "@/lib/shared/types";
 
@@ -24,7 +24,7 @@ export const GET = route(async (_req: Request, ctx: RouteContext<"/api/stories/[
     resumeLostArt(id);
     story = getStory(c.household.id, id)!;
   }
-  return Response.json({ story, running: isRunning(id), pictureSpend: pictureSpendForStory(id) });
+  return Response.json({ story, running: isRunning(id), pictureSpend: pictureSpendForStory(id), drawnBefore: drawnBeforeUrls(c.household.id, id) });
 });
 
 /** Edit the draft (title, lines, cast voices) or mark a favorite. */

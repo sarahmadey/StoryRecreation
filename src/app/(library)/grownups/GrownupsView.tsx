@@ -187,8 +187,8 @@ export function GrownupsView({
             <div>
               <b>The illustrator</b>: {status.illustrator ? `connected (${status.pictureModel})` : "stand-in pictures, for free"}
               <div className="small muted">
-                Google&apos;s picture model draws picture books, about {formatMoney(status.picturePrice)} a picture, each purchase approved with the
-                family PIN. Set <code>GEMINI_API_KEY</code>.
+                Google&apos;s picture model draws picture books, about {formatMoney(status.picturePrice)} a picture, each purchase approved by a
+                grown-up first. Set <code>GEMINI_API_KEY</code>.
               </div>
             </div>
           </div>
@@ -266,9 +266,17 @@ export function GrownupsView({
 
       <Fold id="pin" title="Grown-up PIN" note={pinSet ? "On" : "Off"} about="Keeps making stories, and buying, for grown-ups.">
         <p className="muted" style={{ margin: 0 }}>
-          With a PIN, children can listen to anything on the shelves, but making new stories (which uses credits) and changing
-          settings needs a grown-up. Buying pictures asks for the PIN every time, even when this device is unlocked.
+          With a PIN, children can listen to anything on the shelves, but making new stories, buying pictures and changing settings
+          needs a grown-up. Once it&apos;s entered, this device doesn&apos;t ask again for half an hour, or for 30 days if you tick
+          &ldquo;Don&apos;t ask again&rdquo;.
         </p>
+        {pinSet && unlockedUntil && unlockedUntil - Date.now() > 24 * 60 * 60 * 1000 && (
+          <p className="small" style={{ margin: 0 }}>
+            This device won&apos;t ask for the PIN until{" "}
+            {new Date(unlockedUntil).toLocaleDateString("en-US", { month: "long", day: "numeric" })}. Before handing it to a child, tap{" "}
+            <b>🔒 Lock now</b> to make it ask every time again.
+          </p>
+        )}
         <form
           className="row"
           onSubmit={(e) => {
@@ -342,7 +350,7 @@ export function GrownupsView({
             </ul>
           )}
           <p className="small muted" style={{ margin: 0 }}>
-            Pictures are bought with the family PIN and never cost more than the price approved; Google bills them to the account the key belongs
+            Pictures are approved by a grown-up and never cost more than the price approved; Google bills them to the account the key belongs
             to. The storyteller&apos;s time is billed by Anthropic. Voices use your ElevenLabs credits, shown under The engines.
           </p>
         </Fold>

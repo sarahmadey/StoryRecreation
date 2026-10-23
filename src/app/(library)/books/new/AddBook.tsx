@@ -9,6 +9,8 @@ import { Spinner } from "@/components/Waiting";
 import type { PickedPhoto } from "@/lib/client/images";
 import { newShelving, shelfTrouble, shelfWords, shelveBook, type ShelfStep, type Shelving } from "@/lib/client/shelve";
 
+const NO_PHOTOS = "Add a photo of each page first: the first one is the cover.";
+
 /**
  * Adding a book the family owns, the one place it's done: its name, what kind it is, and its pages.
  * Then on to its page (to read its words or make a story), or back to where they came from.
@@ -24,6 +26,9 @@ export function AddBook({ then }: { then: "read" | "create" | null }) {
   const [error, setError] = useState<string | null>(null);
   // The photos already sent: trying again carries on from there.
   const shelving = useRef<Shelving | null>(null);
+  // The name is asked for at the very top, often far above the button: a tap without one goes back up there.
+  const [needsName, setNeedsName] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
   // The button is often at the very bottom of a long page: how it's going, or what went wrong, is brought into view.
   const progressRef = useRef<HTMLDivElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
@@ -35,6 +40,16 @@ export function AddBook({ then }: { then: "read" | "create" | null }) {
   }, [error]);
 
   const save = async () => {
+    if (!title.trim()) {
+      setNeedsName(true);
+      nameRef.current?.focus();
+      nameRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (photos.length === 0) {
+      setError(NO_PHOTOS);
+      return;
+    }
     setBusy(true);
     setError(null);
     const s = (shelving.current ??= newShelving());
@@ -65,7 +80,22 @@ export function AddBook({ then }: { then: "read" | "create" | null }) {
       <div className="parchment stack">
         <label className="field">
           <span>What&apos;s the book called?</span>
-          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Goodnight, Forest" />
+          <input
+            ref={nameRef}
+            className="input"
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              setNeedsName(false);
+            }}
+            placeholder="Goodnight, Forest"
+            aria-invalid={needsName || undefined}
+          />
+          {needsName && (
+            <div className="field-error" role="alert">
+              Give the book a name here, then tap <b>Put it on the shelf</b> at the bottom.
+            </div>
+          )}
         </label>
         <div>
           <span className="label">What kind of book is it?</span>
@@ -84,7 +114,13 @@ export function AddBook({ then }: { then: "read" | "create" | null }) {
             One photo per page: snap them here, or choose them all at once from your photos (the first is the cover). For a shadow
             book, photograph each picture disc or slide, or its projection on the wall.
           </p>
-          <PhotoPicker photos={photos} onChange={setPhotos} />
+          <PhotoPicker
+            photos={photos}
+            onChange={(next) => {
+              setPhotos(next);
+              setError((e) => (e === NO_PHOTOS ? null : e));
+            }}
+          />
         </div>
         {error && (
           <p ref={errorRef} className="notice notice-error">
@@ -106,8 +142,9 @@ export function AddBook({ then }: { then: "read" | "create" | null }) {
           </div>
         ) : (
           <div className="center">
-            <button className="btn btn-lg" type="button" onClick={save} disabled={!title.trim() || photos.length === 0}>
-              {error ? "Try again" : "Put it on the shelf"}
+            {/* Never greyed out: a tap says what's still needed, and goes there. */}
+            <button className="btn btn-lg" type="button" onClick={save}>
+              {error && error !== NO_PHOTOS ? "Try again" : "Put it on the shelf"}
             </button>
           </div>
         )}

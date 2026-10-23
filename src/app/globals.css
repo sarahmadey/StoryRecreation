@@ -570,6 +570,16 @@ button.back-link {
 .field {
   display: block;
 }
+/* What a field still needs, said beside it. */
+.field-error {
+  margin-top: 6px;
+  color: #7a2a17;
+  font-size: 0.95rem;
+}
+.input[aria-invalid="true"] {
+  border-color: rgba(194, 84, 58, 0.8);
+  box-shadow: 0 0 0 3px rgba(224, 122, 98, 0.2);
+}
 .field > span,
 .label {
   display: block;

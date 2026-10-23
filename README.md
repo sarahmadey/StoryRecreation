@@ -110,6 +110,7 @@ a brand-new tale for the very same pictures.
   card for each child (no passwords), so everyone finds their own favorites.
 - **Grown-up PIN** (optional): children can play anything on the shelves, but creating new stories, which
   spends credits, needs a grown-up. Buying pictures always asks for it, so a family chooses one the first time.
+  Like a phone's passcode, it's checked the moment the last digit goes in: there's no button to press.
 - **⬇ Download everything:** one ZIP with every story as an MP3 (filed by book), the family recordings (by
   person), the book photos, and a *Read me* page to browse, play and read every story's words. It's the
   family's copy to keep, whatever happens to the app or the subscriptions.

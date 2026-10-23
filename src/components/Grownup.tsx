@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { PinEntry } from "@/components/PinEntry";
 
 // Every API call goes through `useApi()`. If the server says a grown-up is
 // needed (a PIN is set and the device isn't unlocked), a PIN pad appears and
@@ -87,28 +88,25 @@ export function GrownupProvider({ children }: { children: React.ReactNode }) {
 }
 
 function PinPad({ onDone }: { onDone: (ok: boolean) => void }) {
-  const [pin, setPin] = useState("");
+  const [digits, setDigits] = useState<number | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  const submit = async (value: string) => {
-    setBusy(true);
+  useEffect(() => {
+    rawRequest<{ digits?: number | null }>("/api/pin").then(
+      (r) => setDigits(r.digits ?? null),
+      () => setDigits(null),
+    );
+  }, []);
+
+  const check = async (pin: string) => {
     try {
-      await rawRequest("/api/pin", { method: "POST", json: { pin: value } });
+      await rawRequest("/api/pin", { method: "POST", json: { pin } });
       onDone(true);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "That didn't work.");
-      setPin("");
-    } finally {
-      setBusy(false);
+      return false;
     }
-  };
-
-  const press = (d: string) => {
-    if (busy) return;
-    setError(null);
-    const next = (pin + d).slice(0, 8);
-    setPin(next);
   };
 
   return (
@@ -117,28 +115,7 @@ function PinPad({ onDone }: { onDone: (ok: boolean) => void }) {
         <div className="eyebrow">For grown-ups</div>
         <h2 id="pin-title">Enter the family PIN</h2>
         <p className="muted small">Making new stories uses storytelling credits, so a grown-up needs to say yes.</p>
-        <div className="pin-dots" aria-live="polite" aria-label={`${pin.length} digits entered`}>
-          {Array.from({ length: Math.max(4, pin.length) }, (_, i) => (
-            <span key={i} className={i < pin.length ? "on" : ""} />
-          ))}
-        </div>
-        {error && <p className="notice notice-error small">{error}</p>}
-        <div className="pin-pad">
-          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
-            <button key={d} type="button" onClick={() => press(d)}>
-              {d}
-            </button>
-          ))}
-          <button type="button" onClick={() => setPin(pin.slice(0, -1))} aria-label="Delete">
-            ⌫
-          </button>
-          <button type="button" onClick={() => press("0")}>
-            0
-          </button>
-          <button type="button" onClick={() => submit(pin)} disabled={pin.length < 4 || busy} aria-label="Unlock">
-            ✓
-          </button>
-        </div>
+        <PinEntry digits={digits} onComplete={check} error={error} onType={() => setError(null)} />
         <p style={{ marginTop: 18 }}>
           <button className="btn-quiet btn" type="button" onClick={() => onDone(false)}>
             Never mind

@@ -115,8 +115,15 @@ test("a purchase needs the family PIN, entered for it, and a price no lower than
   setHouseholdPin(id, hashSecret("2468"));
   assert.equal(code(() => approvePurchase(ctx(), { pin: "1111", micros: 100 }, 100)), "wrong_pin");
   assert.equal(code(() => approvePurchase(ctx(), { micros: 100 }, 100)), "wrong_pin", "an unlocked device isn't enough");
+  assert.equal(getHousehold(id)!.pin_digits, null, "a PIN from before lengths were kept, not entered right yet");
   assert.equal(code(() => approvePurchase(ctx(), { pin: "2468", micros: 99 }, 100)), "price_changed", "never more than was approved");
   assert.equal(code(() => approvePurchase(ctx(), { pin: "2468", micros: 100 }, 100)), "approved");
+  assert.equal(getHousehold(id)!.pin_digits, 4, "entered right once: its length is kept, so the pad checks it as soon as it's all in");
+
+  setHouseholdPin(id, hashSecret("135790"), 6);
+  assert.equal(getHousehold(id)!.pin_digits, 6);
+  setHouseholdPin(id, null, 6);
+  assert.equal(getHousehold(id)!.pin_digits, null, "no PIN, no length");
 });
 
 const script: StoryScript = {

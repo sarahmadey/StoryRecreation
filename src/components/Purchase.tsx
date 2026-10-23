@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError, useApi } from "@/components/Grownup";
-import { Spinner } from "@/components/Waiting";
+import { PIN_DIGITS, PinEntry } from "@/components/PinEntry";
 import { aboutTime, formatMoney } from "@/lib/shared/art";
 
 // Anything that costs money is a purchase: the price is shown first, and a
@@ -26,7 +26,8 @@ export interface PurchaseOffer {
 export function PurchaseDialog({ offer, onDone }: { offer: PurchaseOffer; onDone: (bought: boolean) => void }) {
   const api = useApi();
   const [pinSet, setPinSet] = useState<boolean | null>(null);
-  const [pin, setPin] = useState("");
+  // How many digits the PIN has, so it's checked as soon as it's all in (see PinEntry).
+  const [digits, setDigits] = useState<number | null | undefined>(undefined);
   // Choosing a new PIN: the first entry, waiting to be confirmed.
   const [first, setFirst] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,72 +35,64 @@ export function PurchaseDialog({ offer, onDone }: { offer: PurchaseOffer; onDone
   const total = offer.each * offer.pictures;
 
   useEffect(() => {
-    api.get<{ pinSet: boolean }>("/api/pin").then(
-      (r) => setPinSet(r.pinSet),
-      () => setPinSet(true),
+    api.get<{ pinSet: boolean; digits?: number | null }>("/api/pin").then(
+      (r) => {
+        setPinSet(r.pinSet);
+        setDigits(r.pinSet ? (r.digits ?? null) : PIN_DIGITS);
+      },
+      () => {
+        setPinSet(true);
+        setDigits(null);
+      },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const approve = useCallback(
-    async (value: string) => {
-      setBusy(true);
-      setError(null);
-      try {
-        await offer.buy({ pin: value, micros: offer.real ? total : 0 });
-        onDone(true);
-      } catch (err) {
-        if (err instanceof ApiError && err.code === "pin_needed") setPinSet(false);
-        else setError(err instanceof Error ? err.message : "That didn't work.");
-        setPin("");
-        setBusy(false);
-      }
-    },
-    [offer, total, onDone],
-  );
+  const approve = async (pin: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await offer.buy({ pin, micros: offer.real ? total : 0 });
+      onDone(true);
+      return true;
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "pin_needed") {
+        setPinSet(false);
+        setDigits(PIN_DIGITS);
+      } else setError(err instanceof Error ? err.message : "That didn't work.");
+      setBusy(false);
+      return false;
+    }
+  };
 
-  const submit = useCallback(async () => {
-    if (busy || pin.length < 4 || pinSet === null) return;
+  /** The whole PIN is in: approve with it, or (choosing one) take it, then make sure. */
+  const entered = async (pin: string) => {
     if (pinSet) return approve(pin);
     if (first === null) {
       setFirst(pin);
-      setPin("");
-      return;
+      return true;
     }
     if (first !== pin) {
       setError("Those didn't match. Choose a PIN again.");
       setFirst(null);
-      setPin("");
-      return;
+      return false;
     }
     setBusy(true);
     try {
       await api.put("/api/pin", { pin });
       setPinSet(true);
+      setDigits(pin.length);
     } catch (err) {
       setError(err instanceof Error ? err.message : "That PIN couldn't be saved.");
       setFirst(null);
-      setPin("");
       setBusy(false);
-      return;
+      return false;
     }
-    await approve(pin);
-  }, [busy, pin, pinSet, first, approve, api]);
-
-  const press = (d: string) => {
-    if (busy) return;
-    setError(null);
-    setPin((p) => (p + d).slice(0, 8));
+    return approve(pin);
   };
 
-  // Typing works too, on a computer.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (/^\d$/.test(e.key)) press(e.key);
-      else if (e.key === "Backspace") setPin((p) => p.slice(0, -1));
-      else if (e.key === "Enter") void submit();
-      else if (e.key === "Escape") onDone(false);
-    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onDone(false);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
@@ -125,32 +118,11 @@ export function PurchaseDialog({ offer, onDone }: { offer: PurchaseOffer; onDone
         </div>
         {choosing && (
           <p className="small purchase-terms" style={{ margin: 0 }}>
-            Buying pictures always asks for the family PIN, so little fingers can&apos;t. It also keeps making stories and the Grown-ups&apos; corner
-            for grown-ups.
+            Four digits you&apos;ll remember. Buying pictures always asks for the family PIN, so little fingers can&apos;t. It also keeps making
+            stories and the Grown-ups&apos; corner for grown-ups.
           </p>
         )}
-        <div className="pin-dots" aria-live="polite" aria-label={`${pin.length} digits entered`}>
-          {Array.from({ length: Math.max(4, pin.length) }, (_, i) => (
-            <span key={i} className={i < pin.length ? "on" : ""} />
-          ))}
-        </div>
-        {error && <p className="notice notice-error small">{error}</p>}
-        <div className="pin-pad">
-          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
-            <button key={d} type="button" onClick={() => press(d)}>
-              {d}
-            </button>
-          ))}
-          <button type="button" onClick={() => setPin((p) => p.slice(0, -1))} aria-label="Delete">
-            ⌫
-          </button>
-          <button type="button" onClick={() => press("0")}>
-            0
-          </button>
-          <button type="button" onClick={() => void submit()} disabled={pin.length < 4 || busy || pinSet === null} aria-label={choosing ? "Next" : "Approve"}>
-            {busy ? <Spinner /> : "✓"}
-          </button>
-        </div>
+        <PinEntry digits={digits} onComplete={entered} error={error} onType={() => setError(null)} />
         <p style={{ marginTop: 18 }}>
           <button className="btn-quiet btn" type="button" onClick={() => onDone(false)} disabled={busy}>
             Never mind

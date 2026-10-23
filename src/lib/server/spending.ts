@@ -1,4 +1,4 @@
-import { db, newId, setSessionGrownup } from "./db";
+import { db, newId, rememberPinDigits, setSessionGrownup } from "./db";
 import { grownupUnlockUntil, HttpError, verifySecret, type Ctx } from "./auth";
 import { clearAttempts, recordAttempt, tooManyAttempts } from "./ratelimit";
 import { writeCostGuess } from "./prices";
@@ -135,6 +135,7 @@ export function approvePurchase(ctx: Ctx, approval: Approval | undefined, price:
     throw new HttpError(401, "That's not the right PIN.", "wrong_pin");
   }
   clearAttempts(key);
+  if (ctx.household.pin_digits === null) rememberPinDigits(ctx.household.id, pin.length);
   setSessionGrownup(ctx.session.id, grownupUnlockUntil());
   const approved = Number(approval?.micros);
   if (!Number.isFinite(approved) || approved < price) {

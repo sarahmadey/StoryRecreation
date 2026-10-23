@@ -244,6 +244,8 @@ export function db(): DatabaseSync {
     // Columns added after the first families had libraries.
     const storyColumns = (conn.prepare("PRAGMA table_info(stories)").all() as Row[]).map((c) => c.name);
     if (!storyColumns.includes("art")) conn.exec("ALTER TABLE stories ADD COLUMN art TEXT");
+    const householdColumns = (conn.prepare("PRAGMA table_info(households)").all() as Row[]).map((c) => c.name);
+    if (!householdColumns.includes("pin_digits")) conn.exec("ALTER TABLE households ADD COLUMN pin_digits INTEGER");
     globalForDb.__storyhollowDb = conn;
     recoverInterruptedJobs(conn);
   }
@@ -295,6 +297,8 @@ export interface HouseholdRow {
   email: string;
   password_hash: string;
   pin_hash: string | null;
+  /** How many digits the PIN has, so the pad checks it the moment it's all in. Null for a PIN from before this was kept, until it's next entered. */
+  pin_digits: number | null;
 }
 
 export function findHouseholdByEmail(email: string): HouseholdRow | undefined {
@@ -319,8 +323,13 @@ export function createHousehold(name: string, email: string, passwordHash: strin
   return id;
 }
 
-export function setHouseholdPin(id: string, pinHash: string | null) {
-  db().prepare("UPDATE households SET pin_hash = ? WHERE id = ?").run(pinHash, id);
+export function setHouseholdPin(id: string, pinHash: string | null, digits: number | null = null) {
+  db().prepare("UPDATE households SET pin_hash = ?, pin_digits = ? WHERE id = ?").run(pinHash, pinHash ? digits : null, id);
+}
+
+/** A PIN from before its length was kept has just been entered correctly: remember how long it is. */
+export function rememberPinDigits(id: string, digits: number) {
+  db().prepare("UPDATE households SET pin_digits = ? WHERE id = ? AND pin_digits IS NULL").run(digits, id);
 }
 
 export function renameHousehold(id: string, name: string) {

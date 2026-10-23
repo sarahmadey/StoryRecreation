@@ -1459,6 +1459,45 @@ a.choice {
 .pin-pad button:active {
   background: #f5dc9a;
 }
+.pin-pad button:disabled {
+  opacity: 0.45;
+}
+/* Under the dots: "Checking…" while the PIN is checked, or what went wrong. Its room is kept so nothing jumps. */
+.pin-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 2.8em;
+  margin: -6px auto 10px;
+  max-width: 300px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.pin-error {
+  color: #8a2a1c;
+  font-weight: 600;
+}
+/* A wrong PIN: the dots shake, like a phone's. */
+.pin-dots.shake {
+  animation: pin-shake 0.4s ease;
+}
+@keyframes pin-shake {
+  20%,
+  60% {
+    transform: translateX(-10px);
+  }
+  40%,
+  80% {
+    transform: translateX(10px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pin-dots.shake {
+    animation: none;
+  }
+}
 
 .notice {
   padding: 12px 16px;

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { config } from "./config";
 import { DEFAULT_SHELVES, namedByItsStory } from "@/lib/shared/options";
+import { languageOf } from "@/lib/shared/languages";
 import { gutenbergCover } from "@/lib/shared/gutenberg";
 import type {
   Book,
@@ -791,7 +792,8 @@ const CARD_SELECT = `
          s.play_count, s.last_played_at, s.created_at, b.title AS book_title, b.kind AS book_kind, b.cover_path, b.source_ref AS book_source_ref,
          json_extract(s.art, '$.cover') AS art_cover,
          (SELECT json_extract(c.value, '$.voiceId') FROM json_each(s.script, '$.cast') c
-          WHERE json_extract(c.value, '$.id') = 'narrator') AS narrator_voice_id
+          WHERE json_extract(c.value, '$.id') = 'narrator') AS narrator_voice_id,
+         COALESCE(json_extract(s.script, '$.language'), json_extract(s.settings, '$.language')) AS language
   FROM stories s JOIN books b ON b.id = s.book_id`;
 
 function toCard(r: Row): StoryCard {
@@ -812,6 +814,7 @@ function toCard(r: Row): StoryCard {
     lastPlayedAt: (r.last_played_at as number | null) ?? null,
     createdAt: r.created_at as number,
     narratorVoiceId: (r.narrator_voice_id as string | null) ?? null,
+    ...(languageOf(r.language) !== "en" ? { language: languageOf(r.language) } : {}),
   };
 }
 

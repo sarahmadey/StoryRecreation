@@ -450,6 +450,12 @@ export function Studio({
                         </p>
                       ),
                     )}
+                    {/* A story in another language: the page in English, to check what it says before it's recorded. */}
+                    {p.translation && (
+                      <p className="page-english" lang="en">
+                        <span className="page-english-label">In English</span> {p.translation}
+                      </p>
+                    )}
                     {editing && (
                       <button
                         type="button"
@@ -545,6 +551,7 @@ export function Studio({
 
       {designing && script && (
         <VoiceDesigner
+          initialLanguage={script.language}
           initialName={script.cast.find((c) => c.id === designing.castId)?.name}
           initialDescription={(() => {
             const c = script.cast.find((x) => x.id === designing.castId);

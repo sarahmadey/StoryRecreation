@@ -74,6 +74,8 @@ export interface ScriptPage {
   lines: ScriptLine[];
   /** Chosen by the storyteller to suit the scene. */
   effect?: SceneEffect;
+  /** For a story in another language: the page's words in English, for the family to see when they want. */
+  translation?: string;
 }
 
 /** One short sound effect, landing on a word as it's spoken. */
@@ -99,6 +101,8 @@ export interface StoryScript {
   pages: ScriptPage[];
   /** Sound effects chosen for this script, once they've been asked for. */
   effects?: SoundCue[];
+  /** The language it's told in (English when it isn't said). */
+  language?: StoryLanguage;
 }
 
 export interface ChimeSettings {
@@ -116,6 +120,9 @@ export type StorySource =
   | "book_read" // read your own book aloud from page photos
   | "text"; // read pasted text aloud
 
+/** The languages a story can be told in. */
+export type StoryLanguage = "en" | "fr" | "es";
+
 export interface StorySettings {
   source: StorySource;
   length: LengthPreset;
@@ -124,6 +131,10 @@ export interface StorySettings {
   heroes: string[];
   lesson: string;
   extra: string;
+  /** The language to tell it in (English when it isn't said). */
+  language?: StoryLanguage;
+  /** For someone learning that language: simpler words, at a gentler pace. */
+  learner?: boolean;
   surprise: boolean;
   /** Keep character names printed in the book, so familiar friends get new adventures. */
   keepNames: boolean;
@@ -312,6 +323,8 @@ export interface StoryCard {
   narratorVoiceId: string | null;
   /** How the family knows that voice, filled in where cards are shown. */
   narrator?: VoiceLabel | null;
+  /** The language it's told in, when it isn't English. */
+  language?: StoryLanguage;
 }
 
 /** A voice as the family knows it: "Professor Hoot" 🦉, "Gram T" 💛. */

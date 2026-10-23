@@ -5,6 +5,7 @@ import { claudeCost } from "./prices";
 import { describeVoiceForCasting } from "./voices";
 import { SCENE_EFFECTS, sceneEffect } from "@/lib/shared/art";
 import { AGES, BOOK_KINDS, LENGTHS, MOODS, WORDS_PER_MINUTE, wordsPerPage } from "@/lib/shared/options";
+import { LANGUAGES, languageOf } from "@/lib/shared/languages";
 import type { BookKind, SoundCue, StoryScript, StorySettings, VoiceOption } from "@/lib/shared/types";
 import type { RememberedCharacter } from "./db";
 
@@ -60,7 +61,12 @@ ${PERFORMANCE_RULES}
 
 Shape
 - "title": the book's title. "synopsis": one warm sentence describing the book. "ambience": a gentle looping background soundscape that suits it.
-${EFFECT_RULE}`;
+${EFFECT_RULE}
+
+Books in other languages
+- "language": the language the story text is written in: "en" (English), "fr" (French), "es" (Spanish), or "other".
+- The lines stay in the book's own language, exactly as written. When it isn't English, give each page a "translation": that page's words in natural English, for family members who are still learning the language (no delivery tags). For an English book, leave every "translation" empty.
+- Delivery tags are always in English, exactly as listed above.`;
 
 // ----------------------------------------------------------------- schema
 
@@ -69,6 +75,7 @@ const ScriptSchema = z.object({
   title: z.string(),
   synopsis: z.string(),
   ambience: z.string(),
+  language: z.string().optional(),
   cast: z.array(
     z.object({
       id: z.string(),
@@ -79,21 +86,33 @@ const ScriptSchema = z.object({
     }),
   ),
   pages: z.array(
-    z.object({ page: z.number().int(), photo: z.number().int(), picture: z.string(), lines: z.array(LineSchema), effect: z.string().optional() }),
+    z.object({
+      page: z.number().int(),
+      photo: z.number().int(),
+      picture: z.string(),
+      lines: z.array(LineSchema),
+      effect: z.string().optional(),
+      translation: z.string().optional(),
+    }),
   ),
 });
 type RawScript = z.infer<typeof ScriptSchema>;
 
-function jsonSchema(voiceIds: string[]) {
+/**
+ * The script's shape. A read-aloud says what language the book is in; a story in another language (and a book read in
+ * one) has each page in English too.
+ */
+function jsonSchema(voiceIds: string[], also: { language: boolean; translation: boolean }) {
   const str = { type: "string" };
   return {
     type: "object",
     additionalProperties: false,
-    required: ["title", "synopsis", "ambience", "cast", "pages"],
+    required: ["title", "synopsis", "ambience", "cast", "pages", ...(also.language ? ["language"] : [])],
     properties: {
       title: str,
       synopsis: str,
       ambience: str,
+      ...(also.language ? { language: { type: "string", enum: ["en", "fr", "es", "other"] } } : {}),
       cast: {
         type: "array",
         items: {
@@ -114,12 +133,13 @@ function jsonSchema(voiceIds: string[]) {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["page", "photo", "picture", "lines", "effect"],
+          required: ["page", "photo", "picture", "lines", "effect", ...(also.translation ? ["translation"] : [])],
           properties: {
             page: { type: "integer" },
             photo: { type: "integer" },
             picture: str,
             effect: { type: "string", enum: Object.keys(SCENE_EFFECTS) },
+            ...(also.translation ? { translation: str } : {}),
             lines: {
               type: "array",
               items: {
@@ -195,6 +215,20 @@ function requestText(req: StoryRequest): string {
       parts.push(
         `Heroes: make ${s.heroes.join(" and ")} the heroes of the story, by name. They are children listening tonight, so they should be brave, kind and clever, and have a wonderful time.`,
       );
+    }
+    const language = languageOf(s.language);
+    if (language !== "en") {
+      const name = LANGUAGES[language].name;
+      parts.push(
+        `Language: tell the whole story in ${name}: the title, the synopsis and every spoken line, natural and idiomatic, as a ${name}-speaking children's author would write it. Names the family gave stay just as they are. Delivery tags stay in English, exactly as listed. Keep the "picture" notes, the "ambience" and the cast's descriptions and voice briefs in English.`,
+      );
+      if (s.learner) {
+        parts.push(
+          `The listener is learning ${name}: use simple, everyday words and short, clear sentences, mostly in the present tense. Repeat key words and little phrases so they stick, and let the pictures and the sounds carry the meaning. Give it a gentle, unhurried pace, with pauses (ellipses) between sentences. Keep all the charm and the fun.`,
+        );
+      }
+      parts.push(`For every page, "translation": that page's words in natural English, for family members who are still learning ${name} (no delivery tags).`);
+      parts.push(`Voices: when the voice catalog has voices that speak ${name} (a ${name} accent, or a description that says so), prefer them for the narrator and the characters. Any voice can speak it.`);
     }
     if (s.lesson.trim()) parts.push(`A gentle theme to weave in (never preachy): ${s.lesson.trim()}`);
     if (s.extra.trim()) parts.push(`Special wishes from the family: ${s.extra.trim()}`);
@@ -275,6 +309,11 @@ export interface WrittenStory {
 /** What a finished Claude call cost (priced for the model that actually answered). */
 const costOf = (message: Anthropic.Beta.BetaMessage) => claudeCost(message.model, message.usage);
 
+/** What a script carries besides the story: the book's language (a read-aloud), and each page in English (another language). */
+export function scriptExtras(req: StoryRequest): { language: boolean; translation: boolean } {
+  return req.mode === "read" ? { language: true, translation: true } : { language: false, translation: languageOf(req.settings.language) !== "en" };
+}
+
 export async function writeScript(req: StoryRequest, onProgress: WriteProgress): Promise<WrittenStory> {
   const voiceIds = [...new Set(req.voices.map((v) => v.voiceId))];
   onProgress(req.images.length ? "Studying the pictures" : "Dreaming up the story", 0, req.pageCount);
@@ -287,7 +326,7 @@ export async function writeScript(req: StoryRequest, onProgress: WriteProgress):
     thinking: { type: "adaptive" },
     output_config: {
       effort: req.mode === "create" ? "high" : "medium",
-      format: { type: "json_schema", schema: jsonSchema(voiceIds) },
+      format: { type: "json_schema", schema: jsonSchema(voiceIds, scriptExtras(req)) },
     },
     system: req.mode === "create" ? CREATE_SYSTEM : READ_SYSTEM,
     messages: [{ role: "user", content: buildContent(req) }],
@@ -374,8 +413,11 @@ export function normalizeScript(raw: RawScript, req: StoryRequest): StoryScript 
   }
 
   const castIds = new Set(cast.map((c) => c.id));
+  // A new story is told in the language the family chose; a book is read in the language it's written in.
+  const language = languageOf(req.mode === "read" ? raw.language : req.settings.language);
   let pages: StoryScript["pages"] = raw.pages.map((p, i) => {
     const effect = sceneEffect(p.effect);
+    const translation = p.translation?.trim().slice(0, 4000);
     return {
       page: i + 1,
       picture: p.picture.trim(),
@@ -383,6 +425,7 @@ export function normalizeScript(raw: RawScript, req: StoryRequest): StoryScript 
         .map((l) => ({ speaker: castIds.has(slug(l.speaker)) ? slug(l.speaker) : "narrator", text: l.text.trim() }))
         .filter((l) => l.text.length > 0),
       ...(effect !== "none" ? { effect } : {}),
+      ...(translation && language !== "en" ? { translation } : {}),
     };
   });
   // Pages tied to real pictures must line up one-to-one with them.
@@ -397,6 +440,7 @@ export function normalizeScript(raw: RawScript, req: StoryRequest): StoryScript 
     ambience: raw.ambience.trim(),
     cast: req.settings.fullCast ? cast : [narrator],
     pages: req.settings.fullCast ? pages : pages.map((p) => ({ ...p, lines: p.lines.map((l) => ({ ...l, speaker: "narrator" })) })),
+    ...(language !== "en" ? { language } : {}),
   };
 }
 
@@ -406,7 +450,7 @@ const SOUND_SYSTEM = `You are the sound designer for Storyhollow, a family audio
 
 - Few and well placed: about one for every two pages, never more than one on a page, and at most eight in all. Return fewer, or none, when nothing fits.
 - Each sound lands on the word where it happens in the story ("creaked", "splash", "knocked"). Give the page, the line's index on that page (counting from 0), and that word copied exactly as it is written in the line.
-- Short and gentle: one to four seconds, soft enough to sit beneath a voice. Describe the sound itself, concretely, for a sound-effects generator ("a small wooden door creaks slowly open"), never a mood.
+- Short and gentle: one to four seconds, soft enough to sit beneath a voice. Describe the sound itself, concretely and in English (whatever language the story is told in), for a sound-effects generator ("a small wooden door creaks slowly open"), never a mood.
 - Never music, singing, voices or speech, crowds, a continuous background (rain, crickets, a wind that keeps blowing), alarms, screams, thunder, explosions, or anything loud, harsh or frightening.`;
 
 const SOUND_SCHEMA = {
@@ -499,7 +543,8 @@ Pictures
 - For every page, "scene": one or two sentences describing a single moment to paint: who is where, doing what, the setting, the time of day and the light. Choose the most picturable moment on that page, and show only what has happened by then.
 - "characters": the ids of the characters visible in that picture.
 - Keep places, colors and belongings consistent from page to page.
-- Never ask for words, letters, signs or speech bubbles in a picture: the words are printed separately.`;
+- Never ask for words, letters, signs or speech bubbles in a picture: the words are printed separately.
+- Write the looks, the cover and the scenes in English, whatever language the story is told in: the family reads them, and can change them.`;
 
 const ART_SCHEMA = {
   type: "object",
@@ -732,6 +777,8 @@ export async function describeFromPhoto(image: StoryImage, character: { name: st
 
 function slug(s: string): string {
   return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")

@@ -9,7 +9,8 @@ import {
   type WriteProgress,
   type WrittenStory,
 } from "./storyteller";
-import type { SoundCue, StoryScript } from "@/lib/shared/types";
+import { languageOf } from "@/lib/shared/languages";
+import type { SoundCue, StoryLanguage, StoryScript } from "@/lib/shared/types";
 import { sectionText } from "./text";
 
 // A pretend storyteller for DEMO_MODE, so every screen can be explored
@@ -22,6 +23,36 @@ const FILLER = [
   "Everyone held their breath. Something wonderful was about to happen.",
   "The stars leaned closer, the way stars do when a good story is being told.",
 ];
+
+// The same pretend story in the other languages, with the English kept for the page's translation.
+const TOLD: Record<Exclude<StoryLanguage, "en">, { title: (hero: string, word: string) => string; first: (page: number) => string; filler: string[]; hero: string; owl: string }> = {
+  fr: {
+    title: (hero, word) => `${hero} et le secret de ${word}`,
+    first: (page) => `Ceci est une page de démonstration, numéro ${page}. Avec une clé Anthropic, le conteur écrit une vraie histoire en français.`,
+    filler: [
+      "La lanterne brillait doucement, et les ombres sur le mur commençaient à s'étirer.",
+      "Au loin, une chouette endormie fit hou, et toute la forêt sembla écouter.",
+      "Une petite brise passa sur la pointe des pieds, avec une odeur de pain grillé et d'aiguilles de pin.",
+      "Tout le monde retint son souffle. Quelque chose de merveilleux allait arriver.",
+      "Les étoiles se penchèrent plus près, comme elles le font quand on raconte une belle histoire.",
+    ],
+    hero: "[excitedly] Tu as vu ça ? Tournons la page !",
+    owl: "[sleepily] Hou... Patience, petite. Le meilleur arrive.",
+  },
+  es: {
+    title: (hero, word) => `${hero} y el secreto de ${word}`,
+    first: (page) => `Esta es una página de demostración, número ${page}. Con una clave de Anthropic, el narrador escribe un cuento de verdad en español.`,
+    filler: [
+      "La linterna brillaba suavemente, y las sombras de la pared empezaron a estirarse.",
+      "A lo lejos, un búho dormilón dijo uh, y todo el bosque pareció escuchar.",
+      "Una brisa pequeñita pasó de puntillas, con olor a pan tostado y a pino.",
+      "Todos contuvieron la respiración. Algo maravilloso estaba a punto de pasar.",
+      "Las estrellas se acercaron, como hacen cuando se cuenta un buen cuento.",
+    ],
+    hero: "[excitedly] ¿Viste eso? ¡Pasemos la página!",
+    owl: "[sleepily] Uh... Paciencia, pequeña. Lo mejor está por llegar.",
+  },
+};
 
 export async function writeDemoScript(req: StoryRequest, onProgress: WriteProgress): Promise<WrittenStory> {
   const narrator = req.settings.narratorVoiceId ?? req.voices[0]?.voiceId ?? "demo-narrator";
@@ -44,11 +75,11 @@ export async function writeDemoScript(req: StoryRequest, onProgress: WriteProgre
     return { script, photoOrder: null, cost: 0 };
   }
 
+  const language = req.mode === "create" ? languageOf(req.settings.language) : "en";
+  const told = language === "en" ? null : TOLD[language];
+  const word = req.bookTitle.split(/\s+/).sort((a, b) => b.length - a.length)[0] || "Dreams";
   const raw: RawScript = {
-    title:
-      req.mode === "create"
-        ? `${heroName} and the Secret of ${req.bookTitle.split(/\s+/).sort((a, b) => b.length - a.length)[0] || "Dreams"}`
-        : req.bookTitle,
+    title: req.mode === "create" ? (told ? told.title(heroName, word) : `${heroName} and the Secret of ${word}`) : req.bookTitle,
     synopsis:
       req.mode === "create"
         ? `A demo story: ${heroName} follows a glowing lantern through ${req.pageCount} pages of shadows and wonder.`
@@ -97,7 +128,15 @@ export async function writeDemoScript(req: StoryRequest, onProgress: WriteProgre
     }
     // A few pages get a moving touch, so living pictures can be seen in demo mode.
     const effect = ["sparkles", "none", "fireflies", "none", "stars", "snow"][i % 6];
-    raw.pages.push({ page: i + 1, photo: i + 1, picture: `Picture ${i + 1}`, lines, effect });
+    // In another language, the same lines in it, and the English kept as the page's translation.
+    const english = lines.map((l) => l.text.replace(/\[[^\]]*\]\s*/g, "")).join(" ");
+    const spoken = told
+      ? lines.map((l, k) => ({
+          ...l,
+          text: k === 0 ? told.first(i + 1) : l.speaker === "hero" ? told.hero : l.speaker === "ollie-owl" ? told.owl : told.filler[FILLER.indexOf(l.text)] ?? l.text,
+        }))
+      : lines;
+    raw.pages.push({ page: i + 1, photo: i + 1, picture: `Picture ${i + 1}`, lines: spoken, effect, ...(told ? { translation: english } : {}) });
     onProgress(req.mode === "create" ? "Writing the pages" : "Reading the pages", i + 1, req.pageCount);
   }
   return { script: normalizeScript(raw, req), photoOrder: null, cost: 0 };

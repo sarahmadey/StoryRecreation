@@ -29,6 +29,7 @@ import { recordSpend } from "./spending";
 import { planPicturesAfterWriting } from "./art";
 import { sectionText, stripTags, withTheEnd } from "./text";
 import { personaFor } from "@/lib/shared/personas";
+import { SAYINGS, guessLanguage, languageOf } from "@/lib/shared/languages";
 import type { ScriptLine, ScriptPage, SoundCue, StoryScript, StorySettings } from "@/lib/shared/types";
 
 // Stories are written and recorded in the background so a phone can lock, or
@@ -126,6 +127,7 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
   if (text !== undefined && !s.fullCast) {
     // One reader, exact words: no storyteller needed, so it's instant and free.
     const sections = sectionText(text, 900);
+    const language = guessLanguage(text);
     script = {
       title: story.title,
       synopsis:
@@ -134,6 +136,7 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
       ambience: "a quiet room with a softly crackling fire",
       cast: [{ id: "narrator", name: "Reader", description: "The reader", voiceBrief: "warm and clear", voiceId: narratorVoice }],
       pages: sections.map((t, i) => ({ page: i + 1, picture: "", lines: [{ speaker: "narrator", text: t }] })),
+      ...(language !== "en" ? { language } : {}),
     };
   } else {
     const pageRows = s.source === "idea" || text !== undefined ? [] : listPageRows(book.id);
@@ -172,7 +175,7 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
   }
 
   // Every story ends by saying so, so everyone knows it's over.
-  script = withTheEnd(script, moreChapters ? "That's the end of this chapter." : "The end.");
+  script = withTheEnd(script, moreChapters);
 
   updateStory(storyId, {
     script,
@@ -237,30 +240,19 @@ function introLines(
   const narrator = script.cast.find((c) => c.id === "narrator");
   const persona = narrator ? personaFor(narrator.voiceId) : undefined;
   const chapter = stripTags(script.title);
+  // In the story's own language: "Welcome to Storyhollow…", "Bienvenue à Storyhollow…".
+  const say = SAYINGS[languageOf(script.language)];
   // A chapter of a classic is introduced with its book: "The Wind in the Willows: The River Bank".
   const title = opts.mode === "read" && opts.bookTitle && chapter !== opts.bookTitle ? `${opts.bookTitle}: ${chapter}` : chapter;
-  const readBy = opts.mode === "read" && persona ? `, read for you by ${persona.name}` : "";
+  const readBy = opts.mode === "read" && persona ? say.readBy(persona.name) : "";
   const bookish = opts.source === "book" || opts.source === "book_read";
   if (opts.chime && bookish) {
     return {
-      before: [
-        {
-          speaker: "narrator",
-          text: `[warmly] Welcome to Storyhollow. Tonight's story is called ${title}${readBy}. You can follow along with the pictures in your book. You'll know it's time to turn the page when you hear this sound...`,
-        },
-      ],
-      after: [{ speaker: "narrator", text: "That's the one! Now, open your book to the very first page... and let's begin." }],
+      before: [{ speaker: "narrator", text: `[warmly] ${say.welcome(title, readBy)} ${say.followAlong}` }],
+      after: [{ speaker: "narrator", text: say.firstPage }],
     };
   }
-  return {
-    before: [
-      {
-        speaker: "narrator",
-        text: `[warmly] Welcome to Storyhollow. Tonight's story is called ${title}${readBy}. So snuggle in... and let's begin.`,
-      },
-    ],
-    after: [],
-  };
+  return { before: [{ speaker: "narrator", text: `[warmly] ${say.welcome(title, readBy)} ${say.snuggleIn}` }], after: [] };
 }
 
 function hashOf(value: unknown): string {
@@ -274,10 +266,18 @@ interface CachedClip {
 
 const pageClip = (page: number) => `page-${String(page).padStart(3, "0")}`;
 
-/** What a set of lines sounds like: the words, who says them, and the voice model. Recorded again only when it changes. */
+/** What a set of lines sounds like: the words, who says them, the voice model and the language. Recorded again only when it changes. */
 function performanceHash(lines: ScriptLine[], script: StoryScript): string {
   const voices = Object.fromEntries(script.cast.map((c) => [c.id, c.voiceId]));
-  return hashOf({ lines, voices: lines.map((l) => voices[l.speaker]), model: config.voiceModel, demo: !config.elevenLabsKey });
+  const language = languageOf(script.language);
+  return hashOf({
+    lines,
+    voices: lines.map((l) => voices[l.speaker]),
+    model: config.voiceModel,
+    demo: !config.elevenLabsKey,
+    // (English stories were recorded before languages: their recordings stay as they are)
+    ...(language !== "en" ? { language } : {}),
+  });
 }
 
 /** Whether a set of lines is recorded already, unchanged. */
@@ -300,7 +300,7 @@ async function cachedPerformance(dir: string, name: string, lines: ScriptLine[],
   } catch {
     // not recorded yet
   }
-  const clip = await performLines(lines, script.cast);
+  const clip = await performLines(lines, script.cast, languageOf(script.language));
   await fs.promises.writeFile(pcmPath, floatToPcm16(clip.samples));
   await fs.promises.writeFile(metaPath, JSON.stringify({ hash, words: clip.words } satisfies CachedClip));
   return clip;

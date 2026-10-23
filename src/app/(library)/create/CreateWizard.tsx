@@ -12,7 +12,8 @@ import { DEFAULT_ART_STYLE, formatMoney, storytellerCost } from "@/lib/shared/ar
 import type { PickedPhoto } from "@/lib/client/images";
 import { newShelving, shelfTrouble, shelfWords, shelveBook, type Shelving } from "@/lib/client/shelve";
 import { AGES, LENGTHS, MOODS, defaultSettings, estimateMinutes, madeUpBookTitle } from "@/lib/shared/options";
-import type { AgeBand, AppStatus, Book, LengthPreset, Mood, Profile, StorySettings, VoiceLabel, WriteCosts } from "@/lib/shared/types";
+import { LANGUAGES, languageOf } from "@/lib/shared/languages";
+import type { AgeBand, AppStatus, Book, LengthPreset, Mood, Profile, StoryLanguage, StorySettings, VoiceLabel, WriteCosts } from "@/lib/shared/types";
 
 type Source = "book" | "wild" | "idea";
 
@@ -143,7 +144,12 @@ export function CreateWizard({
   const lq = likeQuery.trim().toLowerCase();
   const likeOptions = lq ? past.filter((s) => s.title.toLowerCase().includes(lq) || s.bookTitle.toLowerCase().includes(lq)) : past;
   const howItWasMade = (s: PastStory) =>
-    [s.narrator ? `${s.narrator.emoji} ${s.narrator.name}` : null, LENGTHS[s.settings.length].label, s.settings.heroes.join(" & ") || null]
+    [
+      s.narrator ? `${s.narrator.emoji} ${s.narrator.name}` : null,
+      LENGTHS[s.settings.length].label,
+      s.settings.language ? `in ${LANGUAGES[languageOf(s.settings.language)].name}` : null,
+      s.settings.heroes.join(" & ") || null,
+    ]
       .filter(Boolean)
       .join(" · ");
   const [customHero, setCustomHero] = useState("");
@@ -153,6 +159,10 @@ export function CreateWizard({
   const shelving = useRef<Shelving | null>(null);
 
   const set = <K extends keyof StorySettings>(k: K, v: StorySettings[K]) => setSettings((s) => ({ ...s, [k]: v }));
+  const language = languageOf(settings.language);
+  // Another language is for someone learning it, to begin with (most families who ask are).
+  const chooseLanguage = (l: StoryLanguage) =>
+    setSettings(({ language: _, learner, ...s }) => (l === "en" ? s : { ...s, language: l, learner: learner ?? true }));
 
   const pageCount =
     source === "book"
@@ -233,7 +243,9 @@ export function CreateWizard({
     : 0;
   const costs = (
     <p className="faint small center" style={{ margin: 0 }}>
-      Writing it{pictureBook ? " and planning the pictures" : ""}: about {formatMoney(writeCosts[settings.length] + planning)} of storyteller time.
+      Writing it{language !== "en" ? " (and every page in English too)" : ""}
+      {pictureBook ? " and planning the pictures" : ""}: about {formatMoney(writeCosts[settings.length] * (language !== "en" ? 1.4 : 1) + planning)} of
+      storyteller time.
       {pictureBook &&
         ` Pictures: about ${formatMoney(bookEstimate(pageCount, status.picturePrice))}${status.illustrator ? "" : " once the illustrator is set up (free stand-ins until then)"}, approved before any are drawn.`}
     </p>
@@ -459,6 +471,33 @@ export function CreateWizard({
               </div>
             </div>
             <div>
+              <span className="label">In which language?</span>
+              <div className="chips" role="radiogroup" aria-label="Language">
+                {(Object.keys(LANGUAGES) as StoryLanguage[]).map((l) => (
+                  <button key={l} type="button" className="chip" aria-pressed={language === l} onClick={() => chooseLanguage(l)}>
+                    {l === "en" ? "English" : `${LANGUAGES[l].native} · ${LANGUAGES[l].name}`}
+                  </button>
+                ))}
+              </div>
+              {language !== "en" && (
+                <>
+                  <p className="hint">
+                    Told all in {LANGUAGES[language].name}, voices too. The English of every page is on the screen when you want it.
+                  </p>
+                  <label className="toggle" style={{ marginTop: 10 }}>
+                    <input type="checkbox" checked={Boolean(settings.learner)} onChange={(e) => set("learner", e.target.checked)} />
+                    <span>
+                      <b>For someone learning {LANGUAGES[language].name}</b>
+                      <span className="muted small">
+                        Simple words and short sentences, at a gentle pace. Turn off for a story told just as a {LANGUAGES[language].name}-speaking
+                        child would hear it.
+                      </span>
+                    </span>
+                  </label>
+                </>
+              )}
+            </div>
+            <div>
               <span className="label">Star of the story</span>
               <p className="hint" style={{ marginTop: 0 }}>
                 Put a listener right inside the tale. Or leave it to the book's own characters.
@@ -581,7 +620,14 @@ export function CreateWizard({
                     , starring <b>{settings.heroes.join(" & ")}</b>
                   </>
                 ) : null}
-                {pictureBook ? ", as a picture book" : ""}.
+                {pictureBook ? ", as a picture book" : ""}
+                {language !== "en" ? (
+                  <>
+                    , in <b>{LANGUAGES[language].name}</b>
+                    {settings.learner ? " for a learner" : ""}
+                  </>
+                ) : null}
+                .
               </p>
               <p className="muted">
                 {settings.fullCast ? "A full cast of voices" : "One storyteller"}

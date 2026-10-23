@@ -170,6 +170,9 @@ export function Player({
   // Off until asked for: a near-black screen is for shadows on the wall, and
   // it looks broken to anyone who didn't choose it.
   const [lightsOut, setLightsOut] = usePref("lightsOut", false);
+  // A story in another language has each page in English too, under the words when it's asked for.
+  const [showEnglish, setShowEnglish] = usePref("showEnglish", false);
+  const hasEnglish = Boolean(story.script?.pages.some((p) => p.translation));
   const wordsBox = useRef<HTMLDivElement>(null);
   // The picture as big as the screen: when it's asked for (and kept, for next time), or with a phone turned
   // sideways (back to the words with a tap, until it's turned again).
@@ -403,6 +406,8 @@ export function Player({
     [story.script, page.page],
   );
 
+  const english = story.script?.pages.find((p) => p.page === page.page)?.translation ?? "";
+
   // Keep the word being read in view, and start each page at the top.
   useEffect(() => {
     if (wordsBox.current) wordsBox.current.scrollTop = 0;
@@ -577,7 +582,7 @@ export function Player({
       )}
 
       {showWords && (page.words.length > 0 || pageText) && (
-        <div className="read-along" ref={wordsBox} aria-hidden="true">
+        <div className="read-along" ref={wordsBox} aria-hidden="true" lang={story.script?.language}>
           {speaking && castById.size > 1 && <span className="who-speaks">{speaking.name}</span>}
           {page.words.length > 0
             ? page.words.map((w, i) => (
@@ -587,6 +592,11 @@ export function Player({
               ))
             : pageText}
         </div>
+      )}
+      {showEnglish && english && (
+        <p className="read-english" lang="en">
+          {english}
+        </p>
       )}
 
       <div className="controls">
@@ -637,6 +647,9 @@ export function Player({
           <Toggle on={waitMode} onClick={() => setWaitMode(!waitMode)} icon="✋" label="Wait for me to turn" title="Pause after each chime until you tap" />
         )}
         <Toggle on={showWords} onClick={() => setShowWords(!showWords)} icon="Aa" label="Words" />
+        {hasEnglish && (
+          <Toggle on={showEnglish} onClick={() => setShowEnglish(!showEnglish)} icon="EN" label="English" title="Each page in English, under the words" />
+        )}
         <Toggle on={big} onClick={() => (big ? smaller() : bigger())} icon="🖼️" label="Big picture" title="The picture as big as the screen" />
         <Toggle on={lightsOut} onClick={() => setLightsOut(!lightsOut)} icon="🌙" label="Lights out" title="A nearly-black screen for shadow books on the wall" />
       </div>

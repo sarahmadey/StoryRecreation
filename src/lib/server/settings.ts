@@ -1,5 +1,6 @@
 import { AGES, CHIMES, LENGTHS, MOODS, defaultSettings } from "@/lib/shared/options";
 import { ART_STYLES, DEFAULT_ART_STYLE } from "@/lib/shared/art";
+import { languageOf } from "@/lib/shared/languages";
 import type { AgeBand, ArtStyle, ChimeStyle, LengthPreset, Mood, StorySettings, StorySource } from "@/lib/shared/types";
 
 const SOURCES: StorySource[] = ["book", "wild", "idea", "classic", "book_read", "text"];
@@ -23,6 +24,8 @@ export function sanitizeSettings(input: unknown): StorySettings {
     heroes: Array.isArray(i.heroes) ? i.heroes.map((h) => str(h, 40).trim()).filter(Boolean).slice(0, 4) : [],
     lesson: str(i.lesson, 200),
     extra: str(i.extra, 600),
+    // A story in another language, and whether it's for someone learning it.
+    ...(languageOf(i.language) !== "en" ? { language: languageOf(i.language), learner: Boolean(i.learner) } : {}),
     surprise: Boolean(i.surprise),
     keepNames: i.keepNames === undefined ? d.keepNames : Boolean(i.keepNames),
     description: str(i.description, 1500),

@@ -5,6 +5,8 @@ import { useApi } from "./Grownup";
 import { WaitLine } from "./Waiting";
 import { previewVoice } from "@/lib/client/sound";
 import { DESIGN_VOICES_SECONDS, KEEP_VOICE_SECONDS } from "@/lib/shared/options";
+import { LANGUAGES } from "@/lib/shared/languages";
+import type { StoryLanguage } from "@/lib/shared/types";
 
 /**
  * Conjure a brand-new voice from a description using ElevenLabs Voice
@@ -14,17 +16,22 @@ import { DESIGN_VOICES_SECONDS, KEEP_VOICE_SECONDS } from "@/lib/shared/options"
 export function VoiceDesigner({
   initialName = "",
   initialDescription = "",
+  initialLanguage = "en",
   onSaved,
   onClose,
 }: {
   initialName?: string;
   initialDescription?: string;
+  /** For a character in a story told in another language: made speaking it. */
+  initialLanguage?: StoryLanguage;
   onSaved: (voice: { voiceId: string; name: string; description: string }) => void;
   onClose: () => void;
 }) {
   const api = useApi();
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
+  // The language they'll speak: a voice for French or Spanish stories is made speaking it, with a natural accent.
+  const [language, setLanguage] = useState<StoryLanguage>(initialLanguage);
   const [previews, setPreviews] = useState<{ generatedVoiceId: string; audio: string }[] | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   // What the workshop is doing, since when, and about how long it takes.
@@ -45,7 +52,7 @@ export function VoiceDesigner({
     setError(null);
     setChosen(null);
     try {
-      const res = await api.post<{ previews: { generatedVoiceId: string; audio: string }[] }>("/api/voices/design", { description });
+      const res = await api.post<{ previews: { generatedVoiceId: string; audio: string }[] }>("/api/voices/design", { description, language });
       setPreviews(res.previews);
     } catch (err) {
       setError(err instanceof Error ? err.message : "The voice workshop is closed.");
@@ -63,6 +70,7 @@ export function VoiceDesigner({
         generatedVoiceId: chosen,
         name: name || "New voice",
         description,
+        language,
       });
       onSaved({ voiceId, name: name || "New voice", description });
     } catch (err) {
@@ -102,6 +110,32 @@ export function VoiceDesigner({
             ElevenLabs credit.
           </div>
         </label>
+        <div>
+          <span className="label">What language will they speak?</span>
+          <div className="chips" role="radiogroup" aria-label="Language">
+            {(Object.keys(LANGUAGES) as StoryLanguage[]).map((l) => (
+              <button
+                key={l}
+                type="button"
+                className="chip"
+                aria-pressed={language === l}
+                onClick={() => {
+                  setLanguage(l);
+                  setPreviews(null);
+                  setChosen(null);
+                }}
+              >
+                {l === "en" ? "English" : `${LANGUAGES[l].native} · ${LANGUAGES[l].name}`}
+              </button>
+            ))}
+          </div>
+          {language !== "en" && (
+            <div className="hint">
+              Made speaking {LANGUAGES[language].name}, with a natural accent: just right for stories {LANGUAGES[language].in}. Every voice can
+              speak {LANGUAGES[language].name}, but one made for it sounds most at home.
+            </div>
+          )}
+        </div>
         {busy && !chosen ? (
           <WaitLine what={busy.what} done={0} total={1} startedAt={busy.startedAt} seconds={busy.seconds} />
         ) : (

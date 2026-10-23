@@ -236,6 +236,7 @@ test("the storyteller sends pictures, settings and the voice catalog, and reads 
   assert.equal(body.output_config.format.type, "json_schema");
   const voiceEnum = body.output_config.format.schema.properties.cast.items.properties.voice_id.enum;
   assert.ok(voiceEnum.includes(PERSONA_VOICE) && voiceEnum.includes("customMouse123"));
+  assert.ok(!body.output_config.format.schema.properties.pages.items.required.includes("translation"), "an English story has no English version");
   const content = body.messages[0].content as { type: string; text?: string }[];
   assert.equal(content.filter((c) => c.type === "image").length, 2);
   const ask = content.at(-1)!.text!;
@@ -273,6 +274,7 @@ test("the performer sends a multi-voice dialogue and returns PCM with word timin
   assert.equal(body.model_id, "eleven_v4");
   assert.deepEqual(body.inputs.map((i) => i.voice_id), [PERSONA_VOICE, OWL_VOICE]);
   assert.equal(body.inputs[1].text, "[sleepily] Hoo... who's there?", "delivery tags are sent to the voice model");
+  assert.equal((body as { language_code?: string }).language_code, undefined, "English is performed as it always was");
 
   assert.ok(clip.samples.length > 24000, "audio decoded");
   assert.deepEqual(
@@ -281,6 +283,116 @@ test("the performer sends a multi-voice dialogue and returns PCM with word timin
   );
   assert.equal(clip.words[0].speaker, "narrator");
   assert.equal(clip.words.at(-1)!.speaker, "ollie-owl");
+});
+
+test("a story in French: written in French with each page in English, voiced in French, welcomed in French", async () => {
+  const { writeScript } = await import("@/lib/server/storyteller");
+  const { defaultSettings } = await import("@/lib/shared/options");
+  const { voiceCatalog } = await import("@/lib/server/voices");
+  const db = await import("@/lib/server/db");
+  const { startRecording, isRunning } = await import("@/lib/server/jobs");
+  const voices = await voiceCatalog("household-1");
+  const from = captured.length;
+
+  scriptJson = JSON.stringify({
+    title: "Le Petit Phare",
+    synopsis: "Élodie aide un phare à se réveiller.",
+    ambience: "gentle waves on a pebble beach",
+    cast: [
+      { id: "narrator", name: "Narrateur", description: "storyteller", voice_brief: "warm", voice_id: PERSONA_VOICE },
+      { id: "Élodie", name: "Élodie", description: "a brave girl", voice_brief: "bright", voice_id: OWL_VOICE },
+    ],
+    pages: [
+      { page: 1, photo: 0, picture: "A lighthouse at dusk", effect: "stars", translation: "The little lighthouse was asleep.", lines: [{ speaker: "narrator", text: "Le petit phare dormait." }] },
+      { page: 2, photo: 0, picture: "A girl on the rocks", effect: "none", translation: "“Wake up!” said Élodie.", lines: [{ speaker: "élodie", text: "[excitedly] Réveille-toi !" }] },
+    ],
+  });
+  const { script } = await writeScript(
+    {
+      mode: "create",
+      bookTitle: "Le Phare",
+      bookKind: "idea",
+      settings: defaultSettings({ source: "idea", language: "fr", learner: true, heroes: ["Élodie"] }),
+      images: [],
+      pageCount: 2,
+      previousStories: [],
+      rememberedCharacters: [],
+      voices,
+    },
+    () => undefined,
+  );
+  const body = captured.slice(from).find((c) => c.url.startsWith("/v1/messages"))!.body as Record<string, any>;
+  const ask = body.messages[0].content.at(-1).text as string;
+  for (const expected of ["tell the whole story in French", "Delivery tags stay in English", "learning French", '"translation"', "speak French"]) {
+    assert.ok(ask.includes(expected), `the storyteller is told: ${expected}`);
+  }
+  const pageSchema = body.output_config.format.schema.properties.pages.items;
+  assert.ok(pageSchema.required.includes("translation"), "every page comes in English too");
+  assert.equal(body.output_config.format.schema.properties.language, undefined, "a new story's language is the family's choice");
+  assert.equal(script.language, "fr");
+  assert.deepEqual(script.pages.map((p) => p.translation), ["The little lighthouse was asleep.", "“Wake up!” said Élodie."]);
+  assert.equal(script.cast[1].id, "elodie", "accents are taken off ids");
+  assert.equal(script.pages[1].lines[0].speaker, "elodie");
+
+  // Recorded: the welcome in French, and ElevenLabs told the language.
+  const hh = db.createHousehold("The Phare Family", "phare@example.com", "x");
+  const book = db.createBook(hh, { title: "Le Phare", kind: "idea" });
+  const settings = { ...defaultSettings({ source: "idea", language: "fr" }), intro: true, chime: { enabled: false, style: "bell" as const, gapSeconds: 3 } };
+  const id = db.createStory(hh, { bookId: book, profileId: null, mode: "create", title: script.title, settings, status: "draft" });
+  db.updateStory(id, { script });
+  const before = captured.length;
+  startRecording(id);
+  for (let i = 0; i < 400 && isRunning(id); i++) await new Promise((r) => setTimeout(r, 25));
+  assert.equal(db.getStoryById(id)!.status, "ready");
+  const dialogue = captured.slice(before).filter((c) => c.url.startsWith("/v1/text-to-dialogue")).map((c) => c.body as { inputs: { text: string }[]; language_code?: string });
+  assert.ok(dialogue.length >= 3 && dialogue.every((d) => d.language_code === "fr"), "every page and the welcome are performed in French");
+  assert.ok(
+    dialogue.some((d) => d.inputs[0].text === "[warmly] Bienvenue à Storyhollow. L'histoire de ce soir s'appelle Le Petit Phare. Alors, installe-toi bien... et commençons."),
+    "the welcome is in French",
+  );
+  assert.equal(db.listStoryCards(hh)[0].language, "fr", "its card says so");
+});
+
+test("a book read aloud in its own language: the reader says which, and gives each page in English", async () => {
+  const { writeScript } = await import("@/lib/server/storyteller");
+  const { defaultSettings } = await import("@/lib/shared/options");
+  const { voiceCatalog } = await import("@/lib/server/voices");
+  const voices = await voiceCatalog("household-1");
+  const tinyJpeg = Buffer.from("/9j/4AAQSkZJRgABAQ==", "base64").toString("base64");
+  const read = async (language: string, translation: string) => {
+    scriptJson = JSON.stringify({
+      title: "El Gato",
+      synopsis: "A cat.",
+      ambience: "a quiet room",
+      language,
+      cast: [{ id: "narrator", name: "Narrator", description: "", voice_brief: "", voice_id: PERSONA_VOICE }],
+      pages: [{ page: 1, photo: 1, picture: "", effect: "none", translation, lines: [{ speaker: "narrator", text: "El gato duerme." }] }],
+    });
+    const from = captured.length;
+    const { script } = await writeScript(
+      {
+        mode: "read",
+        bookTitle: "El Gato",
+        bookKind: "picture_book",
+        settings: defaultSettings({ source: "book_read", fullCast: false }),
+        images: [{ data: tinyJpeg, mediaType: "image/jpeg" }],
+        pageCount: 1,
+        previousStories: [],
+        rememberedCharacters: [],
+        voices,
+      },
+      () => undefined,
+    );
+    const schema = (captured.slice(from).find((c) => c.url.startsWith("/v1/messages"))!.body as Record<string, any>).output_config.format.schema;
+    assert.ok(schema.required.includes("language") && schema.properties.pages.items.required.includes("translation"));
+    return script;
+  };
+  const spanish = await read("es", "The cat is sleeping.");
+  assert.equal(spanish.language, "es");
+  assert.equal(spanish.pages[0].translation, "The cat is sleeping.");
+  const english = await read("en", "The cat is sleeping.");
+  assert.equal(english.language, undefined, "an English book is just English");
+  assert.equal(english.pages[0].translation, undefined, "and needs no English version");
 });
 
 test("pages photographed back to front are put back in reading order", async () => {

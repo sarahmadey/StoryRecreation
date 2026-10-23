@@ -37,7 +37,14 @@ test("every story ends by saying so, once", () => {
   assert.equal(withTheEnd(ended), ended, "not twice");
   const already = { ...script, pages: [script.pages[0], { ...script.pages[1], lines: [{ speaker: "narrator", text: "[softly] And they all slept. The End!" }] }] };
   assert.equal(withTheEnd(already), already, "a story that already ends that way is left as it is");
-  assert.equal(withTheEnd(script, "That's the end of this chapter.").pages[1].lines.at(-1)!.text, "That's the end of this chapter.");
+  assert.equal(withTheEnd(script, true).pages[1].lines.at(-1)!.text, "That's the end of this chapter.");
+  // In the story's own language.
+  const fr = { ...script, language: "fr" as const };
+  assert.equal(withTheEnd(fr).pages[1].lines.at(-1)!.text, "Fin.");
+  assert.equal(withTheEnd(fr, true).pages[1].lines.at(-1)!.text, "C'est la fin de ce chapitre.");
+  assert.equal(withTheEnd({ ...script, language: "es" }).pages[1].lines.at(-1)!.text, "Fin.");
+  const finished = { ...fr, pages: [script.pages[0], { ...script.pages[1], lines: [{ speaker: "narrator", text: "Et ils dormirent tous. Fin !" }] }] };
+  assert.equal(withTheEnd(finished), finished, "« Fin ! » already says it");
 });
 
 test("delivery tags are hidden from readers", () => {

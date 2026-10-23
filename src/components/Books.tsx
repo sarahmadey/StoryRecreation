@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BOOK_KINDS, formatDuration } from "@/lib/shared/options";
+import { LANGUAGES } from "@/lib/shared/languages";
 import type { Book, BookKind, StoryCard } from "@/lib/shared/types";
 
 const LEATHERS = ["#6b1f2b", "#23432f", "#1f2d4a", "#5a3720", "#4a2a5a", "#2d4f56", "#6b4a1a", "#3a3a2a"];
@@ -100,6 +101,7 @@ export function StoryCardView({ story, profileEmoji, inBook }: { story: StoryCar
           {[
             // which book it's from (or, for a chapter, which chapter), unless the title already says
             chapter ? story.title : inBook || story.title.toLowerCase().includes(story.bookTitle.toLowerCase()) ? null : story.bookTitle,
+            story.language ? LANGUAGES[story.language].in : null,
             story.mode === "read" ? "read aloud" : null,
             ready ? formatDuration(story.duration) : null,
           ]

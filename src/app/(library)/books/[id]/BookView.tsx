@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Cover, StoryCardView } from "@/components/Books";
 import { BOOK_KINDS, DEFAULT_SHELVES, defaultSettings } from "@/lib/shared/options";
+import { LANGUAGES, languageOf } from "@/lib/shared/languages";
 import type { Book, BookPage, Profile, StoryCard, StorySettings } from "@/lib/shared/types";
 import { Plaque } from "@/components/Plaque";
 
@@ -187,7 +188,8 @@ export function BookView({
                       <b>{busy ? "Summoning the storyteller…" : "Quick create"}</b>
                       <span className="small">
                         One tap: a brand-new story {book.kind === "idea" ? "on the same idea" : "for these pictures"}
-                        {lastCreate ? ", with the same voices and length as last time" : ""}.
+                        {lastCreate ? ", with the same voices and length as last time" : ""}
+                        {lastCreate?.language ? ` (in ${LANGUAGES[languageOf(lastCreate.language)].name})` : ""}.
                       </span>
                     </span>
                   </button>

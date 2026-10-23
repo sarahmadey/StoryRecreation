@@ -3,7 +3,7 @@ import { config } from "./config";
 import { eleven } from "./voices";
 import { chunkLines, speakable } from "./text";
 import { concatClips, demoAmbience, demoSoundEffect, demoVoiceClip, pcm16ToFloat, SAMPLE_RATE, type Clip } from "./audio";
-import type { CastMember, ScriptLine, TimelineWord } from "@/lib/shared/types";
+import type { CastMember, ScriptLine, StoryLanguage, TimelineWord } from "@/lib/shared/types";
 
 // The performer turns script lines into audio using ElevenLabs Text to
 // Dialogue, which performs a multi-voice scene in one pass with natural
@@ -18,7 +18,8 @@ function useDemo(): boolean {
   return !config.elevenLabsKey && config.demoMode;
 }
 
-export async function performLines(lines: ScriptLine[], cast: CastMember[]): Promise<Clip> {
+/** Perform lines with the cast's voices, in the story's language (said to ElevenLabs, so every word is spoken as it should be). */
+export async function performLines(lines: ScriptLine[], cast: CastMember[], language: StoryLanguage = "en"): Promise<Clip> {
   const voiceOf = (speaker: string) =>
     cast.find((c) => c.id === speaker)?.voiceId ?? cast.find((c) => c.id === "narrator")?.voiceId ?? cast[0]?.voiceId;
   const spoken = lines.filter((l) => speakable(l.text).length > 0);
@@ -28,12 +29,14 @@ export async function performLines(lines: ScriptLine[], cast: CastMember[]): Pro
     return demoVoiceClip(spoken.map((l) => ({ ...l, voiceId: voiceOf(l.speaker) ?? "demo" })));
   }
 
+  // English stories are performed as they always were; another language is named.
+  const languageCode = language === "en" ? undefined : language;
   const clips: Clip[] = [];
-  for (const chunk of chunkLines(spoken)) clips.push(await performChunk(chunk, voiceOf));
+  for (const chunk of chunkLines(spoken)) clips.push(await performChunk(chunk, voiceOf, languageCode));
   return concatClips(clips, 0.25);
 }
 
-async function performChunk(lines: ScriptLine[], voiceOf: (s: string) => string | undefined): Promise<Clip> {
+async function performChunk(lines: ScriptLine[], voiceOf: (s: string) => string | undefined, languageCode?: string): Promise<Clip> {
   const inputs = lines.map((l) => ({ text: l.text, voiceId: voiceOf(l.speaker)! }));
   try {
     const res = await withRetry(() =>
@@ -41,6 +44,7 @@ async function performChunk(lines: ScriptLine[], voiceOf: (s: string) => string 
         inputs,
         modelId: config.voiceModel,
         outputFormat: OUTPUT,
+        ...(languageCode ? { languageCode } : {}),
       }),
     );
     const samples = pcm16ToFloat(Buffer.from(res.audioBase64, "base64"));
@@ -52,13 +56,13 @@ async function performChunk(lines: ScriptLine[], voiceOf: (s: string) => string 
     // Some plans or models may not offer dialogue; perform line by line instead.
     if (err instanceof ElevenLabsError && (err.statusCode === 400 || err.statusCode === 403 || err.statusCode === 422)) {
       console.warn("Dialogue unavailable, performing line by line:", err.message);
-      return performLineByLine(lines, voiceOf);
+      return performLineByLine(lines, voiceOf, languageCode);
     }
     throw explain(err);
   }
 }
 
-async function performLineByLine(lines: ScriptLine[], voiceOf: (s: string) => string | undefined): Promise<Clip> {
+async function performLineByLine(lines: ScriptLine[], voiceOf: (s: string) => string | undefined, languageCode?: string): Promise<Clip> {
   const clips: Clip[] = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -68,6 +72,7 @@ async function performLineByLine(lines: ScriptLine[], voiceOf: (s: string) => st
           text: line.text,
           modelId: config.voiceModel,
           outputFormat: OUTPUT,
+          ...(languageCode ? { languageCode } : {}),
         }),
       );
       const samples = pcm16ToFloat(Buffer.from(res.audioBase64, "base64"));

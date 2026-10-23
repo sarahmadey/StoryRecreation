@@ -33,6 +33,22 @@ a brand-new tale for the very same pictures.
   and puts the pages in order for this and every future story. There's also a ⇅ Reverse button.
 - **✨ A new story tonight:** one tap on any book writes and records a fresh story with last time's settings.
 
+### 🌍 Stories in French and Spanish
+- **Choose the language** when shaping a story: English, Français or Español. The storyteller writes it all in
+  that language (title, words and dialogue), the voices perform it in that language, and even the welcome and
+  the ending are in it ("Bienvenue à Storyhollow…", "Fin.").
+- **For someone learning it** (on to begin with): simple, everyday words and short sentences, key words repeated,
+  at a gentle pace. Turn it off for a story told just as a French- or Spanish-speaking child would hear it.
+- **The English is there when you want it.** Every page comes with its English too: under each page while you
+  review the words, and in the player at a tap of **EN English**, under the words being read.
+- **Books in French or Spanish are read in their own language.** *Read the book's own words* notices what
+  language a photographed book is in, and reads it, welcome and ending included, in that language (with its
+  English on screen); words you paste or photograph are read in their language too.
+- **A voice that sounds at home.** Every voice can speak French and Spanish; for the most natural accent,
+  *Conjure a voice* can make one speaking the language, and it's cast for stories in it.
+- "Make one like…" and *A new story tonight* keep the language, and story cards say *en français* or
+  *en español*.
+
 ### 📖 Picture books
 - **An idea becomes an illustrated book.** For a story dreamed up from an idea, switch on *Make it a picture book*
   and pick a style: watercolor, painted, colored pencil, cut paper or shadow puppets.
@@ -74,7 +90,8 @@ a brand-new tale for the very same pictures.
   voices act out.
 - **Storybook personas.** Kids pick *Professor Hoot*, *Granny Willow*, *Captain Bramble*… not "voice #12".
 - **🪄 Conjure a voice.** Describe one ("a tiny, squeaky mouse who talks very fast"), hear three versions, and
-  keep your favorite in the family's voice wardrobe for future stories.
+  keep your favorite in the family's voice wardrobe for future stories. A voice can be made speaking English,
+  French or Spanish, with a natural accent.
 
 ### 💛 Family voices
 - **Keepsakes, kept just as they are.** Upload a voicemail, a voice memo or a video (the sound is kept), or

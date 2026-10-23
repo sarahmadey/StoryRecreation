@@ -8,7 +8,8 @@ import { PictureViewer, type ViewerItem } from "@/components/PictureViewer";
 import { Spinner, WaitLine, WaitPill, useNow } from "@/components/Waiting";
 import { shrinkImage } from "@/lib/client/images";
 import { StylePicker, bookEstimate } from "@/components/PictureBook";
-import { ART_STYLES, DEFAULT_ART_STYLE, SKETCHES, aboutTime, bookPictures, drawingSeconds, formatMoney, isStandIn, planningSeconds, timeLeft } from "@/lib/shared/art";
+import { ART_STYLES, DEFAULT_ART_STYLE, SKETCHES, bookPictures, drawingSeconds, formatMoney, isStandIn, planningSeconds } from "@/lib/shared/art";
+import { aboutTime, timeLeft } from "@/lib/shared/options";
 import type { AppStatus, ArtCharacter, ArtJob, ArtStyle, Story, StoryArt } from "@/lib/shared/types";
 
 // A story's pictures, in the studio: meet the characters as sketches and

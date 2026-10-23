@@ -12,7 +12,8 @@ const NAV = [
   { href: "/read", label: "Read to Me", icon: "🎧" },
 ];
 
-export function TopBar({ profile }: { profile: Profile | null }) {
+/** `profile` is undefined for a moment while it's found out: the reader's place is kept, empty. */
+export function TopBar({ profile }: { profile: Profile | null | undefined }) {
   const path = usePathname();
   const current = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const links = NAV.map((n) => (
@@ -35,7 +36,9 @@ export function TopBar({ profile }: { profile: Profile | null }) {
             {links}
           </nav>
           <Link href="/who" className="who" title="Switch reader">
-            {profile ? (
+            {profile === undefined ? (
+              <span className="avatar" style={{ ["--size" as string]: "34px" }} aria-hidden="true" />
+            ) : profile ? (
               <>
                 <span className="avatar" style={{ ["--c" as string]: profile.color, ["--size" as string]: "34px" }}>
                   {profile.avatar}

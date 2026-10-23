@@ -72,7 +72,8 @@ test("money is shown rounded up, so it's never less than it can cost", async () 
 });
 
 test("waits are told in plain words: about how long, and when it's taking longer than usual", async () => {
-  const { aboutTime, drawingSeconds, planningSeconds, timeLeft } = await import("@/lib/shared/art");
+  const { drawingSeconds, planningSeconds } = await import("@/lib/shared/art");
+  const { aboutTime, timeLeft } = await import("@/lib/shared/options");
   assert.equal(aboutTime(5), "a few seconds");
   assert.equal(aboutTime(32), "about 30 seconds");
   assert.equal(aboutTime(70), "about a minute");

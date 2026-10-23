@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { timeLeft } from "@/lib/shared/art";
+import { timeLeft } from "@/lib/shared/options";
 
 // Waiting, made visible: whenever the app is working on something, it says what,
 // how far along it is, and about how long is left, so nobody wonders whether a
@@ -54,6 +54,12 @@ export function WaitLine({
       </div>
     </div>
   );
+}
+
+/** What's left of a wait, ticking: "about 40 seconds left", "almost done", or that it's taking longer than usual. */
+export function TimeLeft({ startedAt, seconds }: { startedAt: number; seconds: number }) {
+  const now = useNow(true, startedAt);
+  return <>{timeLeft(startedAt, seconds, now)}</>;
 }
 
 /** A small note that stays in view while something works, and says when it's done. Tapping it goes there. */

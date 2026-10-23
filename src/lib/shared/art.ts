@@ -73,21 +73,6 @@ export function drawingSeconds(pictures: number, coverFirst: boolean, real: bool
 /** About how long the storyteller takes to plan a picture book's pictures (a moment, for the demo storyteller). */
 export const planningSeconds = (storyteller: boolean) => (storyteller ? 30 : 3);
 
-/** "a few seconds", "about 30 seconds", "about a minute", "about 2 minutes". */
-export function aboutTime(seconds: number): string {
-  if (seconds <= 10) return "a few seconds";
-  if (seconds < 50) return `about ${Math.round(seconds / 10) * 10} seconds`;
-  if (seconds < 90) return "about a minute";
-  return `about ${Math.round(seconds / 60)} minutes`;
-}
-
-/** How a wait is going, in words: what's left, or that it's taking longer than usual. */
-export function timeLeft(startedAt: number, seconds: number, now: number): string {
-  const elapsed = Math.max(0, (now - startedAt) / 1000);
-  if (elapsed < seconds) return `${aboutTime(seconds - elapsed)} left`;
-  return elapsed > seconds * 1.5 ? "taking a little longer than usual" : "almost done";
-}
-
 /** Stand-in pictures (made while the illustrator isn't set up) are drawings the app makes itself. */
 export const isStandIn = (url: string | null | undefined) => Boolean(url && /\.svg(\?|$)/.test(url));
 

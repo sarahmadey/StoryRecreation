@@ -28,7 +28,7 @@ import { recordSpend } from "./spending";
 import { planPicturesAfterWriting } from "./art";
 import { sectionText, stripTags, withTheEnd } from "./text";
 import { personaFor } from "@/lib/shared/personas";
-import type { ScriptLine, ScriptPage, SoundCue, StoryScript } from "@/lib/shared/types";
+import type { ScriptLine, ScriptPage, SoundCue, StoryScript, StorySettings } from "@/lib/shared/types";
 
 // Stories are written and recorded in the background so a phone can lock, or
 // a parent can wander off to brush teeth, without losing anything. Progress
@@ -68,8 +68,22 @@ function launch(key: string, storyId: string, fn: () => Promise<(() => void) | v
 // -------------------------------------------------------------- writing
 
 export function startWriting(storyId: string) {
-  updateStory(storyId, { status: "writing", error: null, progress: { step: "Opening the book", done: 0, total: 1 } });
+  const story = getStoryById(storyId);
+  const progress = { step: "Opening the book", done: 0, total: 1, startedAt: Date.now(), seconds: story ? writingSeconds(story.settings, story.mode) : 60 };
+  updateStory(storyId, { status: "writing", error: null, progress });
   launch("write", storyId, () => writeStory(storyId));
+}
+
+/**
+ * About how long the storyteller takes to write (or prepare the reading of) a story, by its length, a little
+ * longer when it reads photos first. Read word for word by one reader, it's a moment.
+ */
+function writingSeconds(s: StorySettings, mode: string): number {
+  if (!config.anthropicKey && config.demoMode) return 5;
+  if ((s.source === "classic" || s.source === "text") && !s.fullCast) return 5;
+  const photos = s.source === "book" || s.source === "book_read" || s.source === "wild" ? 15 : 0;
+  if (mode === "read") return 45 + photos;
+  return { short: 40, medium: 60, long: 90 }[s.length] + photos;
 }
 
 function pageCountFor(source: string, length: string, photos: number): number {
@@ -84,8 +98,10 @@ async function writeStory(storyId: string): Promise<(() => void) | void> {
   const book = getBook(story.householdId, story.bookId);
   if (!book) throw new Error("Book is missing");
   const s = story.settings;
+  // Each step keeps when the writing started and about how long it takes.
+  const { startedAt, seconds } = story.progress ?? {};
   const progress = (step: string, done: number, total: number) =>
-    updateStory(storyId, { progress: { step, done, total } });
+    updateStory(storyId, { progress: { step, done, total, startedAt, seconds } });
 
   const voices = castableVoices(await voiceCatalog(story.householdId), s.narratorVoiceId);
   const narratorVoice = s.narratorVoiceId ?? voices.find((v) => v.persona)?.voiceId ?? voices[0]?.voiceId ?? "";
@@ -188,9 +204,22 @@ export function applyPhotoOrder(householdId: string, bookId: string, sent: PageR
 // ------------------------------------------------------------ recording
 
 export function startRecording(storyId: string) {
-  const step = getStoryById(storyId)?.audioUrl ? "Opening the recordings" : "Warming up the voices";
-  updateStory(storyId, { status: "recording", error: null, progress: { step, done: 0, total: 1 } });
+  const story = getStoryById(storyId);
+  const step = story?.audioUrl ? "Opening the recordings" : "Warming up the voices";
+  const seconds = story?.script ? recordingSeconds(story.script, story.settings) : 60;
+  updateStory(storyId, { status: "recording", error: null, progress: { step, done: 0, total: 1, startedAt: Date.now(), seconds } });
   launch("record", storyId, () => recordStory(storyId));
+}
+
+/**
+ * About how long the voices take to record a story: by how long it is to listen to (the voices are made two pages
+ * at a time, a few times faster than they're heard), with a little for the welcome, sounds and binding it together.
+ */
+function recordingSeconds(script: StoryScript, s: StorySettings): number {
+  if (!config.elevenLabsKey && config.demoMode) return 5;
+  const chars = script.pages.reduce((n, p) => n + p.lines.reduce((m, l) => m + stripTags(l.text).length, 0), 0);
+  const listening = chars / 15;
+  return Math.round(10 + listening * 0.15 + (s.intro ? 6 : 0) + (s.ambience ? 8 : 0) + (s.effects ? 15 : 0));
 }
 
 function introLines(
@@ -262,7 +291,8 @@ async function recordStory(storyId: string) {
 
   const steps = script.pages.length + (settings.intro ? 1 : 0) + (settings.ambience ? 1 : 0) + (settings.effects ? 1 : 0) + 1;
   let done = 0;
-  const tick = (step: string) => updateStory(storyId, { progress: { step, done: done++, total: steps } });
+  const { startedAt, seconds } = story.progress ?? {};
+  const tick = (step: string) => updateStory(storyId, { progress: { step, done: done++, total: steps, startedAt, seconds } });
 
   let intro: { before: Clip; after: Clip } | null = null;
   if (settings.intro) {

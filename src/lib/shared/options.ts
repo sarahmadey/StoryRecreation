@@ -150,6 +150,21 @@ export function estimateMinutes(length: LengthPreset, pageCount: number): number
   return Math.max(1, Math.round((wordsPerPage(length, pageCount) * Math.max(1, pageCount)) / WORDS_PER_MINUTE));
 }
 
+/** "a few seconds", "about 30 seconds", "about a minute", "about 2 minutes". */
+export function aboutTime(seconds: number): string {
+  if (seconds <= 10) return "a few seconds";
+  if (seconds < 50) return `about ${Math.round(seconds / 10) * 10} seconds`;
+  if (seconds < 90) return "about a minute";
+  return `about ${Math.round(seconds / 60)} minutes`;
+}
+
+/** How a wait is going, in words: what's left, or that it's taking longer than usual. */
+export function timeLeft(startedAt: number, seconds: number, now: number): string {
+  const elapsed = Math.max(0, (now - startedAt) / 1000);
+  if (elapsed < seconds) return `${aboutTime(seconds - elapsed)} left`;
+  return elapsed > seconds * 1.5 ? "taking a little longer than usual" : "almost done";
+}
+
 export function formatDuration(seconds: number | null | undefined): string {
   if (!seconds || !Number.isFinite(seconds)) return "";
   if (seconds < 60) return `${Math.round(seconds)} sec`;

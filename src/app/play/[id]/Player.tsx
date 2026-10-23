@@ -160,6 +160,8 @@ export function Player({
   const [ended, setEnded] = useState(false);
   const [t, setT] = useState(0);
   const [waiting, setWaiting] = useState(false);
+  // The story is on its way (starting, or caught up with on a weak signal): the play button says so.
+  const [loading, setLoading] = useState(false);
   const [favorite, setFavorite] = useState(story.favorite);
 
   const physical = story.settings.source === "book" || story.settings.source === "book_read";
@@ -285,7 +287,11 @@ export function Player({
     if (!el) return;
     if (ended) seekTo(0);
     setStarted(true);
-    void el.play().catch(() => setPlaying(false));
+    if (el.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) setLoading(true);
+    void el.play().catch(() => {
+      setPlaying(false);
+      setLoading(false);
+    });
   }, [ended, seekTo]);
 
   const pause = useCallback(() => audio.current?.pause(), []);
@@ -448,12 +454,16 @@ export function Player({
             });
           }
         }}
+        onWaiting={() => setLoading(true)}
+        onPlaying={() => setLoading(false)}
         onPause={() => {
           setPlaying(false);
+          setLoading(false);
           setT(audio.current?.currentTime ?? 0);
         }}
         onEnded={() => {
           setPlaying(false);
+          setLoading(false);
           setEnded(true);
           released.current.clear();
         }}
@@ -541,7 +551,7 @@ export function Player({
       </div>
 
       {big && (
-        <div className={`big-chrome ${chrome || !playing ? "" : "resting"}`}>
+        <div className={`big-chrome ${chrome || !playing || loading ? "" : "resting"}`}>
           <span className="big-label">{label}</span>
           <button type="button" className="icon-btn big-smaller" onClick={smaller} aria-label="Smaller picture, with the words" title="Smaller picture">
             <Icon name="smaller" size={20} />
@@ -551,7 +561,7 @@ export function Player({
               <Icon name="prev" />
             </button>
             {playing ? (
-              <button className="big-play" onClick={pause} aria-label="Pause">
+              <button className={`big-play ${loading ? "loading" : ""}`} onClick={pause} aria-label={loading ? "Loading the story (tap to pause)" : "Pause"}>
                 <Icon name="pause" size={32} />
               </button>
             ) : (
@@ -584,7 +594,7 @@ export function Player({
           <Icon name="prev" />
         </button>
         {playing ? (
-          <button className="big-play" onClick={pause} aria-label="Pause">
+          <button className={`big-play ${loading ? "loading" : ""}`} onClick={pause} aria-label={loading ? "Loading the story (tap to pause)" : "Pause"}>
             <Icon name="pause" size={38} />
           </button>
         ) : (

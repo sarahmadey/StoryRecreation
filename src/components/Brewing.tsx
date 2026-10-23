@@ -1,3 +1,4 @@
+import { TimeLeft } from "@/components/Waiting";
 import type { StoryProgress } from "@/lib/shared/types";
 
 export function Brewing({ title, progress, note }: { title: string; progress: StoryProgress | null; note?: string }) {
@@ -16,6 +17,11 @@ export function Brewing({ title, progress, note }: { title: string; progress: St
       <div className="progress" aria-hidden="true">
         <div style={{ width: `${Math.max(4, pct)}%` }} />
       </div>
+      {progress?.startedAt && progress.seconds ? (
+        <p className="brewing-time" style={{ margin: 0 }}>
+          ⏱️ <TimeLeft startedAt={progress.startedAt} seconds={progress.seconds} />
+        </p>
+      ) : null}
       {note && <p className="faint small">{note}</p>}
     </div>
   );

@@ -2164,6 +2164,20 @@ button.step:hover {
 .big-play:active {
   transform: scale(0.96);
 }
+/* The story is on its way: a ring turns round the button. */
+.big-play {
+  position: relative;
+}
+.big-play.loading::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 225, 160, 0.95);
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  animation: spin 0.9s linear infinite;
+}
 .page-dots {
   display: flex;
   gap: 6px;
@@ -3473,6 +3487,53 @@ label.btn.disabled {
 }
 .btn .spinner {
   margin-right: 4px;
+}
+
+/* About how long the storyteller or the voices have left. */
+.brewing-time {
+  font-size: 1.05rem;
+  color: var(--gold-1);
+}
+
+/* A tapped link's page on its way: a glowing bar runs across the top of the screen. */
+.nav-progress {
+  position: fixed;
+  z-index: 300;
+  top: var(--safe-top);
+  left: 0;
+  height: 3px;
+  width: 100%;
+  transform-origin: left;
+  background: linear-gradient(90deg, #dcae55, #fff1c4, #dcae55);
+  box-shadow: 0 0 10px rgba(255, 200, 110, 0.9);
+  animation: nav-progress 8s cubic-bezier(0.1, 0.6, 0.3, 1) both;
+  pointer-events: none;
+}
+@keyframes nav-progress {
+  from {
+    transform: scaleX(0.05);
+  }
+  to {
+    transform: scaleX(0.92);
+  }
+}
+
+/* A page on its way, after a tap: shown only if it takes more than a moment, so quick ones don't flash. */
+.page-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 16vh 0;
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  color: var(--gold-1);
+  animation: fade-in 0.25s ease 0.15s both;
+}
+.page-loading .spinner {
+  width: 36px;
+  height: 36px;
+  border-width: 3px;
 }
 
 /* What's at work, how far along, and about how long is left. */

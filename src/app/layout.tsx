@@ -8,6 +8,7 @@ import "./globals.css";
 import { GrownupProvider } from "@/components/Grownup";
 import { Motes } from "@/components/Art";
 import { TestCopyBanner } from "@/components/TestCopyBanner";
+import { NavProgress } from "@/components/NavProgress";
 import { KeyboardFix } from "@/components/KeyboardFix";
 import { ServiceWorker } from "@/components/Offline";
 import { appName } from "@/lib/server/config";
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <GrownupProvider>
           <Motes />
           <TestCopyBanner />
+          <NavProgress />
           <KeyboardFix />
           <ServiceWorker />
           <div className="app">{children}</div>

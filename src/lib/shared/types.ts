@@ -149,6 +149,9 @@ export interface StoryProgress {
   step: string;
   done: number;
   total: number;
+  /** When the writing or recording started, and about how long it takes, in seconds: so the family knows how long to wait. */
+  startedAt?: number;
+  seconds?: number;
 }
 
 export interface TimelineWord {

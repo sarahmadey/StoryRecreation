@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { ApiError, useApi } from "@/components/Grownup";
 import { PIN_DIGITS, PinEntry } from "@/components/PinEntry";
-import { aboutTime, formatMoney } from "@/lib/shared/art";
+import { formatMoney } from "@/lib/shared/art";
+import { aboutTime } from "@/lib/shared/options";
 
 // Anything that costs money is a purchase: the price is shown first, and a
 // grown-up approves it with the family PIN, every time (even while the device

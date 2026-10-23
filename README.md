@@ -122,6 +122,9 @@ a brand-new tale for the very same pictures.
 - **⬇ Download everything:** one ZIP with every story as an MP3 (filed by book), the family recordings (by
   person), the book photos, and a *Read me* page to browse, play and read every story's words. It's the
   family's copy to keep, whatever happens to the app or the subscriptions.
+- **Every wait says so.** A tap that opens a page shows at once that it's on its way; writing and recording a
+  story say about how long is left (and if it's taking longer than usual); the play button's ring turns while
+  a story loads on a weak signal.
 
 ---
 

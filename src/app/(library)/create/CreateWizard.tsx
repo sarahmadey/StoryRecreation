@@ -320,8 +320,8 @@ export function CreateWizard({
                   <span>
                     <b>📖 Make it a picture book</b>
                     <span className="muted small">
-                      The illustrator draws a cover and a picture for every page. You&apos;ll meet the characters first, and a grown-up approves the
-                      pictures with the family PIN before any are drawn.
+                      The illustrator draws a cover and a picture for every page. You&apos;ll meet the characters first. The pictures cost a
+                      little extra.
                     </span>
                   </span>
                 </label>

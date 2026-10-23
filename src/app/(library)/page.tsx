@@ -11,7 +11,7 @@ import { SetupNotice } from "@/components/SetupNotice";
 import { Plaque } from "@/components/Plaque";
 import { FamilyVoiceCard } from "@/components/FamilyVoiceCard";
 
-export default async function HallPage() {
+export default async function HomePage() {
   const ctx = await pageCtx();
   const profiles = listProfiles(ctx.household.id);
   if (!ctx.profile) {
@@ -31,7 +31,7 @@ export default async function HallPage() {
     .slice(0, 4);
   const favorites = ready.filter((s) => s.favorite).slice(0, 8);
   const inProgress = stories.filter((s) => s.status !== "ready").slice(0, 4);
-  // Newest skips stories already listed above, so the Hall doesn't repeat itself.
+  // Newest skips stories already listed above, so Home doesn't repeat itself.
   const shown = new Set([...recent, ...favorites].map((s) => s.id));
   const newest = ready.filter((s) => !shown.has(s.id)).slice(0, 6);
   const emojiOf = new Map(profiles.map((p) => [p.id, p.avatar]));
@@ -39,7 +39,7 @@ export default async function HallPage() {
   return (
     <main className="page">
       <SetupNotice status={appStatus()} />
-      <div className="hero hero-hall">
+      <div className="hero hero-home">
         <h1>
           <Greeting name={ctx.profile.name} />
         </h1>

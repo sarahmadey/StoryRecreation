@@ -6,7 +6,7 @@ import { Emblem, Wordmark } from "./Art";
 import type { Profile } from "@/lib/shared/types";
 
 const NAV = [
-  { href: "/", label: "Hall", icon: "🏛️" },
+  { href: "/", label: "Home", icon: "🏡" },
   { href: "/library", label: "Library", icon: "📚" },
   { href: "/create", label: "Create", icon: "✨" },
   { href: "/read", label: "Read to Me", icon: "🎧" },

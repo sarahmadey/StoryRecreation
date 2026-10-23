@@ -7,7 +7,7 @@ import type { FamilyVoice } from "@/lib/shared/types";
 const PUT_AWAY = "storyhollow:family-voices-invite";
 
 /**
- * Family voices, on the Hall. Once a loved one's voice can read: a way straight to a book or a new story read by them.
+ * Family voices, at Home. Once a loved one's voice can read: a way straight to a book or a new story read by them.
  * Until then: a word that it's possible, and where it's set up (which a family can put away).
  */
 export function FamilyVoiceCard({ voices }: { voices: FamilyVoice[] }) {

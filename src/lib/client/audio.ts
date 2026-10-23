@@ -75,7 +75,8 @@ export async function prepareRecording(
     pcm[i] = s < 0 ? s * 32768 : s * 32767;
   }
 
-  const encoder = new Mp3Encoder(1, RATE, 96);
+  // 192 kbps: the quality ElevenLabs asks for, to learn a voice from.
+  const encoder = new Mp3Encoder(1, RATE, 192);
   const parts: BlobPart[] = [];
   const block = 1152 * 16;
   for (let i = 0; i < pcm.length; i += block) {

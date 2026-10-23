@@ -65,7 +65,7 @@ export function CreateWizard({
   currentProfile: Profile | null;
   preselect: Book | null;
   preselectSettings: StorySettings | null;
-  /** Arrived to make a story read by someone in particular (a loved one, from the Hall). */
+  /** Arrived to make a story read by someone in particular (a loved one, from Home). */
   preselectNarrator: string | null;
   /** Stories the family has made, newest first, for "make one like…". */
   past: PastStory[];

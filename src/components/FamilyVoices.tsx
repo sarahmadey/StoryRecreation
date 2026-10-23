@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Spinner, WaitLine } from "@/components/Waiting";
@@ -418,7 +418,7 @@ function KeepsakeAdder({
           </div>
           <p className="hint" style={{ margin: 0 }}>
             <b>🎬 A video:</b> pick it from your photos. Only the sound is kept, taken out right here on your phone: the video
-            itself is never sent or stored.
+            itself is never sent or stored. Long ones are welcome, up to 20 minutes.
           </p>
           <p className="hint" style={{ margin: 0 }}>
             <b>📞 A voicemail on an iPhone:</b> open it in the Phone app, tap the share button, and choose <i>Save to Files</i>,
@@ -472,44 +472,17 @@ function KeepsakeAdder({
             }}
           />
           {part ? (
-            <div className="keep-part stack" style={{ ["--gap" as string]: "6px" }}>
-              <div className="small">
-                <b>Keep just part of it</b>
-              </div>
-              <div className="small muted">
-                For a storytelling voice, keep only the part where they&apos;re speaking, without anyone talking over them.
-              </div>
-              <label className="keep-part-row small">
-                <span>From {clock(part.from)}</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={ready.durationMs}
-                  step={100}
-                  value={part.from}
-                  onChange={(e) => setPart({ ...part, from: Math.min(Number(e.target.value), part.to - 1000) })}
-                />
-              </label>
-              <label className="keep-part-row small">
-                <span>To {clock(part.to)}</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={ready.durationMs}
-                  step={100}
-                  value={part.to}
-                  onChange={(e) => setPart({ ...part, to: Math.max(Number(e.target.value), part.from + 1000) })}
-                />
-              </label>
-              <div className="row" style={{ gap: 6 }}>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={hearPart}>
-                  ▶ Hear just that part
-                </button>
-                <button type="button" className="btn btn-quiet btn-sm" onClick={() => setPart(null)}>
-                  Keep it all
-                </button>
-              </div>
-            </div>
+            <PartPicker
+              heading="Keep just part of it"
+              note="Cut away the start or the end, to keep just the part that matters. There's no need to cut it for a storytelling voice: the part a voice learns from is chosen when it's made."
+              durationMs={ready.durationMs}
+              part={part}
+              minMs={1000}
+              allLabel="Keep it all"
+              onChange={setPart}
+              onHear={hearPart}
+              onAll={() => setPart(null)}
+            />
           ) : (
             ready.durationMs > 3000 && (
               <div>
@@ -535,6 +508,74 @@ function KeepsakeAdder({
   );
 }
 
+/** From where to where in a recording: two sliders, a listen to just that part, and a way back to all of it. */
+function PartPicker({
+  heading,
+  note,
+  durationMs,
+  part,
+  minMs,
+  allLabel,
+  onChange,
+  onHear,
+  onAll,
+}: {
+  heading: string;
+  note: string;
+  durationMs: number;
+  part: { from: number; to: number };
+  /** The shortest the part can be. */
+  minMs: number;
+  allLabel: string;
+  onChange: (part: { from: number; to: number }) => void;
+  onHear: () => void;
+  onAll: () => void;
+}) {
+  return (
+    <div className="keep-part stack" style={{ ["--gap" as string]: "6px" }}>
+      <div className="small">
+        <b>{heading}</b>
+      </div>
+      <div className="small muted">{note}</div>
+      <label className="keep-part-row small">
+        <span>From {clock(part.from)}</span>
+        <input
+          type="range"
+          min={0}
+          max={durationMs}
+          step={100}
+          value={part.from}
+          onChange={(e) => onChange({ ...part, from: Math.max(0, Math.min(Number(e.target.value), part.to - minMs)) })}
+        />
+      </label>
+      <label className="keep-part-row small">
+        <span>To {clock(part.to)}</span>
+        <input
+          type="range"
+          min={0}
+          max={durationMs}
+          step={100}
+          value={part.to}
+          onChange={(e) => onChange({ ...part, to: Math.min(durationMs, Math.max(Number(e.target.value), part.from + minMs)) })}
+        />
+      </label>
+      <div className="row" style={{ gap: 6 }}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onHear}>
+          ▶ Hear just that part
+        </button>
+        <button type="button" className="btn btn-quiet btn-sm" onClick={onAll}>
+          {allLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** What a voice learns from best: a minute to three minutes of clear speech (ElevenLabs' advice). More adds little, and can make it less steady. */
+const BEST_MS = 3 * 60 * 1000;
+/** ElevenLabs learns nothing from a shorter recording. */
+const MIN_EACH_MS = 5000;
+
 function VoiceMaker({
   person,
   keepsakes,
@@ -549,7 +590,12 @@ function VoiceMaker({
   onMade: (name: string) => void;
 }) {
   const api = useApi();
-  const [chosen, setChosen] = useState<string[]>(keepsakes.map((k) => k.id));
+  const [chosen, setChosen] = useState<string[]>(keepsakes.filter((k) => k.durationMs >= MIN_EACH_MS).map((k) => k.id));
+  // The part of a recording the voice learns from, when it isn't all of it (the recording itself stays whole).
+  const [parts, setParts] = useState<Record<string, { from: number; to: number }>>({});
+  const player = useRef<HTMLAudioElement>(null);
+  const stopAt = useRef<number | null>(null);
+  const uid = useId();
   const [name, setName] = useState(person);
   const [adult, setAdult] = useState(false);
   const [consent, setConsent] = useState(false);
@@ -558,21 +604,44 @@ function VoiceMaker({
   const [busy, setBusy] = useState<{ startedAt: number; seconds: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const totalMs = keepsakes.filter((k) => chosen.includes(k.id)).reduce((n, k) => n + k.durationMs, 0);
+  const lengthOf = (k: Keepsake) => (parts[k.id] ? parts[k.id].to - parts[k.id].from : k.durationMs);
+  const totalMs = keepsakes.filter((k) => chosen.includes(k.id)).reduce((n, k) => n + lengthOf(k), 0);
+  const tooMuch = totalMs > BEST_MS;
   const quality =
     totalMs < 10_000
       ? "Not quite enough yet: we need at least 10 seconds of their voice."
       : totalMs < 45_000
-        ? "That's enough to try, though the voice may sound a little rough. More recordings of them will help."
-        : totalMs < 90_000
-          ? "A good amount. The voice should sound like them."
-          : "Plenty to learn from.";
+        ? "That's enough to try, though the voice may sound a little rough. A minute or more will help."
+        : totalMs < 60_000
+          ? "Nearly there: a minute or more sounds most like them."
+          : !tooMuch
+            ? "Just right: a minute to three minutes of them speaking clearly is what a voice learns from best."
+            : "That's more than it needs. Past about three minutes, more doesn't help, and can make the voice less steady. Keep their clearest few minutes: untick the noisiest recordings, or use just part of a long one.";
+
+  const hear = (k: Keepsake) => {
+    const a = player.current;
+    const p = parts[k.id];
+    if (!a || !p) return;
+    stopAt.current = p.to / 1000;
+    a.src = `${k.audioUrl}#t=${p.from / 1000}`;
+    try {
+      a.currentTime = p.from / 1000;
+    } catch {
+      // An older phone won't move along a recording it hasn't opened yet: the #t= starts it there instead.
+    }
+    void a.play().catch(() => undefined);
+  };
 
   const make = async () => {
     setBusy({ startedAt: Date.now(), seconds: familyVoiceSeconds(totalMs, cleanNoise) });
     setError(null);
     try {
-      const res = await api.post<{ name: string }>("/api/family-voices", { name, keepsakeIds: chosen, adult, consent, cleanNoise });
+      const learnFrom = Object.fromEntries(
+        Object.entries(parts)
+          .filter(([id]) => chosen.includes(id))
+          .map(([id, p]) => [id, { fromMs: p.from, toMs: p.to }]),
+      );
+      const res = await api.post<{ name: string }>("/api/family-voices", { name, keepsakeIds: chosen, parts: learnFrom, adult, consent, cleanNoise });
       onMade(res.name);
     } catch (err) {
       setError(err instanceof Error ? err.message : "That voice couldn't be made.");
@@ -584,22 +653,78 @@ function VoiceMaker({
     <div className="keepsake-box stack">
       <b>Teach the storytellers {person}&apos;s voice</b>
       <p className="small muted" style={{ margin: 0 }}>
-        From these recordings, {person} can read any book, poem or letter aloud, in their own voice. Only a grown-up&apos;s voice
-        can become a storyteller; children&apos;s recordings stay as keepsakes, exactly as they are.
+        From these recordings, {person} can read any book, poem or letter aloud, in their own voice. A voice learns best from a minute
+        to three minutes of them speaking clearly on their own, so choose their clearest recordings, or just the best part of a long
+        one. Only a grown-up&apos;s voice can become a storyteller; children&apos;s recordings stay as keepsakes, exactly as they are.
       </p>
-      <div className="stack" style={{ ["--gap" as string]: "4px" }}>
-        {keepsakes.map((k) => (
-          <label key={k.id} className="row small" style={{ gap: 8 }}>
-            <input
-              type="checkbox"
-              checked={chosen.includes(k.id)}
-              onChange={(e) => setChosen((c) => (e.target.checked ? [...c, k.id] : c.filter((x) => x !== k.id)))}
-            />
-            {k.title} <span className="faint">({clock(k.durationMs)})</span>
-          </label>
-        ))}
+      <div className="stack" style={{ ["--gap" as string]: "6px" }}>
+        {keepsakes.map((k) => {
+          const on = chosen.includes(k.id);
+          const short = k.durationMs < MIN_EACH_MS;
+          const part = on ? parts[k.id] : undefined;
+          return (
+            <div key={k.id} className="stack" style={{ ["--gap" as string]: "6px" }}>
+              {/* The way to use just part of it follows the name, and stays under it when it wraps. */}
+              <div className="voice-source small">
+                <input
+                  type="checkbox"
+                  id={`${uid}-${k.id}`}
+                  checked={on}
+                  disabled={short}
+                  onChange={(e) => setChosen((c) => (e.target.checked ? [...c, k.id] : c.filter((x) => x !== k.id)))}
+                />
+                <span>
+                  <label htmlFor={`${uid}-${k.id}`}>
+                    {k.title}{" "}
+                    <span className="faint">
+                      ({part ? `${clock(part.to - part.from)} of ${clock(k.durationMs)}` : clock(k.durationMs)}
+                      {short ? ", too short to learn from" : ""})
+                    </span>
+                  </label>
+                  {on && !part && k.durationMs >= 15_000 && (
+                    <>
+                      {" "}
+                      <button type="button" className="link-button" onClick={() => setParts((p) => ({ ...p, [k.id]: { from: 0, to: k.durationMs } }))}>
+                        ✂️ Just part
+                      </button>
+                    </>
+                  )}
+                </span>
+              </div>
+              {part && (
+                <PartPicker
+                  heading={`The part ${person}'s voice learns from`}
+                  note={`A stretch where only ${person} is talking, as clearly as can be. The recording itself is kept whole.`}
+                  durationMs={k.durationMs}
+                  part={part}
+                  minMs={MIN_EACH_MS}
+                  allLabel="Use all of it"
+                  onChange={(next) => setParts((p) => ({ ...p, [k.id]: next }))}
+                  onHear={() => hear(k)}
+                  onAll={() =>
+                    setParts((p) => {
+                      const next = { ...p };
+                      delete next[k.id];
+                      return next;
+                    })
+                  }
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
-      <p className="small" style={{ margin: 0 }}>
+      <audio
+        ref={player}
+        className="keepsake-audio"
+        onTimeUpdate={(e) => {
+          if (stopAt.current !== null && e.currentTarget.currentTime >= stopAt.current) {
+            stopAt.current = null;
+            e.currentTarget.pause();
+          }
+        }}
+      />
+      <p className={tooMuch ? "notice small" : "small"} style={{ margin: 0 }}>
         {clock(totalMs)} of their voice. {quality}
       </p>
       <label className="field">

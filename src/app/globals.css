@@ -1845,6 +1845,15 @@ button.step:hover {
 .keep-part-row input {
   accent-color: #a8792b;
 }
+/* A recording a voice can learn from: ticked or not, then its name, length and "Just part". */
+.voice-source {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.voice-source label {
+  cursor: pointer;
+}
 .keepsake-meta {
   display: flex;
   flex-direction: column;
@@ -2764,12 +2773,12 @@ body.lights-out-active {
   color: transparent;
   filter: drop-shadow(0 2px 10px rgba(255, 190, 92, 0.25));
 }
-/* On a phone, less empty space around the Hall's greeting, so more of the page is in view. */
+/* On a phone, less empty space around Home's greeting, so more of the page is in view. */
 @media (max-width: 760px) {
-  .hero-hall {
+  .hero-home {
     padding: 0 0 20px;
   }
-  .hero-hall h1 {
+  .hero-home h1 {
     margin-bottom: 6px;
   }
 }
@@ -4513,7 +4522,7 @@ label.btn.disabled {
   }
 }
 
-/* Family voices on the Hall: a way straight to them, or a word that it's possible. */
+/* Family voices at Home: a way straight to them, or a word that it's possible. */
 .family-card {
   display: flex;
   gap: 16px;

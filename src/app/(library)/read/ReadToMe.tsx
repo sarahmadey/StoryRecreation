@@ -108,7 +108,7 @@ export function ReadToMe({
   status: AppStatus;
   preselectBook: string | null;
   preselectClassic: number | null;
-  /** Arrived to be read to by someone in particular (a loved one, from the Hall): they read whatever's chosen. */
+  /** Arrived to be read to by someone in particular (a loved one, from Home): they read whatever's chosen. */
   preselectReader: string | null;
   favoriteClassics: FavoriteClassic[];
   /** How many books the whole library holds (0 until it's first fetched). */

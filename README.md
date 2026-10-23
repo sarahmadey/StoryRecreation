@@ -107,25 +107,30 @@ a brand-new tale for the very same pictures.
 
 ### 💛 Family voices
 - **Keepsakes, kept just as they are.** Upload a voicemail, a voice memo or a video, or record right in the app:
-  Grandma's birthday message, your children reading at four. They're tidied into MP3s in the browser and stay
-  private to your family.
+  Grandma's birthday message, your children reading at four. They're tidied into good MP3s in the browser (192 kbps,
+  the quality ElevenLabs asks for to learn a voice) and stay private to your family.
 - **Videos give up their sound, and nothing else.** Pick a video from your photos: its sound is taken out right
-  there on the phone, and only that is sent and kept. The video itself never leaves the phone (big ones are fine,
-  up to 400 MB).
-- **✂️ Keep just part of it.** Before keeping a recording, slide *From* and *To* to the moment they're speaking
-  (*Hear just that part* to check), so a storytelling voice learns from them alone, without anyone talking over
-  them.
+  there on the phone, and only that is sent and kept. The video itself never leaves the phone. Long ones are
+  welcome: up to 20 minutes each (and up to 400 MB), as many as you like.
+- **✂️ Keep just part of it.** Before keeping a recording, slide *From* and *To* to cut away the start or the end
+  (*Hear just that part* to check). There's no need to cut one for a storytelling voice: that's chosen when the
+  voice is made.
 - **A folder for each person.** In the Grown-ups' corner, everyone's recordings are kept together under their
   name ("4 recordings · 2:13 · reads stories as “Gram T”"). Open a folder to play a recording (one at a time,
   with a slider to move through it), add another of theirs, remove one, or let them read stories.
-- **Easy to discover.** Until there's a family voice, the Hall invites the family to keep one (with *Not now*),
+- **Easy to discover.** Until there's a family voice, Home invites the family to keep one (with *Not now*),
   and storyteller lists, *Read to Me* and the welcome page say it's possible, linking to where it's set up. Once
-  there is one, the Hall offers *Choose something to read* or *A new story* in their voice, which opens with
+  there is one, Home offers *Choose something to read* or *A new story* in their voice, which opens with
   them already chosen.
-- **A grown-up's voice can read anything.** From a minute or so of an adult's recordings, ElevenLabs
-  instant voice cloning learns their voice. They then appear first in every storyteller list, ready to read a
-  book, a poem or a letter. Making one asks the grown-up to confirm the voice is an adult's and that the family
-  has the right to use it (they agreed, or, for someone who has passed away, the family is at peace with it).
+- **A grown-up's voice can read anything.** ElevenLabs instant voice cloning learns their voice from their
+  recordings, and they then appear first in every storyteller list, ready to read a book, a poem or a letter.
+  Making one asks the grown-up to confirm the voice is an adult's and that the family has the right to use it
+  (they agreed, or, for someone who has passed away, the family is at peace with it).
+- **Their clearest few minutes, not every minute.** Instant cloning learns best from a minute to three minutes of
+  someone speaking clearly on their own; past about three minutes, ElevenLabs says, more doesn't help and can make
+  the voice less steady. So the voice maker adds up what's chosen and says when it's just right, or more than it
+  needs. A long recording can lend just its best part: tap **✂️ Just part** beside it and slide to the stretch
+  where they're talking on their own. Only that part is sent to learn from; the recording itself stays whole.
 - **Never cast by accident.** A family voice only reads when you pick it as the storyteller; the casting
   director never hands Grandma the troll's lines. Children's recordings stay keepsakes and are never cloned.
 
@@ -165,7 +170,7 @@ a brand-new tale for the very same pictures.
   shelf on a phone, each kind under its own brass plaque (small kinds share a shelf on a computer), or all
   together newest first or A to Z with **Arrange**. **Search** finds a book by its title or any of its stories',
   and **⭐ Favorites** shows the books holding a story you've starred. The bookcase is the whole family's, so
-  there's no choosing whose: the Hall is where each child finds their own stories.
+  there's no choosing whose: Home is where each child finds their own stories.
 - **Folders for books that belong together** (a series, the same two characters, a season's books): tap
   **📁 Make a folder**, name it, tick its books, and they stand on the shelf as one wooden box with the tops of
   their covers peeking out. Tap it to open it; *Change this folder* renames it, adds or takes out books, or
@@ -177,7 +182,7 @@ a brand-new tale for the very same pictures.
 - To rename a book, move it to another shelf or folder, or take it off the shelves, open it and tap *Rename, move
   or remove*.
 - **Family accounts with reader cards:** one grown-up login per family, then a "Who's listening tonight?"
-  card for each child (no passwords), so the Hall greets them by name with their own stories.
+  card for each child (no passwords), so Home greets them by name with their own stories.
 - **Grown-up PIN** (optional): children can play anything on the shelves, but creating new stories, buying
   pictures and changing settings need a grown-up (buying pictures needs a PIN, so a family chooses one the first
   time). Like a phone's passcode, it's checked the moment the last digit goes in. Once it's entered, the device
@@ -323,7 +328,7 @@ stories needs a connection. Signing out removes everything saved on the phone.
 **Accounts?**
 Built in as a *family account* (one grown-up email and password) with *reader cards* for each child, like a
 streaming service's profile picker. Books and stories belong to the family, on one bookcase everyone shares;
-each story remembers who it was made for, and the Hall shows each child their own.
+each story remembers who it was made for, and Home shows each child their own.
 
 **Can it find books in a library database?**
 Partly. Out-of-copyright classics come straight from Project Gutenberg's free catalogue (the Classic

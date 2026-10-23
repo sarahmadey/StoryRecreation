@@ -1,5 +1,5 @@
 import { pageCtx } from "@/lib/server/auth";
-import { listBooks, listProfiles } from "@/lib/server/db";
+import { listBooks } from "@/lib/server/db";
 import { storyCards } from "@/lib/server/voices";
 import { LibraryView } from "./LibraryView";
 
@@ -11,13 +11,7 @@ export default async function LibraryPage(props: PageProps<"/library">) {
   const readAlouds = (await props.searchParams).show === "read-alouds";
   return (
     <main className="page">
-      <LibraryView
-        books={listBooks(ctx.household.id)}
-        stories={await storyCards(ctx.household.id)}
-        profiles={listProfiles(ctx.household.id)}
-        currentProfileId={ctx.profile?.id ?? null}
-        showReadAlouds={readAlouds}
-      />
+      <LibraryView books={listBooks(ctx.household.id)} stories={await storyCards(ctx.household.id)} showReadAlouds={readAlouds} />
     </main>
   );
 }

@@ -31,6 +31,7 @@ export default async function ReadPage(props: PageProps<"/read">) {
         status={appStatus()}
         preselectBook={typeof sp.book === "string" ? sp.book : null}
         preselectClassic={typeof sp.classic === "string" ? Number(sp.classic) : null}
+        preselectReader={typeof sp.reader === "string" ? sp.reader : null}
         favoriteClassics={listFavoriteClassics(ctx.household.id)}
         librarySize={catalogueSize()}
       />

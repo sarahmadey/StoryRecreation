@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Spinner, WaitLine } from "@/components/Waiting";
-import { clock, prepareRecording } from "@/lib/client/audio";
+import { clock, isVideo, prepareRecording } from "@/lib/client/audio";
 import { keepAwake, sendTrouble, sentWords, upload } from "@/lib/client/upload";
 import { familyVoiceSeconds } from "@/lib/shared/options";
 import type { FamilyVoice, Keepsake } from "@/lib/shared/types";
@@ -23,13 +23,24 @@ export function FamilyVoices({
 }) {
   const api = useApi();
   const router = useRouter();
-  const [adding, setAdding] = useState(false);
+  // Adding a recording: for someone new (""), or for one of the people already here.
+  const [adding, setAdding] = useState<string | null>(null);
   const [making, setMaking] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const people = [...new Set(keepsakes.map((k) => k.person))];
   const voiceFor = (person: string) => familyVoices.find((v) => v.person === person);
+  // Each person's recordings are a folder: open when there's only one person, and when a recording was just added to it.
+  const [opened, setOpened] = useState<Set<string>>(() => new Set(people.length === 1 ? people : []));
+  const openFolder = (person: string, open: boolean) =>
+    setOpened((cur) => {
+      if (cur.has(person) === open) return cur;
+      const next = new Set(cur);
+      if (open) next.add(person);
+      else next.delete(person);
+      return next;
+    });
 
   const act = async (fn: () => Promise<unknown>, ok?: string) => {
     setError(null);
@@ -42,6 +53,12 @@ export function FamilyVoices({
       setError(err instanceof Error ? err.message : "That didn't work.");
     }
   };
+  const saved = (person: string) => {
+    setAdding(null);
+    openFolder(person, true);
+    setMsg(`Saved to ${person}'s recordings.`);
+    router.refresh();
+  };
 
   return (
     <div className="stack">
@@ -50,97 +67,144 @@ export function FamilyVoices({
         A grown-up&apos;s recordings can also become a storytelling voice, so they can read any book, poem or letter aloud.
         Recordings stay private to your family.
       </p>
-      {!adding && (
+      {adding === null && (
         <div>
-          <button className="btn btn-sm" onClick={() => setAdding(true)}>
-            ＋ Add a recording
+          <button className="btn btn-sm" onClick={() => setAdding("")}>
+            ＋ Add a recording or video
           </button>
         </div>
       )}
 
-      {adding && (
-        <KeepsakeAdder
-          people={people}
-          onClose={() => setAdding(false)}
-          onSaved={(person) => {
-            setAdding(false);
-            setMsg(`Saved to ${person}'s recordings.`);
-            router.refresh();
-          }}
-        />
-      )}
+      {adding === "" && <KeepsakeAdder people={people} onClose={() => setAdding(null)} onSaved={saved} />}
       {msg && <p className="notice small">{msg}</p>}
       {error && <p className="notice notice-error small">{error}</p>}
 
-      {people.length === 0 && !adding && <p className="faint small">No recordings yet.</p>}
+      {people.length === 0 && adding === null && <p className="faint small">No recordings yet.</p>}
 
       {people.map((person) => {
         const mine = keepsakes.filter((k) => k.person === person);
         const voice = voiceFor(person);
+        const total = mine.reduce((n, k) => n + k.durationMs, 0);
         return (
-          <div key={person} className="keepsake-person">
-            <div className="spread">
-              <h3>{person}</h3>
+          <details key={person} className="voice-folder" open={opened.has(person)} onToggle={(e) => openFolder(person, e.currentTarget.open)}>
+            <summary>
+              <span className="voice-folder-face" aria-hidden="true">
+                {voice ? "💛" : "🎙️"}
+              </span>
+              <span className="voice-folder-name">{person}</span>
+              <span className="voice-folder-note">
+                {mine.length} {mine.length === 1 ? "recording" : "recordings"} · {clock(total)}
+                {voice ? ` · reads stories as “${voice.name}”` : ""}
+              </span>
+            </summary>
+            <div className="voice-folder-body stack" style={{ ["--gap" as string]: "12px" }}>
               {voice ? (
-                <span className="keepsake-voice">💛 Reads stories as “{voice.name}”</span>
+                <div className="spread">
+                  <span className="keepsake-voice">💛 Reads stories as “{voice.name}”</span>
+                  <button
+                    className="btn btn-quiet btn-sm"
+                    onClick={() =>
+                      act(() => api.del(`/api/family-voices/${encodeURIComponent(voice.voiceId)}`), `${voice.name} won't read stories any more. The recordings are still here.`)
+                    }
+                  >
+                    Stop using {voice.name}&apos;s storytelling voice
+                  </button>
+                </div>
               ) : (
                 making !== person && (
-                  <button className="btn btn-ghost btn-sm" onClick={() => setMaking(person)}>
-                    📖 Let {person} read stories
-                  </button>
+                  <div>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setMaking(person)}>
+                      📖 Let {person} read stories
+                    </button>
+                  </div>
                 )
               )}
-            </div>
-            <ul className="keepsake-list">
-              {mine.map((k) => (
-                <KeepsakeRow
-                  key={k.id}
-                  keepsake={k}
-                  onRemove={() => act(() => api.del(`/api/keepsakes/${k.id}`), "Recording removed.")}
+              {making === person && (
+                <VoiceMaker
+                  person={person}
+                  keepsakes={mine}
+                  enabled={canMakeVoices}
+                  onClose={() => setMaking(null)}
+                  onMade={(name) => {
+                    setMaking(null);
+                    setMsg(`${name} can read to you now: find them first in Read to Me, or pick them as the storyteller when you make a story.`);
+                    router.refresh();
+                  }}
                 />
-              ))}
-            </ul>
-            {voice && (
-              <div className="row" style={{ justifyContent: "flex-end" }}>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => act(() => api.del(`/api/family-voices/${encodeURIComponent(voice.voiceId)}`), `${voice.name} won't read stories any more. The recordings are still here.`)}
-                >
-                  Stop using {voice.name}&apos;s storytelling voice
-                </button>
-              </div>
-            )}
-            {making === person && (
-              <VoiceMaker
-                person={person}
-                keepsakes={mine}
-                enabled={canMakeVoices}
-                onClose={() => setMaking(null)}
-                onMade={(name) => {
-                  setMaking(null);
-                  setMsg(`${name} can read to you now: find them first in Read to Me, or pick them as the storyteller when you make a story.`);
-                  router.refresh();
-                }}
-              />
-            )}
-          </div>
+              )}
+              <ul className="keepsake-list">
+                {mine.map((k) => (
+                  <KeepsakeRow key={k.id} keepsake={k} onRemove={() => act(() => api.del(`/api/keepsakes/${k.id}`), "Recording removed.")} />
+                ))}
+              </ul>
+              {adding === person ? (
+                <KeepsakeAdder people={people} person={person} onClose={() => setAdding(null)} onSaved={saved} />
+              ) : (
+                <div>
+                  <button className="btn btn-quiet btn-sm" onClick={() => setAdding(person)}>
+                    ＋ Add another of {person}
+                  </button>
+                </div>
+              )}
+            </div>
+          </details>
         );
       })}
     </div>
   );
 }
 
+/** One recording: a play button (one plays at a time) and, once it's playing, how far along it is, to move about in. */
 function KeepsakeRow({ keepsake: k, onRemove }: { keepsake: Keepsake; onRemove: () => void }) {
   const [confirming, setConfirming] = useState(false);
+  const audio = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [at, setAt] = useState<number | null>(null);
+  const toggle = () => {
+    const a = audio.current;
+    if (!a) return;
+    if (a.paused) {
+      document.querySelectorAll<HTMLAudioElement>("audio.keepsake-audio").forEach((other) => other !== a && other.pause());
+      void a.play().catch(() => undefined);
+    } else a.pause();
+  };
   return (
     <li className="keepsake">
+      <button type="button" className="keepsake-play" onClick={toggle} aria-label={playing ? `Pause ${k.title}` : `Play ${k.title}`}>
+        {playing ? "❚❚" : "▶"}
+      </button>
+      <audio
+        ref={audio}
+        className="keepsake-audio"
+        preload="none"
+        src={k.audioUrl}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setAt(null)}
+        onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
+      />
       <div className="keepsake-meta">
         <b>{k.title}</b>
-        <span className="small faint">
-          {[k.recordedOn, clock(k.durationMs)].filter(Boolean).join(" · ")}
-        </span>
+        {at === null ? (
+          <span className="small faint">{[k.recordedOn, clock(k.durationMs)].filter(Boolean).join(" · ")}</span>
+        ) : (
+          <span className="keepsake-seek small faint">
+            {clock(at * 1000)}
+            <input
+              type="range"
+              min={0}
+              max={k.durationMs / 1000}
+              step={0.1}
+              value={Math.min(at, k.durationMs / 1000)}
+              onChange={(e) => {
+                if (audio.current) audio.current.currentTime = Number(e.target.value);
+              }}
+              aria-label={`Where in ${k.title}`}
+            />
+            {clock(k.durationMs)}
+          </span>
+        )}
       </div>
-      <audio controls preload="none" src={k.audioUrl} />
       {confirming ? (
         <span className="row" style={{ gap: 6 }}>
           <button className="btn btn-sm btn-velvet" onClick={onRemove}>
@@ -181,10 +245,21 @@ With a ring at the end of his nose,
 His nose, his nose,
 With a ring at the end of his nose.`;
 
-function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose: () => void; onSaved: (person: string) => void }) {
+function KeepsakeAdder({
+  people,
+  person: forPerson = "",
+  onClose,
+  onSaved,
+}: {
+  people: string[];
+  /** Adding to someone's recordings: their name is already filled in. */
+  person?: string;
+  onClose: () => void;
+  onSaved: (person: string) => void;
+}) {
   const api = useApi();
   const [mode, setMode] = useState<"upload" | "record">("upload");
-  const [person, setPerson] = useState("");
+  const [person, setPerson] = useState(forPerson);
   const [title, setTitle] = useState("");
   const [recordedOn, setRecordedOn] = useState("");
   const [ready, setReady] = useState<{ file: File; durationMs: number; url: string } | null>(null);
@@ -193,6 +268,11 @@ function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose
   const [recording, setRecording] = useState<{ started: number; recorder: MediaRecorder } | null>(null);
   const [now, setNow] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  // What it was made ready from (kept on the phone, to cut just part of it), and the part to keep, if not all of it.
+  const source = useRef<{ blob: Blob; name: string } | null>(null);
+  const [part, setPart] = useState<{ from: number; to: number } | null>(null);
+  const preview = useRef<HTMLAudioElement>(null);
+  const stopAt = useRef<number | null>(null);
 
   useEffect(() => {
     if (!recording) return;
@@ -203,9 +283,13 @@ function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose
 
   const prepare = async (blob: Blob, name: string) => {
     setError(null);
-    setBusy("Getting the recording ready…");
+    // From a video, only the sound is taken, here on the phone: the video itself is never sent or kept.
+    const what = isVideo(blob) ? "Taking the sound from the video" : "Getting the recording ready";
+    setBusy(`${what}…`);
     try {
-      const out = await prepareRecording(blob, name, (f) => setBusy(`Getting the recording ready (${Math.round(f * 100)}%)…`));
+      const out = await prepareRecording(blob, name, (f) => setBusy(`${what} (${Math.round(f * 100)}%)…`));
+      source.current = { blob, name };
+      setPart(null);
       setReady((old) => {
         if (old) URL.revokeObjectURL(old.url);
         return { ...out, url: URL.createObjectURL(out.file) };
@@ -241,19 +325,37 @@ function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose
     setRecording(null);
   };
 
+  // Just part of it: from where to where, and a listen to that part alone.
+  const trimmed = Boolean(ready && part && (part.from > 0 || part.to < ready.durationMs));
+  const hearPart = () => {
+    const a = preview.current;
+    if (!a || !part) return;
+    a.currentTime = part.from / 1000;
+    stopAt.current = part.to / 1000;
+    void a.play().catch(() => undefined);
+  };
+
   const save = async () => {
     if (!ready || !person.trim()) return;
-    setBusy("Saving the recording…");
     setError(null);
     // A long recording can take a while to send on a weak signal: the screen stays on until it's in.
     const release = await keepAwake();
     try {
+      let { file, durationMs } = ready;
+      if (trimmed && part && source.current) {
+        setBusy("Keeping just that part…");
+        ({ file, durationMs } = await prepareRecording(source.current.blob, source.current.name, (f) => setBusy(`Keeping just that part (${Math.round(f * 100)}%)…`), {
+          fromMs: part.from,
+          toMs: part.to,
+        }));
+      }
+      setBusy("Saving the recording…");
       const form = new FormData();
-      form.set("audio", ready.file);
+      form.set("audio", file);
       form.set("person", person.trim());
       form.set("title", title.trim() || (mode === "record" ? "Recorded here" : "A recording"));
       form.set("recordedOn", recordedOn.trim());
-      form.set("durationMs", String(ready.durationMs));
+      form.set("durationMs", String(durationMs));
       await upload(api, "/api/keepsakes", form, (n, of) => setBusy(`${sentWords("Saving the recording", n, of)}…`));
       URL.revokeObjectURL(ready.url);
       onSaved(person.trim());
@@ -289,7 +391,7 @@ function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose
 
       <div className="chips" role="tablist" aria-label="How to add it">
         <button type="button" role="tab" className="chip" aria-selected={mode === "upload"} aria-pressed={mode === "upload"} onClick={() => setMode("upload")} disabled={!!recording}>
-          📁 Upload a recording
+          📁 A recording or video
         </button>
         <button type="button" role="tab" className="chip" aria-selected={mode === "record"} aria-pressed={mode === "record"} onClick={() => setMode("record")} disabled={!!recording}>
           🎙️ Record now
@@ -300,7 +402,7 @@ function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose
         <div className="stack" style={{ ["--gap" as string]: "8px" }}>
           <div>
             <button className="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={!!busy}>
-              Choose a recording
+              Choose a recording or video
             </button>
             <input
               ref={fileRef}
@@ -315,9 +417,12 @@ function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose
             />
           </div>
           <p className="hint" style={{ margin: 0 }}>
-            A voicemail on an iPhone: open it in the Phone app, tap the share button, and choose <i>Save to Files</i>, then pick it
-            here. On Android, share or save the message as an audio file. Voice memos and videos work too; from a video we keep
-            just the sound.
+            <b>🎬 A video:</b> pick it from your photos. Only the sound is kept, taken out right here on your phone: the video
+            itself is never sent or stored.
+          </p>
+          <p className="hint" style={{ margin: 0 }}>
+            <b>📞 A voicemail on an iPhone:</b> open it in the Phone app, tap the share button, and choose <i>Save to Files</i>,
+            then pick it here. On Android, share or save the message as an audio file. Voice memos work too.
           </p>
         </div>
       ) : (
@@ -352,8 +457,68 @@ function KeepsakeAdder({ people, onClose, onSaved }: { people: string[]; onClose
       )}
       {ready && !busy && (
         <div className="stack" style={{ ["--gap" as string]: "6px" }}>
-          <span className="small muted">Ready to keep · {clock(ready.durationMs)}</span>
-          <audio controls src={ready.url} />
+          <span className="small muted">
+            Ready to keep · {trimmed && part ? `${clock(part.to - part.from)} of ${clock(ready.durationMs)}` : clock(ready.durationMs)}
+          </span>
+          <audio
+            ref={preview}
+            controls
+            src={ready.url}
+            onTimeUpdate={(e) => {
+              if (stopAt.current !== null && e.currentTarget.currentTime >= stopAt.current) {
+                stopAt.current = null;
+                e.currentTarget.pause();
+              }
+            }}
+          />
+          {part ? (
+            <div className="keep-part stack" style={{ ["--gap" as string]: "6px" }}>
+              <div className="small">
+                <b>Keep just part of it</b>
+              </div>
+              <div className="small muted">
+                For a storytelling voice, keep only the part where they&apos;re speaking, without anyone talking over them.
+              </div>
+              <label className="keep-part-row small">
+                <span>From {clock(part.from)}</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={ready.durationMs}
+                  step={100}
+                  value={part.from}
+                  onChange={(e) => setPart({ ...part, from: Math.min(Number(e.target.value), part.to - 1000) })}
+                />
+              </label>
+              <label className="keep-part-row small">
+                <span>To {clock(part.to)}</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={ready.durationMs}
+                  step={100}
+                  value={part.to}
+                  onChange={(e) => setPart({ ...part, to: Math.max(Number(e.target.value), part.from + 1000) })}
+                />
+              </label>
+              <div className="row" style={{ gap: 6 }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={hearPart}>
+                  ▶ Hear just that part
+                </button>
+                <button type="button" className="btn btn-quiet btn-sm" onClick={() => setPart(null)}>
+                  Keep it all
+                </button>
+              </div>
+            </div>
+          ) : (
+            ready.durationMs > 3000 && (
+              <div>
+                <button type="button" className="btn btn-quiet btn-sm" onClick={() => setPart({ from: 0, to: ready.durationMs })}>
+                  ✂️ Keep just part of it
+                </button>
+              </div>
+            )
+          )}
         </div>
       )}
       {error && <p className="notice notice-error small">{error}</p>}

@@ -188,8 +188,18 @@ test("the illustrator's prompts: sketches from a description or a child's drawin
   const { characterPrompt, sceneRequest, undrawn } = await import("@/lib/server/art");
   const fairy = { id: "fairy", name: "Gwendolyn", look: "a giant, green and lumpy", main: true, drawing: null, sketches: [], chosen: null };
   const mia = { ...fairy, id: "mia", name: "Mia", look: "curly hair and a gap in her smile" };
-  assert.match(characterPrompt(fairy, "watercolor", false), /Gwendolyn, a giant, green and lumpy\..*watercolor.*No words/);
-  assert.match(characterPrompt(fairy, "watercolor", true), /child's own drawing of Gwendolyn.*Keep the child's design/);
+  assert.match(characterPrompt(fairy, "watercolor", false), /^Art style, the most important instruction of all: a traditional watercolor.*Gwendolyn, a giant, green and lumpy\..*white watercolor paper.*No words/);
+  assert.match(characterPrompt(fairy, "watercolor", true), /child's own drawing of Gwendolyn.*made in that art style.*Keep the child's design/);
+  // Every style is its own: what it looks like up close, and where a character stands for its sketch.
+  const { ART_STYLES } = await import("@/lib/shared/art");
+  const styles = Object.keys(ART_STYLES) as (keyof typeof ART_STYLES)[];
+  const sketches = styles.map((style) => characterPrompt(fairy, style, false));
+  assert.equal(new Set(sketches).size, styles.length);
+  for (const [i, style] of styles.entries()) {
+    assert.ok(sketches[i].startsWith(`Art style, the most important instruction of all: ${ART_STYLES[style].prompt}.`), `${style} comes first`);
+    assert.ok(sketches[i].includes(`alone ${ART_STYLES[style].alone}`), `${style} sets its own background`);
+  }
+  assert.match(characterPrompt(fairy, "papercut", false), /scissor-cut edges.*plain sheet of colored card/);
 
   const sketch = { data: PNG, mime: "image/png", label: "Gwendolyn" };
   const cover = { data: PNG, mime: "image/png", label: "the cover" };
@@ -207,7 +217,8 @@ test("the illustrator's prompts: sketches from a description or a child's drawin
   });
   assert.equal(page.references.length, 2, "Gwendolyn's sketch, then the cover");
   assert.equal(page.aspect, "4:3");
-  assert.match(page.prompt, /page 2 of the picture book "The Giant Tooth Fairy"/);
+  assert.match(page.prompt, /^Art style, the most important instruction of all: a traditional watercolor/, "the style comes first on every page too");
+  assert.match(page.prompt, /page 2 of the picture book "The Giant Tooth Fairy", in that art style/);
   assert.match(page.prompt, /Gwendolyn looks exactly like reference picture 1/);
   assert.match(page.prompt, /Mia: curly hair and a gap in her smile/, "a character without a sketch is described");
   assert.match(page.prompt, /Match the style, palette and lighting of the cover \(reference picture 2\)/);

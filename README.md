@@ -52,6 +52,14 @@ a brand-new tale for the very same pictures.
 ### 📖 Picture books
 - **An idea becomes an illustrated book.** For a story dreamed up from an idea, switch on *Make it a picture book*
   and pick a style: watercolor, painted, colored pencil, cut paper or shadow puppets.
+- **Five styles that really look different.** The style is the first thing the illustrator is told, in detail (cut
+  paper is shapes cut from flat colored papers, with crisp scissor edges and little shadows, and no outlines or
+  painted shading), and every sketch, cover and page is drawn in it. A character brought back from another book
+  keeps the style it was drawn in, and says so; for pages all in the new style, sketch them fresh.
+- **The pictures come first.** Once a picture book's story is recorded, its pictures lead the page: meeting the
+  characters and drawing the book is what's next. *Listen now, before the pictures* is just below for anyone who
+  can't wait; until a page's picture is drawn it shows the cover, and each picture joins the story as it's made,
+  with no need to record it again. The pictures stay where they are while they're drawn.
 - **Meet the characters first.** The storyteller reads the finished story and plans the pictures: who's in them,
   what each one looks like, and what every page shows. **Sketch everyone at once**: one approval for two sketches
   of each main character (untick anyone you don't want drawn), then choose a favorite for each. Or photograph your
@@ -92,11 +100,28 @@ a brand-new tale for the very same pictures.
 - **🪄 Conjure a voice.** Describe one ("a tiny, squeaky mouse who talks very fast"), hear three versions, and
   keep your favorite in the family's voice wardrobe for future stories. A voice can be made speaking English,
   French or Spanish, with a natural accent.
+- **Make one right where you choose.** Every storyteller list ends with **🪄 Make a new voice**: dreamed up while
+  shaping a story, it's made in the story's language and picked for it, no trip to the Grown-ups' corner needed.
+  The filters (favorites, family, made by you…) wrap onto a second line on a phone, so every one is in view. On a
+  story's page, each character shows who voices them, with **✎ Change**.
 
 ### 💛 Family voices
-- **Keepsakes, kept just as they are.** Upload a voicemail, a voice memo or a video (the sound is kept), or
-  record right in the app: Grandma's birthday message, your children reading at four. They're tidied into
-  MP3s in the browser, filed under each person, and stay private to your family.
+- **Keepsakes, kept just as they are.** Upload a voicemail, a voice memo or a video, or record right in the app:
+  Grandma's birthday message, your children reading at four. They're tidied into MP3s in the browser and stay
+  private to your family.
+- **Videos give up their sound, and nothing else.** Pick a video from your photos: its sound is taken out right
+  there on the phone, and only that is sent and kept. The video itself never leaves the phone (big ones are fine,
+  up to 400 MB).
+- **✂️ Keep just part of it.** Before keeping a recording, slide *From* and *To* to the moment they're speaking
+  (*Hear just that part* to check), so a storytelling voice learns from them alone, without anyone talking over
+  them.
+- **A folder for each person.** In the Grown-ups' corner, everyone's recordings are kept together under their
+  name ("4 recordings · 2:13 · reads stories as “Gram T”"). Open a folder to play a recording (one at a time,
+  with a slider to move through it), add another of theirs, remove one, or let them read stories.
+- **Easy to discover.** Until there's a family voice, the Hall invites the family to keep one (with *Not now*),
+  and storyteller lists, *Read to Me* and the welcome page say it's possible, linking to where it's set up. Once
+  there is one, the Hall offers *Choose something to read* or *A new story* in their voice, which opens with
+  them already chosen.
 - **A grown-up's voice can read anything.** From a minute or so of an adult's recordings, ElevenLabs
   instant voice cloning learns their voice. They then appear first in every storyteller list, ready to read a
   book, a poem or a letter. Making one asks the grown-up to confirm the voice is an adult's and that the family
@@ -135,9 +160,12 @@ a brand-new tale for the very same pictures.
 ### 📚 The Library
 - A candlelit bookcase. Books stand face-out on shelves (Shadow Books, Picture Books, Tales from the Wild,
   Dreamed-Up Tales, The Classic Treasury, or any shelf you name), and each book holds all its stories.
-- Look at the **books** on the bookcase or every **story** in a list. Books stand face-out on the shelves,
-  three to a shelf on a phone, each kind under its own brass plaque (small kinds share a shelf on a computer),
-  or all together newest first or A to Z. Filter by child, ⭐ favorites or read-alouds, and search everything.
+- **One bookcase, books all the way down.** What a child would call a book is a book: a dreamed-up tale is one
+  book, and a book you own holds every story made for it (open it to see them). Books stand face-out, three to a
+  shelf on a phone, each kind under its own brass plaque (small kinds share a shelf on a computer), or all
+  together newest first or A to Z with **Arrange**. **Search** finds a book by its title or any of its stories',
+  and **⭐ Favorites** shows the books holding a story you've starred. The bookcase is the whole family's, so
+  there's no choosing whose: the Hall is where each child finds their own stories.
 - **Folders for books that belong together** (a series, the same two characters, a season's books): tap
   **📁 Make a folder**, name it, tick its books, and they stand on the shelf as one wooden box with the tops of
   their covers peeking out. Tap it to open it; *Change this folder* renames it, adds or takes out books, or
@@ -149,7 +177,7 @@ a brand-new tale for the very same pictures.
 - To rename a book, move it to another shelf or folder, or take it off the shelves, open it and tap *Rename, move
   or remove*.
 - **Family accounts with reader cards:** one grown-up login per family, then a "Who's listening tonight?"
-  card for each child (no passwords), so everyone finds their own favorites.
+  card for each child (no passwords), so the Hall greets them by name with their own stories.
 - **Grown-up PIN** (optional): children can play anything on the shelves, but creating new stories, buying
   pictures and changing settings need a grown-up (buying pictures needs a PIN, so a family chooses one the first
   time). Like a phone's passcode, it's checked the moment the last digit goes in. Once it's entered, the device
@@ -294,8 +322,8 @@ stories needs a connection. Signing out removes everything saved on the phone.
 
 **Accounts?**
 Built in as a *family account* (one grown-up email and password) with *reader cards* for each child, like a
-streaming service's profile picker. Books and stories belong to the family, each story remembers who it
-was made for, and the library filters by child.
+streaming service's profile picker. Books and stories belong to the family, on one bookcase everyone shares;
+each story remembers who it was made for, and the Hall shows each child their own.
 
 **Can it find books in a library database?**
 Partly. Out-of-copyright classics come straight from Project Gutenberg's free catalogue (the Classic

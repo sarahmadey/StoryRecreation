@@ -17,6 +17,9 @@ export default async function WelcomePage() {
           A new story for every night. Photograph the pages of a book you love (or something wonderful you
           found today) and a cast of storytellers will bring it to life.
         </p>
+        <p className="muted" style={{ fontSize: "1.05rem", maxWidth: "34em", margin: "10px auto 0" }}>
+          💛 And keep the voices you love: from an old voicemail or video, Grandma can read to you again.
+        </p>
       </div>
       <WelcomeForm signup={signupMode()} />
     </main>

@@ -93,6 +93,7 @@ export function ReadToMe({
   status,
   preselectBook,
   preselectClassic,
+  preselectReader,
   favoriteClassics,
   librarySize,
   lastReaders,
@@ -107,6 +108,8 @@ export function ReadToMe({
   status: AppStatus;
   preselectBook: string | null;
   preselectClassic: number | null;
+  /** Arrived to be read to by someone in particular (a loved one, from the Hall): they read whatever's chosen. */
+  preselectReader: string | null;
   favoriteClassics: FavoriteClassic[];
   /** How many books the whole library holds (0 until it's first fetched). */
   librarySize: number;
@@ -115,7 +118,7 @@ export function ReadToMe({
   const router = useRouter();
   const voices = useVoices();
   const credits = useCredits();
-  const [reader, setReader] = useState<string>(DEFAULT_NARRATOR_ID);
+  const [reader, setReader] = useState<string>(preselectReader ?? DEFAULT_NARRATOR_ID);
   const [fullCast, setFullCast] = useState(false);
   const [tab, setTab] = useState<Tab>(preselectBook ? "own" : "classics");
   // First the book, then who reads it. Arriving from one of the family's books, it's already chosen.
@@ -177,7 +180,7 @@ export function ReadToMe({
     const key = bookKey ?? tab;
     if (pickedFor.current === key) return;
     pickedFor.current = key;
-    setReader(usual ?? savedReader());
+    setReader(preselectReader ?? usual ?? savedReader());
   };
   useEffect(() => {
     if (startsChosen) pickReader();
@@ -189,6 +192,9 @@ export function ReadToMe({
     goTo(1);
   };
   const readerVoice = voices?.find((v) => v.voiceId === reader);
+  const familyNames = (voices ?? []).filter((v) => v.source === "family").map((v) => v.name);
+  // Arrived to be read to by a loved one: they read whatever's chosen.
+  const askedFor = preselectReader ? voices?.find((v) => v.voiceId === preselectReader && v.source === "family") : undefined;
   const readerName = readerVoice
     ? `${readerVoice.persona?.emoji ?? (readerVoice.source === "family" ? "💛" : readerVoice.source === "designed" ? "🪄" : "🗣️")} ${readerVoice.persona?.name ?? readerVoice.name}`
     : "your storyteller";
@@ -530,6 +536,7 @@ export function ReadToMe({
       <div className="center">
         <div className="eyebrow">Read to Me</div>
         <h1>{step === 0 ? "What shall we read?" : "Who shall read it to you?"}</h1>
+        {step === 0 && askedFor && <p className="muted" style={{ margin: 0 }}>💛 {askedFor.name} will read it to you. Choose a book, a poem or a letter.</p>}
       </div>
       <Steps labels={["The book", "The storyteller"]} step={step} onGo={goTo} />
 
@@ -801,6 +808,16 @@ export function ReadToMe({
               <p className="muted" style={{ margin: 0 }}>
                 A poem, a letter from Grandma, a birthday card, a story your child dictated… write it here, paste it in, or add a photo or
                 screenshot of it, and it will be read aloud.
+              </p>
+              <p className="hint" style={{ margin: 0 }}>
+                {familyNames.length ? (
+                  <>💛 Choose {familyNames.join(" or ")} as the storyteller next, and it&apos;s read in their own voice.</>
+                ) : (
+                  <>
+                    💛 It can even be read in a loved one&apos;s own voice: the storytellers can learn it from a voicemail or a video, in the{" "}
+                    <Link href="/grownups#family-voices">Grown-ups&apos; corner</Link>.
+                  </>
+                )}
               </p>
               <div className="words-picture">
                 <input

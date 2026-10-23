@@ -99,6 +99,12 @@ export function Studio({
     void refresh().catch(() => undefined);
   };
   const canPicture = story.mode === "create" && story.settings.source === "idea" && Boolean(story.script);
+  // A picture book whose pictures aren't all drawn yet: making them is what's next, so they come before listening.
+  const picturesToMake = canPicture && Boolean(story.settings.pictures || story.art) && !(story.art?.cover && story.art.pages.every(Boolean));
+  // Where the pictures go is settled once, as they first appear, and kept while the page is open: they don't jump away when the last one's drawn.
+  // Leading the page, they have the way to listen just below them, so they don't offer it too.
+  const [picturesFirst, setPicturesFirst] = useState<boolean | null>(canPicture ? picturesToMake : null);
+  if (picturesFirst === null && canPicture) setPicturesFirst(picturesToMake);
   const pictures = canPicture && (
     <Pictures
       story={story}
@@ -107,7 +113,7 @@ export function Studio({
       drawnBefore={before}
       planPrice={planPrice}
       heroes={story.settings.heroes}
-      listen={story.status === "ready" && story.audioUrl ? `/play/${story.id}` : null}
+      listen={story.status === "ready" && story.audioUrl && !picturesFirst ? `/play/${story.id}` : null}
       onStory={onArt}
     />
   );
@@ -265,13 +271,20 @@ export function Studio({
         </div>
       )}
 
+      {picturesFirst && pictures}
+
       {story.status === "ready" && story.audioUrl && (
         <div className="panel center stack">
           <div className="row" style={{ justifyContent: "center" }}>
-            <Link href={`/play/${story.id}`} className="btn btn-lg">
-              ▶ Listen now
+            <Link href={`/play/${story.id}`} className={picturesToMake ? "btn btn-ghost" : "btn btn-lg"}>
+              ▶ {picturesToMake ? "Listen now, before the pictures" : "Listen now"}
             </Link>
           </div>
+          {picturesToMake && (
+            <p className="small faint" style={{ margin: 0 }}>
+              Until a page&apos;s picture is drawn, it shows the cover. Each one joins the story as it&apos;s made, with no need to record it again.
+            </p>
+          )}
           {story.mode === "create" && (
             <div>
               <Link href={`/create?like=${story.id}`} className="btn btn-ghost btn-sm">
@@ -325,7 +338,7 @@ export function Studio({
 
       {error && <p className="notice notice-error">{error}</p>}
 
-      {pictures}
+      {!picturesFirst && pictures}
 
       {script && (
         <div className="parchment stack" style={{ ["--gap" as string]: "22px" }}>
@@ -369,8 +382,16 @@ export function Studio({
                       )}
                     </div>
                   ) : (
-                    <div className="small faint" style={{ marginTop: 6 }}>
-                      🎙️ {voices.find((v) => v.voiceId === c.voiceId)?.persona?.name ?? voices.find((v) => v.voiceId === c.voiceId)?.name ?? "A storyteller"}
+                    <div className="row" style={{ marginTop: 6, gap: 6 }}>
+                      <span className="small faint">
+                        🎙️ {voices.find((v) => v.voiceId === c.voiceId)?.persona?.name ?? voices.find((v) => v.voiceId === c.voiceId)?.name ?? "A storyteller"}
+                      </span>
+                      {/* A voice that suits them better: chosen, or made in the voice workshop, then the story re-recorded. */}
+                      {!working && (
+                        <button type="button" className="btn btn-quiet btn-sm" onClick={() => setEditing(true)} aria-label={`Change ${c.name}'s voice`}>
+                          ✎ Change
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -501,8 +522,8 @@ export function Studio({
         </div>
       )}
 
-      {/* Read to the end of the words: what's next is listening. */}
-      {story.status === "ready" && story.audioUrl && !editing && (
+      {/* Read to the end of the words: what's next is listening (or, for a picture book still to draw, the pictures above). */}
+      {story.status === "ready" && story.audioUrl && !editing && !picturesToMake && (
         <p className="center">
           <Link href={`/play/${story.id}`} className="btn btn-lg">
             ▶ Listen now
@@ -532,7 +553,7 @@ export function Studio({
                 ✕
               </button>
             </div>
-            <VoicePicker voices={voices} value={newNarrator} onChange={(v) => v && setNewNarrator(v)} allowAuto={false} />
+            <VoicePicker voices={voices} value={newNarrator} onChange={(v) => v && setNewNarrator(v)} allowAuto={false} language={script.language} />
             <p className="small" style={{ margin: 0, color: "var(--ink-soft)" }}>
               The words stay just as they are. The story is recorded again in the new voice.
             </p>

@@ -1445,6 +1445,10 @@ a.choice {
   backdrop-filter: blur(4px);
   animation: fade-in 0.2s ease;
 }
+/* The PIN can be asked for from inside any other window (the voice workshop, say): it comes up over all of them. */
+.modal-backdrop.pin-backdrop {
+  z-index: 160;
+}
 .modal {
   width: min(520px, 100%);
   max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px);
@@ -1744,9 +1748,102 @@ button.step:hover {
 }
 .keepsake {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(200px, 300px) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(107, 63, 21, 0.12);
+}
+.keepsake:last-child {
+  border-bottom: 0;
+}
+/* A recording's own play button: small and round, one playing at a time. */
+.keepsake-play {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 63, 21, 0.35);
+  background: linear-gradient(180deg, #f5dc9a, #dcae55);
+  color: #3a2410;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(90, 55, 20, 0.25);
+}
+.keepsake-audio {
+  display: none;
+}
+.keepsake-seek {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.keepsake-seek input {
+  flex: 1;
+  min-width: 60px;
+  accent-color: #a8792b;
+}
+/* Each person's recordings, a folder that opens. */
+.voice-folder {
+  border: 1px solid rgba(107, 63, 21, 0.25);
+  border-radius: 12px;
+  background: rgba(255, 252, 242, 0.4);
+}
+.voice-folder > summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "face name chev" "face note chev";
+  align-items: center;
+  column-gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+.voice-folder > summary::-webkit-details-marker {
+  display: none;
+}
+.voice-folder > summary::after {
+  content: "›";
+  grid-area: chev;
+  font-size: 1.5rem;
+  color: #8a5a1f;
+  transition: transform 0.2s;
+}
+.voice-folder[open] > summary::after {
+  transform: rotate(90deg);
+}
+.voice-folder-face {
+  grid-area: face;
+  font-size: 1.6rem;
+}
+.voice-folder-name {
+  grid-area: name;
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  color: #3b2212;
+}
+.voice-folder-note {
+  grid-area: note;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.voice-folder-body {
+  padding: 0 14px 14px;
+}
+/* Keeping just part of a recording. */
+.keep-part {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed rgba(107, 63, 21, 0.35);
+}
+.keep-part-row {
+  display: grid;
+  grid-template-columns: 6.5em minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.keep-part-row input {
+  accent-color: #a8792b;
 }
 .keepsake-meta {
   display: flex;
@@ -1786,15 +1883,6 @@ button.step:hover {
 }
 @keyframes rec {
   50% { opacity: 0.25; }
-}
-@media (max-width: 640px) {
-  .keepsake {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .keepsake audio {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .rec-dot { animation: none; }
@@ -1911,17 +1999,26 @@ button.step:hover {
   gap: 6px;
   margin-bottom: 10px;
 }
+/* (On a phone too, every filter shows: a row that scrolls hides the ones past the edge.) */
 @media (max-width: 520px) {
-  .voice-filters {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin: 0 -6px 10px;
-    padding: 2px 6px 4px;
-  }
   .voice-filters .chip {
-    flex: none;
+    padding: 5px 12px;
+    font-size: 0.9rem;
   }
+}
+/* Making a voice, right where storytellers are chosen. */
+.voice-make {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 10px;
+}
+/* A loved one's voice, before there is one: a card that says it's possible. */
+.voice-card.voice-invite {
+  border-style: dashed;
+  text-decoration: none;
+  color: inherit;
 }
 .voice-empty {
   margin: 0;
@@ -2914,12 +3011,34 @@ code {
   max-width: 220px;
   font-size: 1.05rem;
 }
+/* The Library's few controls: a search, then how the books are arranged, favorites and folders on one line. */
+.library-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 18px;
+}
+.library-search {
+  flex: 1 1 260px;
+  max-width: 420px;
+}
 .library-order {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 18px;
+}
+.library-arrange {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.library-arrange .select {
+  width: auto;
+  padding: 6px 30px 6px 12px;
+  border-radius: 999px;
+  font-size: 0.9rem;
 }
 .library-order .find-label {
   margin: 0 4px 0 0;
@@ -4392,4 +4511,50 @@ label.btn.disabled {
   .drift {
     animation: none;
   }
+}
+
+/* Family voices on the Hall: a way straight to them, or a word that it's possible. */
+.family-card {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin: 26px 0 0;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(220, 174, 85, 0.35);
+  background: radial-gradient(120% 140% at 0% 0%, rgba(255, 196, 110, 0.16), transparent 60%), linear-gradient(180deg, rgba(52, 34, 21, 0.85), rgba(32, 20, 13, 0.9));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+}
+.family-card-face {
+  flex: none;
+  font-size: 2.2rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 12px rgba(255, 200, 90, 0.5));
+}
+.family-card-text {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+.family-card-text h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: var(--gold-1);
+}
+.family-card-text p {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+.family-card-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.family-card-row b {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  color: var(--text);
+  margin-right: 4px;
 }

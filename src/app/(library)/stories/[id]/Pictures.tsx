@@ -547,10 +547,19 @@ export function Pictures({
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={d.picture} alt="" />
                         <span className="small">from &ldquo;{d.title}&rdquo;</span>
+                        <span className="small faint">
+                          {ART_STYLES[d.style].emoji} {ART_STYLES[d.style].label}
+                        </span>
                         <b className="small">Use this one</b>
                       </button>
                     ))}
                   </div>
+                  {before(c).some((d) => d.style !== art.style) && (
+                    <span className="small faint">
+                      A character brings the style they were drawn in to every page they&apos;re on. For pages all in{" "}
+                      {ART_STYLES[art.style].emoji} {ART_STYLES[art.style].label}, sketch them fresh.
+                    </span>
+                  )}
                 </div>
               )}
               {(c.sketches.length > 0 || c.drawing || coming > 0) && (

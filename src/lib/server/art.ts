@@ -204,12 +204,15 @@ async function reference(householdId: string, rel: string | null, label: string)
 const RULES =
   "It is for a children's picture book. No words, letters, numbers, signs, captions, signatures or speech bubbles anywhere in the picture. Warm, friendly and safe, never frightening.";
 
+/** The art style, first and above all: the illustrator otherwise drifts toward the same smooth look whatever was chosen. */
+const styleFirst = (style: ArtStyle) => `Art style, the most important instruction of all: ${ART_STYLES[style].prompt}.`;
+
 /** A sketch of one character, alone, to choose between (or a child's drawing of them, made into a picture-book character). */
 export function characterPrompt(c: Pick<ArtCharacter, "name" | "look">, style: ArtStyle, fromDrawing: boolean): string {
-  const pose = "Show the whole character in a simple standing pose, facing slightly toward us, alone on a plain soft cream background.";
+  const pose = `Show the whole character in a simple standing pose, facing slightly toward us, alone ${ART_STYLES[style].alone}.`;
   return fromDrawing
-    ? `Reference picture 1 is a child's own drawing of ${c.name}. Redraw that exact character as a finished picture-book character. Keep the child's design, its colors, its shapes, how many eyes, arms and legs it has, its clothes and every funny detail, so the child knows it at once, and make it lovable.${c.look ? ` About ${c.name}: ${c.look}.` : ""} ${pose} Style: ${ART_STYLES[style].prompt}. ${RULES}`
-    : `A character design for a children's picture book: ${c.name}${c.look ? `, ${c.look}` : ""}. ${pose} Style: ${ART_STYLES[style].prompt}. ${RULES}`;
+    ? `${styleFirst(style)} Reference picture 1 is a child's own drawing of ${c.name}. Redraw that exact character as a finished picture-book character, made in that art style. Keep the child's design, its colors, its shapes, how many eyes, arms and legs it has, its clothes and every funny detail, so the child knows it at once, and make it lovable.${c.look ? ` About ${c.name}: ${c.look}.` : ""} ${pose} ${RULES}`
+    : `${styleFirst(style)} A character for a children's picture book, made in exactly that art style: ${c.name}${c.look ? `, ${c.look}` : ""}. ${pose} ${RULES}`;
 }
 
 /** The cover (page 0) or a page: its scene, with each character shown from their chosen sketch, and the cover for style. */
@@ -236,14 +239,15 @@ export function sceneRequest(o: {
   });
   if (o.cover && o.page > 0) references.push(o.cover);
   const prompt = [
+    styleFirst(o.style),
     o.page === 0
-      ? `The front cover picture for the picture book "${o.title}". The title is added separately, so leave calm space near the top.`
-      : `The picture for page ${o.page} of the picture book "${o.title}".`,
+      ? `The front cover picture for the picture book "${o.title}", in that art style. The title is added separately, so leave calm space near the top.`
+      : `The picture for page ${o.page} of the picture book "${o.title}", in that art style.`,
     `Scene: ${o.scene}`,
     who.length ? `Characters: ${who.join("; ")}.` : "",
     who.length && references.length ? "Keep every character's design, colors, proportions and clothes exactly as in their reference picture." : "",
     o.cover && o.page > 0 ? `Match the style, palette and lighting of the cover (reference picture ${references.length}).` : "",
-    `Mood: ${MOODS[o.mood].label.toLowerCase()}. Style: ${ART_STYLES[o.style].prompt}.`,
+    `Mood: ${MOODS[o.mood].label.toLowerCase()}.`,
     o.note ? `The family asked for this change: ${o.note}` : "",
     RULES,
   ]
@@ -399,7 +403,7 @@ export function drawnBefore(householdId: string, storyId: string): Record<string
     const found = others.flatMap((s) =>
       s.art.characters
         .filter((o) => sameName(o.name, c.name) && o.chosen !== null && o.sketches[o.chosen])
-        .map((o) => ({ storyId: s.id, title: s.title, picture: o.sketches[o.chosen!] })),
+        .map((o) => ({ storyId: s.id, title: s.title, picture: o.sketches[o.chosen!], style: s.art.style })),
     );
     // The same picture chosen in several books is offered once.
     const unique = found.filter((f, i) => found.findIndex((g) => g.picture === f.picture) === i).slice(0, 3);

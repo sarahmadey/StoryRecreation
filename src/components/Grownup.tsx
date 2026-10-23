@@ -114,7 +114,7 @@ function PinPad({ onDone }: { onDone: (ok: boolean) => void }) {
   };
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="pin-title">
+    <div className="modal-backdrop pin-backdrop" role="dialog" aria-modal="true" aria-labelledby="pin-title">
       <div className="modal parchment center">
         <div className="eyebrow">For grown-ups</div>
         <h2 id="pin-title">Enter the family PIN</h2>

@@ -54,6 +54,7 @@ export function CreateWizard({
   currentProfile,
   preselect,
   preselectSettings,
+  preselectNarrator,
   past,
   like,
   status,
@@ -64,6 +65,8 @@ export function CreateWizard({
   currentProfile: Profile | null;
   preselect: Book | null;
   preselectSettings: StorySettings | null;
+  /** Arrived to make a story read by someone in particular (a loved one, from the Hall). */
+  preselectNarrator: string | null;
   /** Stories the family has made, newest first, for "make one like…". */
   past: PastStory[];
   /** Arrived from "Make another like this" on a story's page. */
@@ -103,6 +106,7 @@ export function CreateWizard({
       source: src,
       age: preselectSettings?.age ?? ageBandFor(currentProfile?.age),
       heroes: preselectSettings?.heroes ?? (currentProfile ? [currentProfile.name] : []),
+      narratorVoiceId: preselectNarrator ?? preselectSettings?.narratorVoiceId ?? null,
       chime: preselectSettings?.chime ?? { enabled: src === "book", style: "bell", gapSeconds: 3 },
       review: true,
     });
@@ -577,7 +581,7 @@ export function CreateWizard({
           <>
             <div>
               <span className="label">Who should tell the story?</span>
-              <VoicePicker voices={voices} value={settings.narratorVoiceId} onChange={(v) => set("narratorVoiceId", v)} />
+              <VoicePicker voices={voices} value={settings.narratorVoiceId} onChange={(v) => set("narratorVoiceId", v)} language={settings.language} />
             </div>
             <label className="toggle">
               <input type="checkbox" checked={settings.fullCast} onChange={(e) => set("fullCast", e.target.checked)} />

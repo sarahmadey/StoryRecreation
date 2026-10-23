@@ -3,38 +3,50 @@ import type { ArtStyle, SceneEffect, StoryArt } from "./types";
 // Picture books: the styles the illustrator can paint in, the little moving
 // touches of "living pictures", and how money is shown to the grown-ups.
 
-export const ART_STYLES: Record<ArtStyle, { label: string; emoji: string; blurb: string; prompt: string }> = {
+/**
+ * The styles the illustrator paints in. Each says what the medium looks like up close, and what it isn't, so the
+ * pictures don't all drift toward the same smooth look; `alone` is where a character stands for its sketch.
+ */
+export const ART_STYLES: Record<ArtStyle, { label: string; emoji: string; blurb: string; prompt: string; alone: string }> = {
   watercolor: {
     label: "Watercolor",
     emoji: "🎨",
     blurb: "Soft washes and ink, like a classic bedtime book",
     prompt:
-      "soft watercolor and ink illustration: gentle washes of color, delicate ink linework, warm cozy palette, the look of a classic bedtime picture book",
+      "a traditional watercolor painting with pen and ink: transparent washes that bloom and bleed into each other, white paper showing through, visible paper grain, loose and lively ink lines, soft muted storybook colors. Painted by hand on paper: not digital, no smooth gradients, no 3D shading",
+    alone: "on plain white watercolor paper",
   },
   gouache: {
     label: "Painted",
     emoji: "🖌️",
     blurb: "Rich, bright gouache",
-    prompt: "rich gouache painting: bold cheerful colors, soft textured brushwork, a modern picture book",
+    prompt:
+      "an opaque gouache painting: flat, matte shapes of bold, saturated color, visible brushstrokes and dry-brush texture, simple chunky forms, a bright mid-century picture-book look. Painted by hand: no ink outlines, nothing glossy, no 3D",
+    alone: "on a plain, flat painted background",
   },
   pencil: {
     label: "Colored pencil",
     emoji: "✏️",
     blurb: "Hand-drawn and cozy",
-    prompt: "colored pencil and crayon illustration on textured paper: hand-drawn, warm and cozy, visible pencil strokes",
+    prompt:
+      "a colored pencil and wax crayon drawing on toothy paper: every area filled with visible hatching and pencil strokes, slightly wobbly hand-drawn outlines, the paper's texture showing through the color, soft layered tones. Clearly drawn by hand with pencils: not painted, not digital",
+    alone: "on plain drawing paper",
   },
   papercut: {
     label: "Cut paper",
     emoji: "✂️",
     blurb: "Layered paper collage",
-    prompt: "layered cut-paper collage illustration: textured papers, crisp shapes, soft shadows between the layers",
+    prompt:
+      "a cut-paper collage: every shape cut from flat colored and patterned papers (card, tissue, kraft and hand-painted papers), crisp scissor-cut edges, the pieces layered on top of each other with small drop shadows between the layers. No outlines and no painted shading: it looks like a photograph of real paper pieces glued down",
+    alone: "on a plain sheet of colored card",
   },
   shadow: {
     label: "Shadow puppets",
     emoji: "🌙",
     blurb: "Silhouettes on glowing light",
     prompt:
-      "shadow-puppet silhouette illustration: black cut-out shapes with fine details against a glowing warm gradient sky, like a shadow theater",
+      "a shadow-puppet theater picture: the characters and scenery are solid black silhouettes with fine cut-out details (little holes for eyes, windows and leaves), seen against a glowing gradient of warm light, like a shadow play on a lit screen. No faces, colors or shading on the figures themselves",
+    alone: "against a plain glow of warm light",
   },
 };
 

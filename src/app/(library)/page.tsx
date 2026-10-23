@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { pageCtx } from "@/lib/server/auth";
-import { listProfiles } from "@/lib/server/db";
+import { listFamilyVoices, listProfiles } from "@/lib/server/db";
 import { storyCards } from "@/lib/server/voices";
 import { appStatus } from "@/lib/server/config";
 import { ProfilePicker } from "@/components/Readers";
@@ -9,6 +9,7 @@ import { QuillArt, ReadArt, ShelfArt } from "@/components/Art";
 import { StoryCardView } from "@/components/Books";
 import { SetupNotice } from "@/components/SetupNotice";
 import { Plaque } from "@/components/Plaque";
+import { FamilyVoiceCard } from "@/components/FamilyVoiceCard";
 
 export default async function HallPage() {
   const ctx = await pageCtx();
@@ -68,6 +69,8 @@ export default async function HallPage() {
           </div>
         </Link>
       </div>
+
+      <FamilyVoiceCard voices={listFamilyVoices(ctx.household.id)} />
 
       {inProgress.length > 0 && (
         <section className="section">

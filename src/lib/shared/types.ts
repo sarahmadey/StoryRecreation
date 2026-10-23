@@ -258,6 +258,8 @@ export interface DrawnBefore {
   title: string;
   /** Its file address (its stored path, on the server). */
   picture: string;
+  /** The style it was drawn in: a character brings their style to every page they're on. */
+  style: ArtStyle;
 }
 
 /** A picture book's pictures. Pictures are file URLs (paths, in the database); stand-ins are .svg. */

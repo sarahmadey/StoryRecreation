@@ -3,18 +3,43 @@ import { Mp3Encoder } from "@breezystack/lamejs";
 // Family recordings arrive in every shape: an iPhone voicemail (.m4a), a
 // voice memo, the sound from a video, a recording made right here. The
 // browser opens them, and we keep one tidy mono MP3 that plays everywhere
-// and is just what the voice service wants to learn from.
+// and is just what the voice service wants to learn from. A video is opened
+// here on the phone for its sound alone: the video itself never leaves it.
 
 const RATE = 44100;
 const MAX_MS = 20 * 60 * 1000;
+/** Bigger than this, a phone may run out of room opening it. */
+const MAX_BYTES = 400 * 1024 * 1024;
 
-/** `onProgress` hears how much of it is ready (opening it is quick; making the MP3 is most of the wait). */
-export async function prepareRecording(blob: Blob, name = "recording", onProgress?: (fraction: number) => void): Promise<{ file: File; durationMs: number }> {
+export const isVideo = (blob: Blob) => blob.type.startsWith("video/") || /\.(mov|mp4|m4v|webm|3gp)$/i.test((blob as File).name ?? "");
+
+/**
+ * `onProgress` hears how much of it is ready (opening it is quick; making the MP3 is most of the wait). `keep` is the
+ * part to keep, in the recording as it was first made ready (after its silent ends are trimmed).
+ */
+export async function prepareRecording(
+  blob: Blob,
+  name = "recording",
+  onProgress?: (fraction: number) => void,
+  keep?: { fromMs: number; toMs: number },
+): Promise<{ file: File; durationMs: number }> {
+  const video = isVideo(blob);
+  if (blob.size > MAX_BYTES) {
+    throw new Error(
+      video
+        ? "That video is too big to open on a phone. Trim it to the part where they're speaking first (in Photos, tap Edit and drag the ends in), then add it again."
+        : "That recording is too big to open here. Trim it to the part you'd like to keep, then add it again.",
+    );
+  }
   let decoded: AudioBuffer;
   try {
     decoded = await new OfflineAudioContext(1, 1, RATE).decodeAudioData(await blob.arrayBuffer());
   } catch {
-    throw new Error("That recording couldn't be opened here. Try saving it as an MP3, M4A or WAV file and adding it again.");
+    throw new Error(
+      video
+        ? "The sound in that video couldn't be opened here. Try trimming it to the part where they're speaking, or save its sound (as a voice memo, say) and add that."
+        : "That recording couldn't be opened here. Try saving it as an MP3, M4A or WAV file and adding it again.",
+    );
   }
 
   const mono = new Float32Array(decoded.length);
@@ -33,7 +58,12 @@ export async function prepareRecording(blob: Blob, name = "recording", onProgres
   while (start < end && Math.abs(mono[start]) < floor) start++;
   while (end > start && Math.abs(mono[end]) < floor) end--;
   const pad = Math.round(RATE * 0.3);
-  const clip = mono.subarray(Math.max(0, start - pad), Math.min(mono.length, end + pad));
+  let clip = mono.subarray(Math.max(0, start - pad), Math.min(mono.length, end + pad));
+  // Just part of it: the part where they're speaking, say, without anyone else.
+  if (keep) {
+    const at = (ms: number) => Math.min(clip.length, Math.max(0, Math.round((ms / 1000) * RATE)));
+    clip = clip.subarray(at(keep.fromMs), Math.max(at(keep.fromMs) + 1, at(keep.toMs)));
+  }
   const durationMs = Math.round((clip.length / RATE) * 1000);
   if (durationMs > MAX_MS) throw new Error("That recording is longer than 20 minutes. Trim it a little and try again.");
 

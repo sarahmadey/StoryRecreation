@@ -33,6 +33,7 @@ export default async function CreatePage(props: PageProps<"/create">) {
         currentProfile={ctx.profile}
         preselect={preselect ?? null}
         preselectSettings={chosenBook ? lastSettingsForBook(chosenBook.id, "create") : null}
+        preselectNarrator={typeof sp.narrator === "string" ? sp.narrator.slice(0, 64) : null}
         past={past}
         like={past.some((s) => s.id === like) ? like : null}
         status={appStatus()}

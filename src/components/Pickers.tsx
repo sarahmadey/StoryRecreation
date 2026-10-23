@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import Link from "next/link";
 import { pickPhotos, type PickedPhoto } from "@/lib/client/images";
 import { previewChime, previewVoice } from "@/lib/client/sound";
 import { CHIMES } from "@/lib/shared/options";
-import type { ChimeSettings, ChimeStyle, VoiceOption } from "@/lib/shared/types";
+import type { ChimeSettings, ChimeStyle, StoryLanguage, VoiceOption } from "@/lib/shared/types";
 import { useApi } from "./Grownup";
 import { SideArrows, useSideScroll } from "./Shelf";
+import { VoiceDesigner } from "./VoiceDesigner";
 
 // ------------------------------------------------------------------ photos
 
@@ -148,6 +151,13 @@ export function PhotoPicker({
 
 // ------------------------------------------------------------------ voices
 
+const VOICE_MADE = "storyhollow:voice-made";
+
+/** A voice just made in the voice workshop: every list of voices on the page takes it in. */
+export function announceVoice(voice: VoiceOption) {
+  window.dispatchEvent(new CustomEvent<VoiceOption>(VOICE_MADE, { detail: voice }));
+}
+
 export function useVoices() {
   const api = useApi();
   const [voices, setVoices] = useState<VoiceOption[] | null>(null);
@@ -156,6 +166,12 @@ export function useVoices() {
       .get<{ voices: VoiceOption[] }>("/api/voices")
       .then((r) => setVoices(r.voices))
       .catch(() => setVoices([]));
+    const add = (e: Event) => {
+      const v = (e as CustomEvent<VoiceOption>).detail;
+      setVoices((cur) => (cur && !cur.some((x) => x.voiceId === v.voiceId) ? [v, ...cur] : cur));
+    };
+    window.addEventListener(VOICE_MADE, add);
+    return () => window.removeEventListener(VOICE_MADE, add);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return voices;
@@ -187,15 +203,20 @@ export function VoicePicker({
   onChange,
   allowAuto = true,
   narratorsOnly = true,
+  language,
 }: {
   voices: VoiceOption[] | null;
   value: string | null;
   onChange: (id: string | null) => void;
   allowAuto?: boolean;
   narratorsOnly?: boolean;
+  /** The story's language: a voice made here is made speaking it. */
+  language?: StoryLanguage;
 }) {
   const api = useApi();
   const [filter, setFilter] = useState<VoiceFilter>("all");
+  // The voice workshop, opened right here: the voice that's kept becomes the storyteller.
+  const [designing, setDesigning] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (voices) setFavorites(new Set(voices.filter((v) => v.favorite).map((v) => v.voiceId)));
@@ -258,7 +279,11 @@ export function VoicePicker({
       </div>
       {count === 0 ? (
         <p className="voice-empty">
-          {filter === "favorites" ? "Tap the ☆ on a storyteller to keep them here." : "No storytellers here yet."}
+          {filter === "favorites"
+            ? "Tap the ☆ on a storyteller to keep them here."
+            : filter === "made"
+              ? "No voices made yet: make one below."
+              : "No storytellers here yet."}
         </p>
       ) : (
         <div className="voice-grid" ref={shelf} onScroll={measure} role="radiogroup" aria-label="Storyteller">
@@ -275,6 +300,15 @@ export function VoicePicker({
               <span className="voice-name">Casting director’s choice</span>
               <span className="voice-tag">The perfect voice for this story</span>
             </div>
+          )}
+          {/* No loved one's voice yet: a word that it's possible, and where it's set up. */}
+          {narratorsOnly && family.length === 0 && filter === "all" && (
+            <Link href="/grownups#family-voices" className="voice-card voice-invite">
+              <span className="voice-face">💛</span>
+              <span className="voice-name">Someone you love</span>
+              <span className="voice-tag">From a voicemail or a video, they can read to you too</span>
+              <span className="hear">Set it up →</span>
+            </Link>
           )}
           {shown.map((v) => {
             const name = v.persona?.name ?? v.name;
@@ -320,6 +354,28 @@ export function VoicePicker({
           })}
         </div>
       )}
+      <div className="voice-make">
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDesigning(true)}>
+          🪄 Make a new voice
+        </button>
+        <span className="small" style={{ color: "var(--ink-soft)" }}>
+          Describe one, hear three, and keep your favorite.
+        </span>
+      </div>
+      {designing &&
+        createPortal(
+          <VoiceDesigner
+            initialLanguage={language}
+            onClose={() => setDesigning(false)}
+            onSaved={(v) => {
+              announceVoice({ ...v, gender: null, age: null, accent: null, previewUrl: null, persona: null, source: "designed" });
+              setDesigning(false);
+              setFilter("all");
+              onChange(v.voiceId);
+            }}
+          />,
+          document.body,
+        )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { pageCtx } from "@/lib/server/auth";
 import { listDesignedVoices, listFamilyVoices, listKeepsakes, listProfiles } from "@/lib/server/db";
-import { appStatus } from "@/lib/server/config";
+import { appStatus, config } from "@/lib/server/config";
 import { familyBackup } from "@/lib/server/backup";
 import { backupStatus } from "@/lib/server/offsite";
 import { alertsStatus } from "@/lib/server/alerts";
@@ -28,6 +28,7 @@ export default async function GrownupsPage() {
         alerts={ctx.grownup ? alertsStatus() : null}
         spending={ctx.grownup ? spendingSummary(ctx.household.id) : null}
         status={appStatus()}
+        driveKey={config.googleDriveKey ?? null}
       />
     </main>
   );

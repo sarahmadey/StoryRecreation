@@ -53,6 +53,7 @@ export function GrownupsView({
   alerts,
   spending,
   status,
+  driveKey,
 }: {
   familyName: string;
   email: string;
@@ -69,6 +70,8 @@ export function GrownupsView({
   alerts: AlertsStatus | null;
   spending: SpendingSummary | null;
   status: AppStatus;
+  /** The Google key for fetching family videos from Drive links, when it's set up. */
+  driveKey: string | null;
 }) {
   const api = useApi();
   const router = useRouter();
@@ -363,7 +366,7 @@ export function GrownupsView({
         about="Recordings of the voices you love."
 
       >
-        <FamilyVoices keepsakes={keepsakes} familyVoices={familyVoices} canMakeVoices={status.voices || status.demoMode} />
+        <FamilyVoices keepsakes={keepsakes} familyVoices={familyVoices} canMakeVoices={status.voices || status.demoMode} driveKey={driveKey} />
       </Fold>
 
       <Fold

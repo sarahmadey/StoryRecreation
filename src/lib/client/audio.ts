@@ -9,7 +9,7 @@ import { Mp3Encoder } from "@breezystack/lamejs";
 const RATE = 44100;
 const MAX_MS = 20 * 60 * 1000;
 /** Bigger than this, a phone may run out of room opening it. */
-const MAX_BYTES = 400 * 1024 * 1024;
+export const MAX_BYTES = 400 * 1024 * 1024;
 
 export const isVideo = (blob: Blob) => blob.type.startsWith("video/") || /\.(mov|mp4|m4v|webm|3gp)$/i.test((blob as File).name ?? "");
 

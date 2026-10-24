@@ -55,6 +55,13 @@ export const config = {
     const v = Number(process.env.PICTURE_PRICE);
     return Number.isFinite(v) && v > 0 ? v : null;
   },
+  /**
+   * A Google key for the browser (restricted to this app's addresses and the Drive API), so a family video shared
+   * from Google Drive can come straight from Google to the phone. Never the Gemini key: this one is seen by browsers.
+   */
+  get googleDriveKey(): string | undefined {
+    return process.env.GOOGLE_DRIVE_API_KEY?.trim() || undefined;
+  },
   /** e.g. an ElevenLabs data-residency endpoint; defaults to the global API. */
   get elevenLabsBaseUrl(): string | undefined {
     return process.env.ELEVENLABS_BASE_URL || undefined;

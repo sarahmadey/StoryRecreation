@@ -115,6 +115,15 @@ a brand-new tale for the very same pictures.
 - **Videos give up their sound, and nothing else.** Pick a video from your photos: its sound is taken out right
   there on the phone, and only that is sent and kept. The video itself never leaves the phone. Long ones are
   welcome: up to 20 minutes each (and up to 400 MB), as many as you like.
+- **Or straight from a Google Drive link.** Paste the link to a video in Google Drive (shared with “Anyone with
+  the link”): it comes straight from Google to the phone, never through Storyhollow, and only its sound is kept.
+  It can be made private again afterwards. If the link isn't shared that way, or is a folder, it says what to do.
+  (This needs a Google key, set up once: see *Videos from Google Drive* below.)
+- **🎙️ Record now, with a script made for it.** For a storytelling voice, *Record now* shows a two-minute bedtime
+  story, *The Lantern in the Hollow*, written to hold every sound of English, with questions, a surprise, a chuckle
+  and a whisper, and tips for recording it well: a quiet room, the phone a hand's width away, your own reading
+  voice, and no need to start over after a stumble. The recording is kept as it sounds in the room (none of the
+  processing meant for calls), the screen stays on while you read, and the timer says when it's enough.
 - **✂️ Keep just part of it.** Before keeping a recording, slide *From* and *To* to cut away the start or the end
   (*Hear just that part* to check). There's no need to cut one for a storytelling voice: that's chosen when the
   voice is made.
@@ -426,6 +435,24 @@ The illustrator is Google's picture model, through the Gemini API:
 | `PICTURE_PRICE` | Optional; dollars per picture, for a picture model the app doesn't know the price of |
 
 The Grown-ups' corner shows whether the illustrator is connected, about what a picture costs, and what was spent.
+
+### Videos from Google Drive
+
+To add a family video by pasting its Google Drive link, the phone fetches it straight from Google with a key made
+for browsers:
+
+1. Open [console.cloud.google.com](https://console.cloud.google.com) with your Google account and pick a project
+   (the one AI Studio made for the Gemini key is fine), or create one.
+2. **APIs & Services → Library**, search for **Google Drive API**, and **Enable** it.
+3. **APIs & Services → Credentials → Create credentials → API key**, then edit the key:
+   - **Application restrictions → Websites**: add your addresses, e.g.
+     `https://storyrecreation-production.up.railway.app/*` and the test copy's address.
+   - **API restrictions → Restrict key → Google Drive API** only.
+4. In Railway, add `GOOGLE_DRIVE_API_KEY` with the key (to the test copy first).
+
+This is a different key from the Gemini one. Browsers see it, which is why it's limited to your addresses and can
+only read files already shared with “Anyone with the link”. Never use the Gemini key here. Without it, the
+*Or paste a Google Drive link* option simply doesn't appear.
 
 ### Automatic backups
 

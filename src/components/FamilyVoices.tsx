@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useApi } from "@/components/Grownup";
 import { Spinner, WaitLine } from "@/components/Waiting";
 import { clock, isVideo, prepareRecording } from "@/lib/client/audio";
+import { fetchFromDrive } from "@/lib/client/drive";
 import { keepAwake, sendTrouble, sentWords, upload } from "@/lib/client/upload";
 import { familyVoiceSeconds } from "@/lib/shared/options";
 import type { FamilyVoice, Keepsake } from "@/lib/shared/types";
@@ -17,10 +18,13 @@ export function FamilyVoices({
   keepsakes,
   familyVoices,
   canMakeVoices,
+  driveKey,
 }: {
   keepsakes: Keepsake[];
   familyVoices: FamilyVoice[];
   canMakeVoices: boolean;
+  /** The Google key for videos from Drive links, when it's set up. */
+  driveKey: string | null;
 }) {
   const api = useApi();
   const router = useRouter();
@@ -76,7 +80,7 @@ export function FamilyVoices({
         </div>
       )}
 
-      {adding === "" && <KeepsakeAdder people={people} onClose={() => setAdding(null)} onSaved={saved} />}
+      {adding === "" && <KeepsakeAdder people={people} driveKey={driveKey} onClose={() => setAdding(null)} onSaved={saved} />}
       {msg && <p className="notice small">{msg}</p>}
       {error && <p className="notice notice-error small">{error}</p>}
 
@@ -149,7 +153,7 @@ export function FamilyVoices({
                 ))}
               </ul>
               {adding === person ? (
-                <KeepsakeAdder people={people} person={person} onClose={() => setAdding(null)} onSaved={saved} />
+                <KeepsakeAdder people={people} person={person} driveKey={driveKey} onClose={() => setAdding(null)} onSaved={saved} />
               ) : (
                 <div>
                   <button className="btn btn-quiet btn-sm" onClick={() => setAdding(person)}>
@@ -234,37 +238,34 @@ function KeepsakeRow({ keepsake: k, onRemove }: { keepsake: Keepsake; onRemove: 
   );
 }
 
-const PASSAGE = `The Owl and the Pussy-cat went to sea
-In a beautiful pea-green boat,
-They took some honey, and plenty of money,
-Wrapped up in a five-pound note.
-The Owl looked up to the stars above,
-And sang to a small guitar,
-"O lovely Pussy! O Pussy, my love,
-What a beautiful Pussy you are,
-You are, you are!
-What a beautiful Pussy you are!"
-
-Pussy said to the Owl, "You elegant fowl!
-How charmingly sweet you sing!
-O let us be married! too long we have tarried:
-But what shall we do for a ring?"
-They sailed away, for a year and a day,
-To the land where the Bong-tree grows,
-And there in a wood a Piggy-wig stood
-With a ring at the end of his nose,
-His nose, his nose,
-With a ring at the end of his nose.`;
+/**
+ * Read aloud for a storytelling voice: about two minutes at a bedtime pace, with every sound of English in it, and
+ * questions, a surprise, a chuckle and a whisper, so the voice learns how this person really reads. Written for
+ * Storyhollow.
+ */
+const SCRIPT = {
+  title: "The Lantern in the Hollow",
+  paragraphs: [
+    "Once upon a time, at the edge of a sleepy village, there stood a very old oak tree with a little round door. Behind that door lived a family of storytellers. Every evening, just as the sky turned from gold to plum, they lit a lantern and began to read.",
+    "The youngest was a cheerful hedgehog named Juniper, who wore a woolly scarf and tiny brass spectacles. She measured the stars with a wooden ruler, kept a treasure box of shiny pebbles, and whistled whenever she was thinking. “Why does the moon follow us home?” she asked one night. “Does it want a story too?”",
+    "“Perhaps it does,” chuckled old Grandfather Badger, sinking into his big velvet chair. “Shall we find out?” He opened a heavy book, and a puff of dust floated up like a tiny cloud. “Oh, look!” gasped Juniper. “The pages are glowing!” And they were. Soft yellow light spilled across the floor, and somewhere far away, a fox began to hum.",
+    "Together they read about a boy who sailed the zigzag sea in a paper boat, about three silly geese who forgot how to fly, and about a brave little owl who was afraid of the dark, until she discovered that the dark was only the night, keeping everyone cozy.",
+    "When the very last page was turned, Juniper gave the biggest yawn in the world. “Thank you,” she whispered. “That was the best story ever.” Grandfather Badger smiled, blew out the lantern, and the moon, quite satisfied, drifted off to bed as well. Good night, little one. Sleep tight, and sweet dreams.",
+  ],
+};
 
 function KeepsakeAdder({
   people,
   person: forPerson = "",
+  driveKey,
   onClose,
   onSaved,
 }: {
   people: string[];
   /** Adding to someone's recordings: their name is already filled in. */
   person?: string;
+  /** The Google key for videos from Drive links, when it's set up. */
+  driveKey: string | null;
   onClose: () => void;
   onSaved: (person: string) => void;
 }) {
@@ -281,6 +282,10 @@ function KeepsakeAdder({
   const [recording, setRecording] = useState<{ started: number; recorder: MediaRecorder } | null>(null);
   const [now, setNow] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  // A video shared from Google Drive: the link being pasted, once the family asks for the box to paste it in.
+  const [link, setLink] = useState<string | null>(null);
+  // The screen stays on while recording, so reading the script doesn't let the phone lock and stop it.
+  const awake = useRef<(() => void) | null>(null);
   // What it was made ready from (kept on the phone, to cut just part of it), and the part to keep, if not all of it.
   const source = useRef<{ blob: Blob; name: string } | null>(null);
   const [part, setPart] = useState<{ from: number; to: number } | null>(null);
@@ -293,6 +298,7 @@ function KeepsakeAdder({
     return () => clearInterval(t);
   }, [recording]);
   useEffect(() => () => recording?.recorder.stream.getTracks().forEach((t) => t.stop()), [recording]);
+  useEffect(() => () => awake.current?.(), []);
 
   const prepare = async (blob: Blob, name: string) => {
     setError(null);
@@ -317,12 +323,24 @@ function KeepsakeAdder({
   const startRecording = async () => {
     setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true } });
-      const recorder = new MediaRecorder(stream);
+      // Untouched by the processing meant for calls (noise suppression smears a voice, gain control makes it pump):
+      // a storytelling voice should learn from them as they sound in the room.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+      });
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, { audioBitsPerSecond: 192_000 });
+      } catch {
+        recorder = new MediaRecorder(stream);
+      }
       const chunks: Blob[] = [];
       recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      awake.current = await keepAwake();
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
+        awake.current?.();
+        awake.current = null;
         setRecorded(true);
         void prepare(new Blob(chunks, { type: recorder.mimeType }), title || person || "recording");
       };
@@ -334,6 +352,34 @@ function KeepsakeAdder({
       setError("The microphone isn't available. Allow microphone access for this site, or upload a recording instead.");
     }
   };
+  const fromDrive = async () => {
+    if (!driveKey || !link?.trim()) return;
+    setError(null);
+    setMode("upload");
+    setBusy("Fetching it from Google Drive…");
+    const release = await keepAwake();
+    try {
+      const file = await fetchFromDrive(link, driveKey, (f) => setBusy(`Fetching it from Google Drive (${Math.round(f * 100)}%)…`));
+      setRecorded(false);
+      setLink(null);
+      await prepare(file, file.name.replace(/\.\w+$/, ""));
+    } catch (err) {
+      setBusy(null);
+      setError(err instanceof Error ? err.message : "That link couldn't be opened.");
+    } finally {
+      release();
+    }
+  };
+
+  // While recording: how long so far, and whether that's enough yet.
+  const elapsed = recording ? now - recording.started : 0;
+  const pace =
+    elapsed < 60_000
+      ? "Keep going: a minute or two is just right."
+      : elapsed < 180_000
+        ? "That's plenty. Stop at the end of a paragraph."
+        : "More than enough. Stop whenever you're ready.";
+
   const stopRecording = () => {
     recording?.recorder.stop();
     setRecording(null);
@@ -420,6 +466,11 @@ function KeepsakeAdder({
             🎙️ Record now
           </button>
         )}
+        {driveKey && link === null && mode !== "record" && (
+          <button type="button" className="link-button" onClick={() => setLink("")} disabled={!!busy}>
+            🔗 Or paste a Google Drive link
+          </button>
+        )}
         <input
           ref={fileRef}
           type="file"
@@ -435,6 +486,39 @@ function KeepsakeAdder({
         />
       </div>
 
+      {link !== null && (
+        <form
+          className="drive-link"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void fromDrive();
+          }}
+        >
+          <input
+            className="input"
+            type="url"
+            inputMode="url"
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            placeholder="https://drive.google.com/file/d/…"
+            aria-label="A Google Drive link"
+            autoFocus
+          />
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn btn-sm" type="submit" disabled={!!busy || !link.trim()}>
+              Get the sound
+            </button>
+            <button className="btn btn-quiet btn-sm" type="button" onClick={() => setLink(null)} disabled={!!busy}>
+              Never mind
+            </button>
+          </div>
+          <p className="hint" style={{ margin: 0 }}>
+            In Google Drive, open the video, tap <i>Share</i>, set <i>General access</i> to “Anyone with the link”, then <i>Copy link</i>.
+            It comes straight from Google to your phone, and only the sound is kept. You can make it private again afterwards.
+          </p>
+        </form>
+      )}
+
       {mode === "upload" ? (
         <div className="stack" style={{ ["--gap" as string]: "8px" }}>
           <p className="hint" style={{ margin: 0 }}>
@@ -447,23 +531,49 @@ function KeepsakeAdder({
           </p>
         </div>
       ) : (
-        <div className="stack" style={{ ["--gap" as string]: "8px" }}>
-          <details className="passage">
-            <summary>Making a storytelling voice? Read this aloud for a minute or two</summary>
-            <pre>{PASSAGE}</pre>
-            <p className="small faint">“The Owl and the Pussy-cat” by Edward Lear. Read it the way you would at bedtime, in a quiet room.</p>
+        <div className="stack" style={{ ["--gap" as string]: "10px" }}>
+          {/* For a storytelling voice: a script with every sound of a voice in it, and how to record it well. */}
+          <details className="script" open>
+            <summary>📜 Making a storytelling voice? Read this aloud</summary>
+            <ul className="script-tips small">
+              <li>
+                <b>A quiet room</b>, with soft things around (a bedroom is better than a kitchen), and no TV or music.
+              </li>
+              <li>
+                <b>The phone a hand&apos;s width away</b>, a little below your mouth, and kept there. The screen stays on while you record.
+              </li>
+              <li>
+                <b>Read it as you would at bedtime</b>: warm and unhurried, in your own voice. A little expression is good; save the
+                character voices for the stories.
+              </li>
+              <li>
+                <b>Stumbled?</b> Pause, and say that sentence again. There&apos;s no need to start over.
+              </li>
+              <li>
+                <b>A minute or two is just right.</b> Stop at the end of any paragraph once you&apos;re past a minute.
+              </li>
+            </ul>
+            <div className="script-text">
+              <p className="script-title">{SCRIPT.title}</p>
+              {SCRIPT.paragraphs.map((p) => (
+                <p key={p.slice(0, 24)}>{p}</p>
+              ))}
+            </div>
           </details>
-          <div className="row">
+          <div className="record-bar">
             {recording ? (
-              <button className="btn btn-sm btn-velvet" onClick={stopRecording}>
-                ■ Stop · {clock(now - recording.started)}
-              </button>
+              <>
+                <button className="btn btn-sm btn-velvet" onClick={stopRecording}>
+                  ■ Stop · {clock(elapsed)}
+                </button>
+                <span className="rec-dot" aria-label="Recording" />
+                <span className="small record-pace">{pace}</span>
+              </>
             ) : (
               <button className="btn btn-sm" onClick={startRecording} disabled={!!busy}>
                 ● {ready && recorded ? "Record again" : "Start recording"}
               </button>
             )}
-            {recording && <span className="rec-dot" aria-label="Recording" />}
           </div>
         </div>
       )}

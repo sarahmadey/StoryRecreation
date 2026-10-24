@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { pageCtx } from "@/lib/server/auth";
-import { listProfiles } from "@/lib/server/db";
+import { favoriteBookIds, listProfiles } from "@/lib/server/db";
 import { storyCards } from "@/lib/server/voices";
 import { appStatus } from "@/lib/server/config";
 import { ProfilePicker } from "@/components/Readers";
@@ -28,7 +28,17 @@ export default async function HomePage() {
     .filter((s) => s.lastPlayedAt)
     .sort((a, b) => (b.lastPlayedAt ?? 0) - (a.lastPlayedAt ?? 0))
     .slice(0, 4);
-  const favorites = ready.filter((s) => s.favorite).slice(0, 8);
+  // Starred stories, and the newest story of each starred book (stories come newest first).
+  const starredBooks = favoriteBookIds(ctx.household.id);
+  const fromStarredBook = new Set<string>();
+  const favorites = ready
+    .filter((s) => {
+      if (s.favorite) return true;
+      if (!starredBooks.has(s.bookId) || fromStarredBook.has(s.bookId)) return false;
+      fromStarredBook.add(s.bookId);
+      return true;
+    })
+    .slice(0, 8);
   const inProgress = stories.filter((s) => s.status !== "ready").slice(0, 4);
   // Newest skips stories already listed above, so Home doesn't repeat itself.
   const shown = new Set([...recent, ...favorites].map((s) => s.id));

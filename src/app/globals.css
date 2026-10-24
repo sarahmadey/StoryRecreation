@@ -1125,6 +1125,38 @@ a.choice {
   background: radial-gradient(circle at 35% 30%, #b84459, #6b1f2b 70%);
   box-shadow: 0 0 0 2px rgba(107, 31, 43, 0.6), 0 4px 10px rgba(0, 0, 0, 0.5);
 }
+/* A favorite, on the shelves: a gold star at the other corner from the seal. */
+.shelf-star {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  line-height: 1;
+  color: #5a3a10;
+  background: radial-gradient(circle at 35% 30%, #ffe08a, #d9a531 70%);
+  box-shadow: 0 0 0 2px rgba(120, 80, 20, 0.5), 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+/* On a book's own page its star is bigger, for small fingers, and sits on the corner so the cover's title shows. */
+.book-header .fav-star {
+  top: -14px;
+  right: -14px;
+  width: 44px;
+  height: 44px;
+  font-size: 1.45rem;
+  background: #f6e7c4;
+  color: #a8792b;
+  box-shadow: 0 0 0 2px rgba(168, 121, 43, 0.55), 0 6px 14px rgba(0, 0, 0, 0.5);
+}
+.book-header .fav-star[aria-pressed="true"] {
+  background: radial-gradient(circle at 35% 30%, #ffe08a, #d9a531 70%);
+  color: #5a3a10;
+}
 
 /* A leather-bound cover for books without a photo (and under those with one, in case it can't be fetched). */
 .leather {

@@ -174,7 +174,9 @@ a brand-new tale for the very same pictures.
   book, and a book you own holds every story made for it (open it to see them). Books stand face-out, three to a
   shelf on a phone, each kind under its own brass plaque (small kinds share a shelf on a computer), or all
   together newest first or A to Z with **Arrange**. **Search** finds a book by its title or any of its stories',
-  and **⭐ Favorites** shows the books holding a story you've starred. The bookcase is the whole family's, so
+  and **⭐ Favorites** shows the books you've starred (tap the ☆ on a book's cover, on its page; children can too)
+  and any book holding a story starred while it played. A favorite wears a little gold star on the shelves, and
+  Home's *Favorites* has its newest story ready to play. The bookcase is the whole family's, so
   there's no choosing whose: Home is where each child finds their own stories.
 - **Folders for books that belong together** (a series, the same two characters, a season's books): tap
   **📁 Make a folder**, name it, tick its books, and they stand on the shelf as one wooden box with the tops of

@@ -42,6 +42,15 @@ export function BookView({
   const [title, setTitle] = useState(book.title);
   const [shelf, setShelf] = useState(book.shelf);
   const [folder, setFolder] = useState(book.folder ?? "");
+  const [favorite, setFavorite] = useState(book.favorite);
+  const toggleFavorite = () => {
+    const next = !favorite;
+    setFavorite(next);
+    api.patch(`/api/books/${book.id}`, { favorite: next }).then(
+      () => router.refresh(),
+      () => setFavorite(!next),
+    );
+  };
 
   const physical = book.kind === "shadow_book" || book.kind === "picture_book";
   const canCreate = book.kind !== "classic" && book.kind !== "own_text";
@@ -108,6 +117,15 @@ export function BookView({
           <div className="book-cover">
             <Cover id={book.id} title={book.title} kind={book.kind} coverUrl={book.coverUrl} notes={book.notes} />
           </div>
+          <button
+            type="button"
+            className="fav-star"
+            aria-pressed={favorite}
+            aria-label={favorite ? `Take ${book.title} out of favorites` : `Make ${book.title} a favorite`}
+            onClick={toggleFavorite}
+          >
+            {favorite ? "★" : "☆"}
+          </button>
         </div>
         <div className="stack">
           <div>

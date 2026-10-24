@@ -182,3 +182,25 @@ test("folders: books kept together, renamed, matched by name in any case, and un
   assert.equal(db.listBooks(hh).length, 5);
   assert.ok(db.listBooks(hh).every((b) => b.folder === null && b.shelf === "Dreamed-Up Tales"));
 });
+
+test("a star on a book: kept, found among the family's favorites, and not taken as a change to the book", async () => {
+  const db = await import("@/lib/server/db");
+  const hh = db.createHousehold("The Starlings", "starlings@example.com", "x");
+  const candy = db.createBook(hh, { title: "The Candy Cloud Castle", kind: "idea" });
+  const other = db.createBook(hh, { title: "Babette", kind: "shadow_book" });
+  assert.equal(db.getBook(hh, candy)!.favorite, false);
+
+  const before = db.listBooks(hh).map((b) => b.id);
+  db.setBookFavorite(hh, candy, true);
+  assert.equal(db.getBook(hh, candy)!.favorite, true);
+  assert.deepEqual([...db.favoriteBookIds(hh)], [candy]);
+  assert.deepEqual(db.listBooks(hh).map((b) => b.id), before, "starring it doesn't move it on the shelves");
+
+  // Another family's book can't be starred from here.
+  const elsewhere = db.createHousehold("The Wrens", "wrens@example.com", "x");
+  db.setBookFavorite(elsewhere, other, true);
+  assert.equal(db.getBook(hh, other)!.favorite, false);
+
+  db.setBookFavorite(hh, candy, false);
+  assert.equal(db.favoriteBookIds(hh).size, 0);
+});

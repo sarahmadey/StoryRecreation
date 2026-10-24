@@ -1,5 +1,5 @@
 import { apiCtx, HttpError, readJson, requireGrownup, route } from "@/lib/server/auth";
-import { deleteBook, getBook, listPages, listStoryCards, updateBook } from "@/lib/server/db";
+import { deleteBook, getBook, listPages, listStoryCards, setBookFavorite, updateBook } from "@/lib/server/db";
 import { removeDir, resolveHouseholdPath } from "@/lib/server/files";
 import { storyCards } from "@/lib/server/voices";
 
@@ -13,10 +13,14 @@ export const GET = route(async (_req: Request, ctx: RouteContext<"/api/books/[id
 
 export const PATCH = route(async (req: Request, ctx: RouteContext<"/api/books/[id]">) => {
   const c = await apiCtx();
-  requireGrownup(c);
   const { id } = await ctx.params;
   if (!getBook(c.household.id, id)) throw new HttpError(404, "That book isn't on the shelf.");
-  const body = await readJson<{ title?: string; author?: string | null; shelf?: string; folder?: string | null; notes?: string | null }>(req);
+  const body = await readJson<{ favorite?: boolean; title?: string; author?: string | null; shelf?: string; folder?: string | null; notes?: string | null }>(req);
+  if (body.favorite !== undefined && Object.keys(body).length === 1) {
+    setBookFavorite(c.household.id, id, body.favorite === true); // children can star the books they love
+    return Response.json({ book: getBook(c.household.id, id) });
+  }
+  requireGrownup(c);
   updateBook(c.household.id, id, {
     ...(body.title?.trim() ? { title: body.title.trim().slice(0, 120) } : {}),
     ...(body.author !== undefined ? { author: body.author?.trim().slice(0, 120) || null } : {}),

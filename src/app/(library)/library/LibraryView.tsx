@@ -11,7 +11,7 @@ import { FolderMaker } from "./FolderMaker";
 // The Library is one bookcase: a book holds its stories (a dreamed-up tale is usually one; a book you own can
 // have many), and opening it shows them. A search finds a book by its own title or any of its stories'.
 
-/** Every book, the books with a favorite story in them, or (from Read to Me) the books read aloud. */
+/** Every book, the starred books (and books with a starred story in them), or (from Read to Me) the books read aloud. */
 type Filter = "all" | "favorites" | "read";
 /** Books on shelves by kind, or all together: the newest first, or A to Z. */
 type Order = "kind" | "newest" | "az";
@@ -112,7 +112,11 @@ export function LibraryView({
     for (const s of stories) latest.set(s.bookId, Math.max(latest.get(s.bookId) ?? 0, s.createdAt));
     const newest = (b: Book) => Math.max(b.createdAt, latest.get(b.id) ?? 0);
     const shownBooks = books
-      .filter((b) => (!folder || b.folder === folder) && (bookIds.has(b.id) || (only === "all" && (!q || b.title.toLowerCase().includes(q)))))
+      .filter(
+        (b) =>
+          (!folder || b.folder === folder) &&
+          (bookIds.has(b.id) || ((only === "all" || (only === "favorites" && b.favorite)) && (!q || b.title.toLowerCase().includes(q)))),
+      )
       .sort((a, b) => (order === "az" ? byTitle(a.title, b.title) : newest(b) - newest(a)));
     // On the shelves, a folder's books stand together in it, the folder as new as its newest book. A search finds
     // every book that matches, in a folder or not.
@@ -133,7 +137,7 @@ export function LibraryView({
     <EmptyBookcase label={books.length ? "Nothing matches" : "Your first shelf"}>
       {books.length ? (
         filter === "favorites" ? (
-          "No favorites yet: tap the ☆ on a story you love."
+          "No favorites yet: tap the ☆ on a book you love."
         ) : (
           "Try another search."
         )

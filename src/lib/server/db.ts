@@ -249,6 +249,7 @@ export function db(): DatabaseSync {
     if (!householdColumns.includes("pin_digits")) conn.exec("ALTER TABLE households ADD COLUMN pin_digits INTEGER");
     const bookColumns = (conn.prepare("PRAGMA table_info(books)").all() as Row[]).map((c) => c.name);
     if (!bookColumns.includes("folder")) conn.exec("ALTER TABLE books ADD COLUMN folder TEXT");
+    if (!bookColumns.includes("favorite")) conn.exec("ALTER TABLE books ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0");
     globalForDb.__storyhollowDb = conn;
     recoverInterruptedJobs(conn);
   }
@@ -442,6 +443,7 @@ function toBook(r: Row): Book {
     kind: r.kind as BookKind,
     shelf: r.shelf as string,
     folder: (r.folder as string | null) ?? null,
+    favorite: Boolean(r.favorite),
     coverUrl: coverFor(r.cover_path, r.kind, r.source_ref),
     sourceRef: (r.source_ref as string | null) ?? null,
     notes: (r.notes as string | null) ?? null,
@@ -539,6 +541,16 @@ export function updateBook(
   db()
     .prepare(`UPDATE books SET ${sets.join(", ")} WHERE household_id = ? AND id = ?`)
     .run(...vals, householdId, id);
+}
+
+/** The books the family has starred. */
+export function favoriteBookIds(householdId: string): Set<string> {
+  return new Set((db().prepare("SELECT id FROM books WHERE household_id = ? AND favorite = 1").all(householdId) as Row[]).map((r) => r.id as string));
+}
+
+/** Star a book, or take its star away (it isn't a change to the book itself). */
+export function setBookFavorite(householdId: string, id: string, favorite: boolean) {
+  db().prepare("UPDATE books SET favorite = ? WHERE household_id = ? AND id = ?").run(favorite ? 1 : 0, householdId, id);
 }
 
 export function touchBook(id: string) {

@@ -61,6 +61,11 @@ export function BookOnShelf({ book }: { book: Book }) {
           {book.storyCount}
         </span>
       )}
+      {book.favorite && (
+        <span className="shelf-star" aria-label="A favorite">
+          ★
+        </span>
+      )}
       <div className="book-cover">
         <Cover id={book.id} title={book.title} kind={book.kind} coverUrl={book.coverUrl} notes={book.notes} />
       </div>

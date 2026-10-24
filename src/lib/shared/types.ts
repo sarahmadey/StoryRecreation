@@ -33,6 +33,8 @@ export interface Book {
   shelf: string;
   /** The folder it's kept in on its shelf, if any. */
   folder: string | null;
+  /** Starred by the family, to find it among their favorites. */
+  favorite: boolean;
   coverUrl: string | null;
   sourceRef: string | null;
   notes: string | null;

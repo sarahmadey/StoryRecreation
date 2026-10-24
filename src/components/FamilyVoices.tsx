@@ -274,6 +274,8 @@ function KeepsakeAdder({
   const [title, setTitle] = useState("");
   const [recordedOn, setRecordedOn] = useState("");
   const [ready, setReady] = useState<{ file: File; durationMs: number; url: string } | null>(null);
+  // Whether what's ready was recorded here (to record again) or chosen from the phone.
+  const [recorded, setRecorded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState<{ started: number; recorder: MediaRecorder } | null>(null);
@@ -321,6 +323,7 @@ function KeepsakeAdder({
       recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
+        setRecorded(true);
         void prepare(new Blob(chunks, { type: recorder.mimeType }), title || person || "recording");
       };
       recorder.start(1000);
@@ -400,33 +403,40 @@ function KeepsakeAdder({
         </label>
       </div>
 
-      <div className="chips" role="tablist" aria-label="How to add it">
-        <button type="button" role="tab" className="chip" aria-selected={mode === "upload"} aria-pressed={mode === "upload"} onClick={() => setMode("upload")} disabled={!!recording}>
-          📁 A recording or video
+      {/* Two ways to add one, each doing its thing at the first tap: choose a file, or open the recorder. */}
+      <div className="row" style={{ gap: 8 }}>
+        <button
+          className="btn btn-sm"
+          onClick={() => {
+            setMode("upload");
+            fileRef.current?.click();
+          }}
+          disabled={!!busy || !!recording}
+        >
+          📁 Choose a recording or video
         </button>
-        <button type="button" role="tab" className="chip" aria-selected={mode === "record"} aria-pressed={mode === "record"} onClick={() => setMode("record")} disabled={!!recording}>
-          🎙️ Record now
-        </button>
+        {mode !== "record" && (
+          <button className="btn btn-ghost btn-sm" onClick={() => setMode("record")} disabled={!!busy}>
+            🎙️ Record now
+          </button>
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="audio/*,video/*,.m4a,.mp3,.wav,.aac,.caf,.mp4,.mov"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (!f) return;
+            setRecorded(false);
+            void prepare(f, f.name.replace(/\.\w+$/, ""));
+          }}
+        />
       </div>
 
       {mode === "upload" ? (
         <div className="stack" style={{ ["--gap" as string]: "8px" }}>
-          <div>
-            <button className="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={!!busy}>
-              Choose a recording or video
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="audio/*,video/*,.m4a,.mp3,.wav,.aac,.caf,.mp4,.mov"
-              hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (f) void prepare(f, f.name.replace(/\.\w+$/, ""));
-              }}
-            />
-          </div>
           <p className="hint" style={{ margin: 0 }}>
             <b>🎬 A video:</b> pick it from your photos. Only the sound is kept, taken out right here on your phone: the video
             itself is never sent or stored. Long ones are welcome, up to 20 minutes.
@@ -450,7 +460,7 @@ function KeepsakeAdder({
               </button>
             ) : (
               <button className="btn btn-sm" onClick={startRecording} disabled={!!busy}>
-                ● {ready ? "Record again" : "Start recording"}
+                ● {ready && recorded ? "Record again" : "Start recording"}
               </button>
             )}
             {recording && <span className="rec-dot" aria-label="Recording" />}
